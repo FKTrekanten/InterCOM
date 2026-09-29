@@ -22,7 +22,7 @@ class ReleaseTests(unittest.TestCase):
             path.write_text('<extension><version>0.1.0</version></extension>')
         (self.root/'VERSION').write_text('0.1.0\n')
         (self.root/'CHANGELOG.md').write_text('# Changelog\n\n## Unreleased\n')
-        (self.root/release.GENERATED[-1]).write_text('{"version":"0.1.0"}')
+        (self.root/release.GENERATED[5]).write_text('{"version":"0.1.0"}')
         (self.root/'notes.md').write_text('Tested release notes.')
         (self.root/'dist').mkdir()
         self.calls = []

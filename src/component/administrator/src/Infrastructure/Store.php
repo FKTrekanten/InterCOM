@@ -33,22 +33,42 @@ final class Store
         return $this->db->setQuery($sql)->loadAssocList();
     }
 
+    public function begin(): void
+    {
+        if ($this->transactionDepth !== 0) {
+            throw new \LogicException('Transaction already open');
+        }
+        $this->db->transactionStart();
+        $this->transactionDepth = 1;
+    }
+
+    public function commit(): void
+    {
+        $this->db->transactionCommit();
+        $this->transactionDepth = 0;
+    }
+
+    public function rollback(): void
+    {
+        if ($this->transactionDepth !== 0) {
+            $this->db->transactionRollback();
+            $this->transactionDepth = 0;
+        }
+    }
+
     public function transaction(callable $operation): mixed
     {
         if ($this->transactionDepth > 0) {
             return $operation();
         }
-        $this->db->transactionStart();
-        $this->transactionDepth++;
+        $this->begin();
         try {
             $result = $operation();
-            $this->db->transactionCommit();
+            $this->commit();
             return $result;
         } catch (\Throwable $e) {
-            $this->db->transactionRollback();
+            $this->rollback();
             throw $e;
-        } finally {
-            $this->transactionDepth--;
         }
     }
 

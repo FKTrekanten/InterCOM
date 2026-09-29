@@ -41,11 +41,44 @@ _, admin_login = request('/administrator/index.php?option=com_intercom')
 status, admin = request('/administrator/index.php', {
     'option':'com_login','task':'login','username':'intercom','passwd':os.environ['INTERCOM_ADMIN_PASSWORD'],
     token(admin_login):'1','return':base64.b64encode(b'index.php?option=com_intercom').decode()})
-assert status == 200 and 'id="client_id"' in admin, 'Administrator component available'
-status, admin = request('/administrator/index.php?option=com_intercom&task=connection.save', {
-    token(admin):'1','mode':'fake','retention_days':'45','audience_rules':'[]',
-    'filter_ids':'9001,9002,9003,9004','client_id':os.environ['INTERCOM_TEST_CLIENT_ID'],
+assert status == 200 and 'audit-limit' in admin, 'Administrator audit dashboard available'
+options = '/administrator/index.php?option=com_config&view=component&component=com_intercom'
+_, admin = request(options)
+assert 'id="client_id"' in admin and 'id="access_token"' in admin, 'Secret controls render in native Options'
+class HiddenInputs(HTMLParser):
+    def __init__(self): super().__init__(); self.values = {}
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'input' and attrs.get('type') == 'hidden':
+            self.values[attrs.get('name','')] = attrs.get('value','')
+inputs = HiddenInputs(); inputs.feed(admin)
+status, admin = request('/administrator/index.php?option=com_config', {
+    **inputs.values, 'task':'component.apply', 'jform[mode]':'fake',
+    'jform[retention_days]':'45','jform[audience_rules]':'[]',
+    'jform[filter_ids]':'9001,9002,9003,9004', 'jform[category_club]':'71'})
+assert status == 200 and 'Configuration saved' in admin, 'Native Options saves successfully'
+inputs = HiddenInputs(); inputs.feed(admin)
+status, admin = request('/administrator/index.php?option=com_config', {
+    **inputs.values, 'task':'component.apply', 'jform[mode]':'live',
+    'jform[retention_days]':'99','jform[audience_rules]':'[]','jform[filter_ids]':''})
+assert status == 200 and 'Check the list ID' in admin, ('Invalid native Options rejected', status, re.findall(r'<joomla-alert[^>]*>(.*?)</joomla-alert>', admin, re.S))
+assert request('/administrator/index.php?option=com_intercom&task=connection.importtokens', {'expires_in':'3600'})[0] == 403, 'Token import requires CSRF'
+
+status, admin = request('/administrator/index.php?option=com_intercom&task=connection.savecredentials', {
+    token(admin):'1','client_id':os.environ['INTERCOM_TEST_CLIENT_ID'],
     'client_secret':os.environ['INTERCOM_TEST_CLIENT_SECRET']})
 assert status == 200 and 'Saved' in admin, 'Credentials saved despite simulated reservations'
-assert os.environ['INTERCOM_TEST_CLIENT_ID'] not in admin and os.environ['INTERCOM_TEST_CLIENT_SECRET'] not in admin, 'Credentials never echoed into page'
-print('PASS: Administrator credentials save after simulated reservations without exposing secrets')
+access = os.environ['INTERCOM_TEST_ACCESS_TOKEN']
+status, admin = request('/administrator/index.php?option=com_intercom&task=connection.importtokens', {
+    token(admin):'1','access_token':access,'refresh_token':'','expires_in':'3600'})
+assert status == 200 and 'Tokens stored securely' in admin, 'Manual token import succeeds'
+for value in (access, os.environ['INTERCOM_TEST_CLIENT_ID'], os.environ['INTERCOM_TEST_CLIENT_SECRET']):
+    assert value not in admin, 'Secrets never echoed into page'
+status, admin = request('/administrator/index.php?option=com_intercom&task=connection.importtokens', {
+    token(admin):'1','access_token':access,'expires_in':'0'})
+assert status == 200 and 'Enter an access token and a valid remaining lifetime' in admin, 'Invalid import rejected safely'
+_, page1 = request('/administrator/index.php?option=com_intercom&limit=10&limitstart=0')
+_, page2 = request('/administrator/index.php?option=com_intercom&limit=10&limitstart=10')
+rows = lambda html: re.findall(r'data-audit-id="(\d+)"', html)
+assert len(rows(page1)) == 10 and rows(page2) and not set(rows(page1)) & set(rows(page2)), 'Audit pages are bounded and distinct'
+print('PASS: Native Options, encrypted credentials/token import, invalid import and audit pagination')

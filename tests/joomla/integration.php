@@ -39,7 +39,20 @@ check((bool)$store->row("SELECT id FROM #__intercom_audit WHERE event='release.a
 check($sent['delivery_mode']==='fake','Simulation mode recorded on draft');
 $r->connection->save(['client_id'=>'real-configuration'],42);
 check($r->connection->credentials()['client_id']==='real-configuration','Simulation leases do not block credentials');
+$access=bin2hex(random_bytes(32)); $refresh=bin2hex(random_bytes(32));
+$r->connection->importTokens($access,$refresh,3600,42);
+check($r->connection->credentials()['refresh_token']===$refresh,'Manual refresh token encrypted roundtrip');
+$r->connection->importTokens($access,'',3600,42);
+check($r->connection->token()===$access && $r->connection->credentials()['refresh_token']==='','Access-only import clears previous refresh token');
+try {$r->connection->importTokens($access,'',0,42);throw new Exception('Expected invalid lifetime');} catch(RuntimeException $e){check($e->getMessage()==='COM_INTERCOM_INVALID_TOKENS','Invalid token lifetime rejected');}
+check($r->connection->token()===$access,'Invalid import preserves existing token');
+$expired=$r->connection->credentials(); $expired['expires_at']=time()-1;
+$cipher=new \FKT\Component\Intercom\Administrator\Domain\CredentialCipher($app->get('secret'));
+$store->execute("UPDATE #__intercom_connections SET envelope=".$store->q($cipher->encrypt($expired))." WHERE provider='cleverreach'");
+try {$r->connection->token();throw new Exception('Expected expired token');} catch(RuntimeException $e){check($e->getMessage()==='COM_INTERCOM_TOKEN_EXPIRED','Expired access-only token fails without network calls');}
 $store->execute("UPDATE #__intercom_drafts SET delivery_mode='live' WHERE id=$id");
+try {$r->connection->importTokens($access,'',3600,42);throw new Exception('Expected live reservation denial');} catch(RuntimeException $e){check($e->getMessage()==='COM_INTERCOM_LIVE_RESERVATIONS','Token import protects live reservations');}
+
 try {$r->connection->save(['client_id'=>'other-account'],42);throw new Exception('Expected denial');} catch(RuntimeException $e){check($e->getMessage()==='COM_INTERCOM_LIVE_RESERVATIONS','Account changes blocked while filters are reserved');}
 try {$workflow->preview($id,2,'one@example.invalid');throw new Exception('Expected mode rejection');} catch(RuntimeException $e){check($e->getMessage()==='COM_INTERCOM_MODE_CHANGED','Drafts cannot be reused across delivery modes');}
 // Retained upgrade fixture.

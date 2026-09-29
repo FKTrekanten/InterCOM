@@ -3,5 +3,18 @@ if (getenv('INTERCOM_CI') !== '1') { throw new RuntimeException('Requires dispos
 require __DIR__ . '/bootstrap.php';
 $r=$app->bootComponent('com_intercom')->runtime;
 check(($r->connection->credentials()['client_secret']??'')===getenv('INTERCOM_TEST_CLIENT_SECRET'),'HTTP credential save preserves special characters');
-check((int)($r->config['retention_days']??0)===45,'HTTP settings persisted with credentials');
+check((int)($r->config['retention_days']??0)===45,'Successful native settings preserved after rejected save');
 check((bool)$r->store->row("SELECT id FROM #__intercom_audit WHERE event='configuration.saved'"),'HTTP configuration change audited');
+
+check($r->connection->token()===getenv('INTERCOM_TEST_ACCESS_TOKEN'),'Access-only token usable without OAuth refresh');
+check(empty($r->connection->credentials()['refresh_token']),'No old refresh token retained');
+check(($r->config['mode']??'')==='fake','Token import preserves simulation mode');
+check((int)($r->config['categories']['club']??0)===71,'Native category fields map to provider configuration');
+$stored=$r->store->row("SELECT envelope FROM #__intercom_connections WHERE provider='cleverreach'")['envelope'];
+$params=$r->store->row("SELECT params FROM #__extensions WHERE element='com_intercom'")['params'];
+$audit=json_encode($r->store->rows('SELECT context FROM #__intercom_audit'));
+foreach ([getenv('INTERCOM_TEST_ACCESS_TOKEN'),getenv('INTERCOM_TEST_CLIENT_SECRET')] as $secret) {
+    check(!str_contains($stored,$secret) && !str_contains($params,$secret) && !str_contains($audit,$secret),'Secrets encrypted and absent from settings/audit');
+}
+check((bool)$r->store->row("SELECT id FROM #__intercom_audit WHERE event='connection.tokens_imported'"),'Token import audited');
+check((bool)$r->store->row("SELECT id FROM #__intercom_audit WHERE event='configuration.failed'"),'Rejected configuration save audited');

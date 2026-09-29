@@ -15,3 +15,4 @@ $db->setQuery("UPDATE #__extensions SET enabled=1 WHERE type='plugin' AND folder
 $db->setQuery("UPDATE #__extensions SET enabled=0 WHERE type='plugin' AND element IN ('compat','compat6')")->execute();
 check(is_object($app->bootComponent('com_intercom')->runtime),'Native component boots with compatibility plugins disabled');
 echo "INSTALL OK\n";
+check((int)$db->setQuery("SELECT enabled FROM #__extensions WHERE element='intercom' AND folder='extension'")->loadResult()===1,'Options validation plugin enabled');

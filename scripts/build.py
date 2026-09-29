@@ -24,7 +24,7 @@ def component(folder):
     return archive(files)
 manifest=ET.parse(ROOT/'src/pkg_intercom.xml'); manifest.getroot().find('version').text=version
 files={'pkg_intercom.xml':ET.tostring(manifest.getroot(),encoding='utf-8',xml_declaration=True),
-       'packages/com_intercom.zip':component('component'),'packages/plg_task_intercom.zip':component('task')}
+       'packages/com_intercom.zip':component('component'),'packages/plg_task_intercom.zip':component('task'),'packages/plg_extension_intercom.zip':component('extension')}
 out=ROOT/'dist'; out.mkdir(exist_ok=True)
 package=out/f'pkg_intercom-{version}.zip'; package.write_bytes(archive(files))
 (out/f'{package.name}.sha256').write_text(hashlib.sha256(package.read_bytes()).hexdigest()+'  '+package.name+'\n')

@@ -1,0 +1,51 @@
+<?php
+
+namespace FKT\Plugin\Extension\Intercom\Extension;
+
+use Joomla\CMS\Plugin\CMSPlugin;
+use Joomla\CMS\Event\Model\BeforeSaveEvent;
+use Joomla\CMS\Event\Model\AfterSaveEvent;
+use Joomla\CMS\Language\Text;
+use Joomla\Event\SubscriberInterface;
+use FKT\Component\Intercom\Administrator\Service\Settings;
+
+final class Intercom extends CMSPlugin implements SubscriberInterface
+{
+    private $pending = null;
+    public static function getSubscribedEvents(): array
+    {
+        return ['onExtensionBeforeSave' => 'beforeSave', 'onExtensionAfterSave' => 'afterSave'];
+    }
+    public function beforeSave(BeforeSaveEvent $event): void
+    {
+        $table = $event->getItem();
+        if ($event->getContext() !== 'com_config.component' || ($table->element ?? '') !== 'com_intercom') {
+            return;
+        }
+        $app = $this->getApplication();
+        if (!$app->getIdentity()->authorise('core.admin', 'com_intercom')) {
+            throw new \RuntimeException(Text::_('COM_INTERCOM_DENIED'));
+        }
+        $r = $app->bootComponent('com_intercom')->runtime;
+        $r->store->begin();
+        try {
+            $config = (new Settings($r))->save(json_decode($table->params, true, 32, JSON_THROW_ON_ERROR), (int) $app->getIdentity()->id);
+            $table->params = json_encode($config, JSON_THROW_ON_ERROR);
+            $this->pending = $r;
+            register_shutdown_function(static fn () => $r->store->rollback());
+        } catch (\Throwable $e) {
+            $r->store->rollback();
+            $r->store->audit((int) $app->getIdentity()->id, 'configuration.failed');
+            $message = Text::_(str_starts_with($e->getMessage(), 'COM_INTERCOM_') ? $e->getMessage() : 'COM_INTERCOM_INVALID_SETTINGS');
+            $app->enqueueMessage($message, 'error');
+            throw new \RuntimeException($message);
+        }
+    }
+    public function afterSave(AfterSaveEvent $event): void
+    {
+        if ($this->pending && $event->getContext() === 'com_config.component' && ($event->getItem()->element ?? '') === 'com_intercom') {
+            $this->pending->store->commit();
+            $this->pending = null;
+        }
+    }
+}

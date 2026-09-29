@@ -74,20 +74,44 @@ final class Connection
         });
     }
 
+    public function importTokens(#[\SensitiveParameter] string $access, #[\SensitiveParameter] string $refresh, int $lifetime, int $actor): void
+    {
+        if (
+            $access === '' || strlen($access) > 16384 || strlen($refresh) > 16384
+            || preg_match('/[\x00-\x20\x7f]/', $access . $refresh) || $lifetime < 1 || $lifetime > 315360000
+        ) {
+            throw new \RuntimeException('COM_INTERCOM_INVALID_TOKENS');
+        }
+        $this->store->transaction(function () use ($access, $refresh, $lifetime, $actor): void {
+            $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
+            if ($this->store->row("SELECT f.filter_id FROM #__intercom_filters f LEFT JOIN #__intercom_drafts d ON d.id=f.draft_id WHERE f.draft_id IS NOT NULL AND (d.delivery_mode IS NULL OR d.delivery_mode != 'fake') LIMIT 1 FOR UPDATE")) {
+                throw new \RuntimeException('COM_INTERCOM_LIVE_RESERVATIONS');
+            }
+            $values = $this->credentials();
+            $values['access_token'] = $access;
+            // Never pair a new access token with a previous account's refresh token.
+            $values['refresh_token'] = $refresh;
+            $values['expires_at'] = time() + $lifetime;
+            $this->persist($values);
+            $this->store->audit($actor, 'connection.tokens_imported', 0, ['expires_at' => $values['expires_at'], 'refresh_available' => $refresh !== '']);
+        });
+    }
+
     public function token(): string
     {
         return $this->store->transaction(function (): string {
             // Serialise refreshes and re-read credentials after acquiring the lock.
             $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
             $values = $this->credentials();
-            if (empty($values['refresh_token'])) {
-                throw new \RuntimeException('COM_INTERCOM_NOT_CONNECTED');
+            if (!empty($values['access_token']) && ($values['expires_at'] ?? 0) > time()) {
+                return $values['access_token'];
             }
-            if (($values['expires_at'] ?? 0) < time() + 60) {
-                $values = $this->exchange(['grant_type' => 'refresh_token', 'refresh_token' => $values['refresh_token']], $values);
-                $this->persist($values);
-                $this->store->audit(0, 'connection.refreshed');
+            if (empty($values['refresh_token']) || empty($values['client_id']) || empty($values['client_secret'])) {
+                throw new \RuntimeException('COM_INTERCOM_TOKEN_EXPIRED');
             }
+            $values = $this->exchange(['grant_type' => 'refresh_token', 'refresh_token' => $values['refresh_token']], $values);
+            $this->persist($values);
+            $this->store->audit(0, 'connection.refreshed');
             return $values['access_token'];
         });
     }

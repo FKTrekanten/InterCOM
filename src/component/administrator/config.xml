@@ -1,1 +1,20 @@
-<?xml version="1.0"?><config><fieldset name="permissions" label="JCONFIG_PERMISSIONS_LABEL"><field name="rules" type="rules" label="JCONFIG_PERMISSIONS_LABEL" filter="rules" component="com_intercom" section="component"/></fieldset></config>
+<?xml version="1.0" encoding="utf-8"?>
+<config addfieldprefix="FKT\Component\Intercom\Administrator\Field">
+<fieldset name="settings" label="COM_INTERCOM_SETTINGS">
+<field name="mode" type="list" label="COM_INTERCOM_MODE" default="fake"><option value="fake">COM_INTERCOM_FAKE</option><option value="live">COM_INTERCOM_LIVE</option></field>
+<field name="sender_email" type="email" label="COM_INTERCOM_SENDER_EMAIL" filter="string" />
+<field name="group_id" type="number" label="COM_INTERCOM_GROUP_ID" min="0" filter="integer" />
+<field name="unsubscribe_form_id" type="number" label="COM_INTERCOM_UNSUBSCRIBE_FORM_ID" min="0" filter="integer" />
+<field name="filter_ids" type="IntercomValue" label="COM_INTERCOM_FILTER_IDS" filter="string" />
+<field name="retention_days" type="number" label="COM_INTERCOM_RETENTION_DAYS" min="1" max="3650" default="30" filter="integer" />
+<field name="audience_rules" type="textarea" label="COM_INTERCOM_AUDIENCE_RULES" description="COM_INTERCOM_RULES_HELP" rows="6" default="[]" filter="raw" />
+<field name="category_club" type="IntercomValue" label="COM_INTERCOM_CATEGORY_CLUB" filter="integer" />
+<field name="category_class" type="IntercomValue" label="COM_INTERCOM_CATEGORY_CLASS" filter="integer" />
+<field name="category_license" type="IntercomValue" label="COM_INTERCOM_CATEGORY_LICENSE" filter="integer" />
+<field name="category_newsletter" type="IntercomValue" label="COM_INTERCOM_CATEGORY_NEWSLETTER" filter="integer" />
+<field name="category_offer" type="IntercomValue" label="COM_INTERCOM_CATEGORY_OFFER" filter="integer" />
+<field name="release_verified" type="radio" layout="joomla.form.field.radio.switcher" label="COM_INTERCOM_RELEASE_VERIFIED" default="0" filter="integer"><option value="0">JNO</option><option value="1">JYES</option></field>
+</fieldset>
+<fieldset name="connection" label="COM_INTERCOM_CONNECTION"><field name="connection_panel" type="IntercomConnection" hiddenLabel="true" label="COM_INTERCOM_CONNECTION" filter="unset" /></fieldset>
+<fieldset name="permissions" label="JCONFIG_PERMISSIONS_LABEL"><field name="rules" type="rules" label="JCONFIG_PERMISSIONS_LABEL" filter="rules" component="com_intercom" section="component"/></fieldset>
+</config>

@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 REPO = 'FKTrekanten/InterCOM'
 GENERATED = ['VERSION', 'CHANGELOG.md', 'src/component/intercom.xml',
              'src/task/intercom.xml', 'src/pkg_intercom.xml',
-             'src/component/media/joomla.asset.json']
+             'src/component/media/joomla.asset.json', 'src/extension/intercom.xml']
 STATE = ROOT / 'dist/release-state.json'
 
 def run(*args, capture=False):
@@ -45,7 +45,7 @@ def make_feed(version, checksum):
 def prepare(version, notes):
     run('bash', 'scripts/ci.sh')
     (ROOT / 'VERSION').write_text(version + '\n')
-    for name in GENERATED[2:5]:
+    for name in GENERATED[2:5] + [GENERATED[6]]:
         path = ROOT / name
         tree = ET.parse(path)
         tree.getroot().find('version').text = version
