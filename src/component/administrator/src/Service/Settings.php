@@ -66,6 +66,9 @@ final class Settings
             foreach ($filters as $id) {
                 $r->store->execute("INSERT IGNORE INTO #__intercom_filters (filter_id) VALUES ($id)");
             }
+            // Keep historical reservations for audit, but retire unused IDs removed from Options.
+            $condition = $filters ? ' AND filter_id NOT IN (' . implode(',', $filters) . ')' : '';
+            $r->store->execute('DELETE FROM #__intercom_filters WHERE draft_id IS NULL' . $condition);
             $r->store->audit(
                 $actor,
                 'configuration.saved',

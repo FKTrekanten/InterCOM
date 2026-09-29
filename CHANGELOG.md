@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 0.1.4 development: restrict draft reservations to filter IDs approved in Options and retire unused, unlisted pool IDs when settings are saved. Preserve historical reservations for audit.
+
 - 0.1.3 development: direct signed-out frontend visitors to native Joomla login and preserve their return URL, while retaining permission checks for signed-in users.
 
 - 0.1.2 development: move configuration and connection controls to native Joomla Options, with transactional validation through the bundled extension plugin.

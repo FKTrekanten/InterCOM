@@ -64,8 +64,20 @@ final class Workflow
             ) {
                 throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
             }
+            // The pool can retain historical reservations; only current Options IDs may be acquired.
+            $params = json_decode($settings['params'] ?? '{}', true) ?: [];
+            $allowed = array_values(array_unique(array_filter(
+                array_map('intval', explode(',', (string) ($params['filter_ids'] ?? ''))),
+                static fn ($value) => $value > 0
+            )));
+            if (!$allowed) {
+                throw new \RuntimeException('COM_INTERCOM_POOL_BUSY', 409);
+            }
+            if (!empty($draft['filter_id']) && !in_array((int) $draft['filter_id'], $allowed, true)) {
+                throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
+            }
             if (empty($draft['filter_id'])) {
-                $filter = $this->store->row('SELECT filter_id FROM #__intercom_filters WHERE draft_id IS NULL ORDER BY filter_id LIMIT 1 FOR UPDATE');
+                $filter = $this->store->row('SELECT filter_id FROM #__intercom_filters WHERE draft_id IS NULL AND filter_id IN (' . implode(',', $allowed) . ') ORDER BY filter_id LIMIT 1 FOR UPDATE');
                 if (!$filter) {
                     throw new \RuntimeException('COM_INTERCOM_POOL_BUSY', 409);
                 }

@@ -11,7 +11,7 @@ final class IntercomValueField extends TextField
     protected function getInput()
     {
         $r = Factory::getApplication()->bootComponent('com_intercom')->runtime;
-        if ($this->value === null || $this->value === '') {
+        if (($this->value === null || $this->value === '') && ($this->fieldname !== 'filter_ids' || !array_key_exists('filter_ids', $r->config))) {
             $this->value = $this->fieldname === 'filter_ids'
                 ? implode(',', array_column($r->store->rows('SELECT filter_id FROM #__intercom_filters ORDER BY filter_id'), 'filter_id'))
                 : ($r->config['categories'][substr($this->fieldname, 9)] ?? 0);

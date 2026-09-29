@@ -10,7 +10,7 @@ Requires PHP 8.3+, Composer, Python 3, Node.js (syntax checks), and Docker Compo
 composer install
 python3 scripts/build.py
 bash scripts/stack.sh up
-docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.1.3.zip
+docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.1.4.zip
 ```
 
 Local site: http://localhost:8088. Administrator: `/administrator`. Synthetic local login: `intercom` / `Intercom-local-2026!`. These credentials are only for the localhost-only development stack. Do not deploy this Compose file to production.
@@ -69,3 +69,5 @@ Integration fixtures can only run with INTERCOM_CI=1 in disposable CI. They must
 In Intercom → Options → CleverReach connection, paste a freshly issued access token, an optional refresh token, and its **remaining** lifetime in seconds, then select **Import tokens**. Do not paste tokens into chat, source files, or Git. Import writes the encrypted database envelope and an audit event without contacting CleverReach or changing the delivery mode. An access-only token works until expiry; automatic renewal requires a refresh token and the matching saved OAuth client ID/secret. Save client credentials **before** importing tokens: replacing client credentials clears existing tokens. A blank refresh token clears any previous refresh token. Use tokens for the configured CR account/test list.
 
 Use the Options toolbar for ordinary settings and permissions; use the separate buttons for credentials/token import. Secret fields always render blank, stay outside native configuration parameters and are never included in audit metadata. The bundled Extension - Intercom plugin validates and audits configuration saves and must remain enabled. Existing credentials and settings survive installation/update. Audit history and filter reservations remain on the component dashboard.
+
+The filter IDs in Options are the explicit approved pool, not an automatic copy of every CleverReach filter. Historical reservations remain visible in the dashboard for audit but cannot be acquired by new drafts. Saving Options retires unused IDs that are no longer approved.

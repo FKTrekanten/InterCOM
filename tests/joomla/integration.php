@@ -11,7 +11,8 @@ $store->execute('DELETE FROM #__intercom_filters');
 $store->execute('DELETE FROM #__intercom_drafts');
 $store->execute('DELETE FROM #__intercom_revisions');
 $store->execute('DELETE FROM #__intercom_audit');
-$store->execute('INSERT INTO #__intercom_filters (filter_id) VALUES (9001),(9002),(9003)');
+$store->execute('INSERT INTO #__intercom_filters (filter_id) VALUES (100),(9001),(9002),(9003)');
+$store->execute("UPDATE #__extensions SET params='{" . '"mode":"fake","filter_ids":"9001,9002,9003"' . "}' WHERE element='com_intercom' AND type='component'");
 $policy=new Policy(['access'=>true,'compose'=>true,'send'=>true,'class'=>true],['all'=>false,'tags'=>['group.Youth']]);
 $workflow=new Workflow($store,new FakeGateway(),$policy,42);
 $message=['type'=>'class','sender'=>'Club','subject_da'=>'Hej','subject_en'=>'Hello','body_da'=>'Dansk','body_en'=>'English','tags'=>['group.Youth']];
@@ -21,6 +22,7 @@ $draft=$workflow->save($message);$id=(int)$draft['id'];
 try {$workflow->release($id,1,0);throw new Exception('Expected rejection');} catch(RuntimeException $e){check($e->getMessage()==='COM_INTERCOM_CONFLICT','Release requires successful current test');}
 $tested=$workflow->preview($id,1,'one@example.invalid');
 check($tested['state']==='tested','Preview accepted');
+check((int)$tested['filter_id']===9001,'Unlisted old pool ID cannot be reserved');
 $second=$workflow->save($message);$second=$workflow->preview((int)$second['id'],1,'one@example.invalid');
 check($tested['filter_id']!==$second['filter_id'],'Separate drafts reserve distinct filters');
 try {$workflow->save($message,$id,0);throw new Exception('Expected conflict');} catch(RuntimeException $e){check($e->getMessage()==='COM_INTERCOM_CONFLICT','Stale editor revision rejected');}

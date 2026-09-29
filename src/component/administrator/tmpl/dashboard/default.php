@@ -23,8 +23,9 @@ Factory::getApplication()->getDocument()->getWebAssetManager()->useScript('core'
     <?php endforeach; ?></tbody></table></div>
     <?= $this->pagination->getPagesLinks() ?><p><?= $this->pagination->getResultsCounter() ?></p></form>
 <h2><?= $t('RESERVATIONS') ?></h2><p><?= $t('RESERVATION_HELP') ?></p>
-<div class="table-responsive"><table class="table"><tr><th><?= $t('FILTER_ID') ?></th><th><?= $t('DRAFT') ?></th><th><?= $t('STATE') ?></th></tr>
+    <?php $configuredFilters = array_map('intval', explode(',', (string) ($r->config['filter_ids'] ?? ''))); ?>
+<div class="table-responsive"><table class="table"><tr><th><?= $t('FILTER_ID') ?></th><th><?= $t('DRAFT') ?></th><th><?= $t('STATE') ?></th><th><?= $t('FILTER_SCOPE') ?></th></tr>
     <?php foreach ($r->store->rows('SELECT f.filter_id,f.draft_id,d.state FROM #__intercom_filters f LEFT JOIN #__intercom_drafts d ON d.id=f.draft_id') as $row) : ?>
-<tr><td><?= (int) $row['filter_id'] ?></td><td><?= (int) $row['draft_id'] ?></td><td><?= $esc(isset($row['state']) ? $t('STATE_' . strtoupper($row['state'])) : '-') ?></td></tr>
+<tr><td><?= (int) $row['filter_id'] ?></td><td><?= (int) $row['draft_id'] ?></td><td><?= $esc(isset($row['state']) ? $t('STATE_' . strtoupper($row['state'])) : '-') ?></td><td><?= $t(in_array((int) $row['filter_id'], $configuredFilters, true) ? 'FILTER_ACTIVE' : 'FILTER_HISTORICAL') ?></td></tr>
     <?php endforeach; ?></table></div>
 <?php endif; ?>
