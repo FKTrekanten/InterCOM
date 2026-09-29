@@ -10,7 +10,7 @@ Requires PHP 8.3+, Composer, Python 3, Node.js (syntax checks), and Docker Compo
 composer install
 python3 scripts/build.py
 bash scripts/stack.sh up
-docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.1.0.zip
+docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.1.1.zip
 ```
 
 Local site: http://localhost:8088. Administrator: `/administrator`. Synthetic local login: `intercom` / `Intercom-local-2026!`. These credentials are only for the localhost-only development stack. Do not deploy this Compose file to production.
@@ -56,3 +56,10 @@ The script never force-pushes, replaces a tag, rolls back commits, or discards s
 ## First development milestone
 
 Local verification: Joomla 6.1.3, PHP 8.3.35, MariaDB 10.6; unit tests also pass on host PHP 8.5.7. The component boots with compatibility plugins disabled. Browser checks cover saving/testing/submitting through the fake provider, the administrator configuration screen, and a 390px mobile layout without horizontal overflow. No live credentials or member data were used, and no emails were sent. Joomla's full Danish language pack and multilingual menu setup are still needed for end-to-end locale-switch testing. No public release has been made.
+
+
+## Simulation and CleverReach credentials
+
+Drafts record their delivery mode. Simulated reservations do not block saving or connecting real OAuth credentials; live reservations still protect the associated account. Changing delivery mode clears simulated leases and invalidates pending simulated drafts. Drafts cannot be reused in another mode. Save real credentials in the administrator screen before selecting Connect CleverReach. The callback shown there uses the current site host: use the same host consistently (localhost and 127.0.0.1 have separate browser sessions). The composer now follows the approved three-step layout with selection cards, language controls and an illustrative email preview. The actual email editor is still plain text.
+
+Integration fixtures can only run with INTERCOM_CI=1 in disposable CI. They must not be run on the persistent development site.

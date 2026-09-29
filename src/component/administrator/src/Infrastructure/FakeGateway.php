@@ -8,6 +8,11 @@ use FKT\Component\Intercom\Administrator\Domain\DeliveryGateway;
 
 final class FakeGateway implements DeliveryGateway
 {
+    public function mode(): string
+    {
+        return 'fake';
+    }
+
     public function tags(string $origin): array
     {
         return $origin === 'group' ? ['group.Youth', 'group.Senior'] : ['membership.Active', 'membership.Passive'];

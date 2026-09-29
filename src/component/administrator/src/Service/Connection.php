@@ -23,8 +23,8 @@ final class Connection
     {
         $this->store->transaction(function () use ($values, $actor): void {
             $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
-            if ($this->store->row('SELECT filter_id FROM #__intercom_filters WHERE draft_id IS NOT NULL LIMIT 1 FOR UPDATE')) {
-                throw new \RuntimeException('COM_INTERCOM_CONFLICT');
+            if ($this->store->row('SELECT f.filter_id FROM #__intercom_filters f LEFT JOIN #__intercom_drafts d ON d.id=f.draft_id WHERE f.draft_id IS NOT NULL AND (d.delivery_mode IS NULL OR d.delivery_mode != \'fake\') LIMIT 1 FOR UPDATE')) {
+                throw new \RuntimeException('COM_INTERCOM_LIVE_RESERVATIONS');
             }
             $current = $this->credentials();
             foreach (['client_id', 'client_secret'] as $name) {
@@ -66,8 +66,8 @@ final class Connection
     {
         $this->store->transaction(function () use ($code, $redirect, $actor): void {
             $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
-            if ($this->store->row('SELECT filter_id FROM #__intercom_filters WHERE draft_id IS NOT NULL LIMIT 1 FOR UPDATE')) {
-                throw new \RuntimeException('COM_INTERCOM_CONFLICT');
+            if ($this->store->row('SELECT f.filter_id FROM #__intercom_filters f LEFT JOIN #__intercom_drafts d ON d.id=f.draft_id WHERE f.draft_id IS NOT NULL AND (d.delivery_mode IS NULL OR d.delivery_mode != \'fake\') LIMIT 1 FOR UPDATE')) {
+                throw new \RuntimeException('COM_INTERCOM_LIVE_RESERVATIONS');
             }
             $this->persist($this->exchange(['grant_type' => 'authorization_code', 'code' => $code, 'redirect_uri' => $redirect], $this->credentials()));
             $this->store->audit($actor, 'connection.authorized');

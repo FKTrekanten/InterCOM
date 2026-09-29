@@ -44,6 +44,11 @@ final class CleverReachGateway implements DeliveryGateway
         return $result;
     }
 
+    public function mode(): string
+    {
+        return 'live';
+    }
+
     public function tags(string $origin): array
     {
         $tags = [];

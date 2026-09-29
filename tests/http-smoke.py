@@ -15,7 +15,7 @@ def token(html):
 assert request('/index.php?option=com_intercom')[0] == 403, 'Guests denied'
 _, page = request('/index.php?option=com_users&view=login')
 status, page = request('/index.php?option=com_users&task=user.login', {
-    'username':'intercom', 'password':'Intercom-local-2026!', token(page):'1',
+    'username':'intercom', 'password':os.environ['INTERCOM_ADMIN_PASSWORD'], token(page):'1',
     'return':base64.b64encode(b'index.php?option=com_intercom').decode()})
 assert status == 200 and 'id="ic-form"' in page, 'Native session login opens component'
 csrf = token(page)
@@ -36,3 +36,16 @@ call('release', identity, 403)
 assert call('release', {**identity,'confirm':1})['state'] == 'submitted'
 call('release', {**identity,'confirm':1}, 409)
 print('PASS: HTTP login, composer, CSRF, test requirement, explicit confirmation and duplicate-send guard')
+# Saving real credentials must remain possible after simulated previews/sends.
+_, admin_login = request('/administrator/index.php?option=com_intercom')
+status, admin = request('/administrator/index.php', {
+    'option':'com_login','task':'login','username':'intercom','passwd':os.environ['INTERCOM_ADMIN_PASSWORD'],
+    token(admin_login):'1','return':base64.b64encode(b'index.php?option=com_intercom').decode()})
+assert status == 200 and 'id="client_id"' in admin, 'Administrator component available'
+status, admin = request('/administrator/index.php?option=com_intercom&task=connection.save', {
+    token(admin):'1','mode':'fake','retention_days':'45','audience_rules':'[]',
+    'filter_ids':'9001,9002,9003,9004','client_id':os.environ['INTERCOM_TEST_CLIENT_ID'],
+    'client_secret':os.environ['INTERCOM_TEST_CLIENT_SECRET']})
+assert status == 200 and 'Saved' in admin, 'Credentials saved despite simulated reservations'
+assert os.environ['INTERCOM_TEST_CLIENT_ID'] not in admin and os.environ['INTERCOM_TEST_CLIENT_SECRET'] not in admin, 'Credentials never echoed into page'
+print('PASS: Administrator credentials save after simulated reservations without exposing secrets')

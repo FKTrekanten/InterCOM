@@ -18,17 +18,21 @@ final class Workflow
     public function save(array $input, int $id = 0, int $revision = 0): array
     {
         $message = Message::validate($input);
+        $mode = $this->store->q($this->gateway->mode());
         $this->policy->assertAllowed($message['type'], $message['tags'], 'compose');
-        return $this->store->transaction(function () use ($message, $id, $revision): array {
+        return $this->store->transaction(function () use ($message, $id, $revision, $mode): array {
             $json = $this->store->q(json_encode($message, JSON_THROW_ON_ERROR));
             if ($id) {
                 $draft = $this->store->draft($id, $this->actor, true);
+                if ($draft['delivery_mode'] !== $this->gateway->mode()) {
+                    throw new \RuntimeException('COM_INTERCOM_MODE_CHANGED', 409);
+                }
                 if ((int) $draft['revision'] !== $revision || !in_array($draft['state'], ['draft', 'tested'], true)) {
                     throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
                 }
                 $this->store->execute("UPDATE #__intercom_drafts SET content=$json,revision=revision+1,tested_revision=NULL,state='draft',updated_at=UTC_TIMESTAMP() WHERE id=$id");
             } else {
-                $this->store->execute("INSERT INTO #__intercom_drafts (owner_id,content,revision,state,created_at,updated_at) VALUES ({$this->actor},$json,1,'draft',UTC_TIMESTAMP(),UTC_TIMESTAMP())");
+                $this->store->execute("INSERT INTO #__intercom_drafts (owner_id,delivery_mode,content,revision,state,created_at,updated_at) VALUES ({$this->actor},$mode,$json,1,'draft',UTC_TIMESTAMP(),UTC_TIMESTAMP())");
                 $id = (int) $this->store->db->insertid();
             }
             $draft = $this->store->draft($id, $this->actor);
@@ -43,7 +47,15 @@ final class Workflow
         return $this->store->transaction(function () use ($id, $revision, $operation): array {
             // Serialize account changes with acquiring a provider reservation.
             $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
+            $settings = $this->store->row("SELECT params FROM #__extensions WHERE element='com_intercom' AND type='component'");
+            $configuredMode = json_decode($settings['params'] ?? '{}', true)['mode'] ?? 'fake';
+            if ($configuredMode !== $this->gateway->mode()) {
+                throw new \RuntimeException('COM_INTERCOM_MODE_CHANGED', 409);
+            }
             $draft = $this->store->draft($id, $this->actor, true);
+            if ($draft['delivery_mode'] !== $this->gateway->mode()) {
+                throw new \RuntimeException('COM_INTERCOM_MODE_CHANGED', 409);
+            }
             $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
             $this->policy->assertAllowed($message['type'], $message['tags'], $operation === 'release' ? 'send' : 'compose');
             if (
@@ -78,6 +90,9 @@ final class Workflow
         }
         $draft = $this->begin($id, $revision, 'preview');
         try {
+            if ($draft['delivery_mode'] !== $this->gateway->mode()) {
+                throw new \RuntimeException('COM_INTERCOM_MODE_CHANGED', 409);
+            }
             $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
             if (
                 array_diff($message['tags'], $this->gateway->tags('group'))
@@ -127,7 +142,15 @@ final class Workflow
         $this->store->transaction(function () use ($id, $revision): void {
             // Serialize account changes with acquiring a provider reservation.
             $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
+            $settings = $this->store->row("SELECT params FROM #__extensions WHERE element='com_intercom' AND type='component'");
+            $configuredMode = json_decode($settings['params'] ?? '{}', true)['mode'] ?? 'fake';
+            if ($configuredMode !== $this->gateway->mode()) {
+                throw new \RuntimeException('COM_INTERCOM_MODE_CHANGED', 409);
+            }
             $draft = $this->store->draft($id, $this->actor, true);
+            if ($draft['delivery_mode'] !== $this->gateway->mode()) {
+                throw new \RuntimeException('COM_INTERCOM_MODE_CHANGED', 409);
+            }
             $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
             $this->policy->assertAllowed($message['type'], $message['tags'], 'compose');
             if (!in_array($draft['state'], ['draft', 'tested'], true) || (int) $draft['revision'] !== $revision) {

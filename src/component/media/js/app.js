@@ -13,14 +13,46 @@
       form.querySelectorAll(`input[name="${key}[]"]`).forEach(el => {el.checked = value.includes(el.value);});
     } else if (form.elements.namedItem(key)) form.elements.namedItem(key).value = value;
   }
+  let step = 0, editLanguage = 'da', previewLanguage = 'da';
+  function showStep(value) {
+    step = Number(value);
+    form.querySelectorAll('[data-panel]').forEach(el => { el.hidden = Number(el.dataset.panel) !== step; });
+    form.querySelectorAll('[data-step]').forEach(el => el.setAttribute('aria-current', Number(el.dataset.step) === step ? 'step' : 'false'));
+  }
+  function showLanguage(value) {
+    editLanguage = value;
+    form.querySelectorAll('[data-language-panel]').forEach(el => { el.hidden = el.dataset.languagePanel !== value; });
+    form.querySelectorAll('[data-edit-lang]').forEach(el => el.setAttribute('aria-pressed', el.dataset.editLang === value));
+  }
+  function validForm() {
+    const invalid = Array.from(form.querySelectorAll('input,textarea,select')).find(el => !el.checkValidity());
+    if (invalid) {
+      showStep(invalid.closest('[data-panel]').dataset.panel);
+      const language = invalid.closest('[data-language-panel]');
+      if (language) showLanguage(language.dataset.languagePanel);
+      invalid.reportValidity();
+      return false;
+    }
+    return true;
+  }
+  form.querySelectorAll('[data-step],[data-go]').forEach(button => button.addEventListener('click', () => showStep(button.dataset.step ?? button.dataset.go)));
+  form.querySelectorAll('[data-edit-lang]').forEach(button => button.addEventListener('click', () => {showLanguage(button.dataset.editLang); previewLanguage = editLanguage; sync();}));
+  document.querySelectorAll('.intercom [data-preview-lang]').forEach(button => button.addEventListener('click', () => {previewLanguage = button.dataset.previewLang; sync();}));
+  showStep(0); showLanguage('da');
   function sync() {
     form.querySelector('[data-action=save]').disabled = busy || !editable();
     form.querySelector('[data-action=preview]').disabled = busy || !draft || dirty || !editable();
     confirm.disabled = busy || !draft || dirty || draft.state !== 'tested';
     form.querySelector('[data-action=release]').disabled = confirm.disabled || !confirm.checked;
     form.querySelector('[data-action=cancel]').disabled = busy || !draft || dirty || !editable();
-    document.getElementById('ic-preview-subject').textContent = form.elements.subject_da.value;
-    document.getElementById('ic-preview-body').textContent = form.elements.body_da.value;
+    document.getElementById('ic-preview-subject').textContent = form.elements['subject_' + previewLanguage].value;
+    document.getElementById('ic-preview-body').textContent = form.elements['body_' + previewLanguage].value;
+    document.getElementById('ic-preview-sender').textContent = form.elements.sender.value;
+    const selectedType = form.querySelector('input[name=type]:checked');
+    document.getElementById('ic-preview-type').textContent = selectedType?.closest('label').querySelector('strong').textContent || '';
+    document.querySelectorAll('.intercom [data-preview-lang]').forEach(el => el.setAttribute('aria-pressed', el.dataset.previewLang === previewLanguage));
+    const groups = Array.from(form.querySelectorAll('input[name="tags[]"]:checked')).map(el => el.closest('label').textContent.trim());
+    document.getElementById('ic-audience-summary').textContent = groups.join(', ') || text(initial.allAudience ? 'ALL_AUDIENCE' : 'NO_GROUPS');
   }
   form.addEventListener('input', e => {
     if (![confirm, form.elements.send_at].includes(e.target)) {
@@ -32,7 +64,7 @@
   form.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', async () => {
     const action = button.dataset.action;
     if (busy) return;
-    if (action === 'save' && !form.reportValidity()) return;
+    if (action === 'save' && !validForm()) return;
     if (action === 'release' && !window.confirm(text('CONFIRM_SEND'))) return;
     const body = new FormData(form);
     body.set('task', 'api.' + action);
@@ -53,6 +85,7 @@
       if (result.data) draft = result.data;
       if (action === 'cancel') draft.state = 'cancelled';
       dirty = false; confirm.checked = false;
+      if (action === 'save') showStep(2);
       status.textContent = text(action === 'preview' ? (initial.simulation ? 'FAKE_TESTED' : 'TESTED') : action === 'release' ? (initial.simulation ? 'FAKE_SUBMITTED' : 'SUBMITTED') : 'SAVED');
     } catch (e) {status.textContent = e.message || text('ERROR'); if (action==='release') {if(draft)draft.state='uncertain';}}
     finally {busy = false; sync();}

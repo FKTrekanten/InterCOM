@@ -28,6 +28,8 @@ final class ConnectionController extends BaseController
         $app = Factory::getApplication();
         try {
             $input = $app->input->post;
+            $clientId = trim($input->get('client_id', '', 'raw'));
+            $clientSecret = trim($input->get('client_secret', '', 'raw'));
             $rules = json_decode($input->get('audience_rules', '[]', 'raw'), true, 32, JSON_THROW_ON_ERROR);
             if (!is_array($rules) || !array_is_list($rules)) {
                 throw new \RuntimeException('COM_INTERCOM_INVALID_RULES');
@@ -60,14 +62,22 @@ final class ConnectionController extends BaseController
             foreach (\FKT\Component\Intercom\Administrator\Domain\Policy::TYPES as $type) {
                 $config['categories'][$type] = $input->getInt('category_' . $type);
             }
-            $r->store->transaction(function () use ($r, $config, $filters, $app, $input): void {
+            $r->store->transaction(function () use ($r, $config, $filters, $app, $clientId, $clientSecret): void {
                 $r->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
                 // Do not switch accounts, modes or recipient lists while any filter is reserved.
-                $reserved = $r->store->row('SELECT filter_id FROM #__intercom_filters WHERE draft_id IS NOT NULL LIMIT 1 FOR UPDATE');
+                $reserved = $r->store->row('SELECT f.filter_id FROM #__intercom_filters f LEFT JOIN #__intercom_drafts d ON d.id=f.draft_id WHERE f.draft_id IS NOT NULL AND (d.delivery_mode IS NULL OR d.delivery_mode != \'fake\') LIMIT 1 FOR UPDATE');
                 foreach (['mode', 'group_id'] as $key) {
                     if ($reserved && ($r->config[$key] ?? ($key === 'mode' ? 'fake' : 0)) != $config[$key]) {
-                        throw new \RuntimeException('COM_INTERCOM_CONFLICT');
+                        throw new \RuntimeException('COM_INTERCOM_LIVE_RESERVATIONS');
                     }
+                }
+                if (($r->config['mode'] ?? 'fake') !== $config['mode']) {
+                    // Simulated mailings have no external recipient filter to protect.
+                    $r->store->execute("UPDATE #__intercom_filters f JOIN #__intercom_drafts d ON d.id=f.draft_id SET f.draft_id=NULL WHERE d.delivery_mode='fake'");
+                    $r->store->execute("UPDATE #__intercom_drafts SET filter_id=NULL,tested_revision=NULL,state='cancelled' WHERE delivery_mode='fake' AND state IN ('draft','tested','testing')");
+                    $r->store->audit((int) $app->getIdentity()->id, 'simulation.reservations_cleared');
+                    // A new provider configuration must supply its own filter IDs.
+                    $r->store->execute('DELETE FROM #__intercom_filters WHERE draft_id IS NULL');
                 }
                 $json = $r->store->q(json_encode($config, JSON_THROW_ON_ERROR));
                 $r->store->execute("UPDATE #__extensions SET params=$json WHERE element='com_intercom' AND type='component'");
@@ -80,9 +90,9 @@ final class ConnectionController extends BaseController
                     0,
                     ['configuration' => $config, 'filter_ids' => $filters]
                 );
-                if ($input->getString('client_id') !== '' || $input->getString('client_secret') !== '') {
-                    $r->connection->save(['client_id' => $input->getString('client_id'),
-                        'client_secret' => $input->getString('client_secret')], (int) $app->getIdentity()->id);
+                if ($clientId !== '' || $clientSecret !== '') {
+                    $r->connection->save(['client_id' => $clientId,
+                        'client_secret' => $clientSecret], (int) $app->getIdentity()->id);
                 }
             });
             $app->enqueueMessage(Text::_('COM_INTERCOM_SAVED'));
@@ -97,14 +107,16 @@ final class ConnectionController extends BaseController
     {
         $r = $this->runtime();
         $app = Factory::getApplication();
+        $values = $r->connection->credentials();
+        if (empty($values['client_id']) || empty($values['client_secret']) || $values['client_id'] === 'fixture-id') {
+            $app->enqueueMessage(Text::_('COM_INTERCOM_NOT_CONNECTED'), 'error');
+            $this->setRedirect('index.php?option=com_intercom');
+            return;
+        }
         $state = bin2hex(random_bytes(32));
         $redirect = Uri::root() . 'administrator/index.php?option=com_intercom&task=connection.callback';
         $app->getSession()->set('intercom.oauth', ['state' => $state, 'expires' => time() + 600,
             'actor' => (int) $app->getIdentity()->id, 'redirect' => $redirect]);
-        $values = $r->connection->credentials();
-        if (empty($values['client_id']) || empty($values['client_secret'])) {
-            throw new \RuntimeException('COM_INTERCOM_NOT_CONNECTED');
-        }
         $r->store->audit((int) $app->getIdentity()->id, 'connection.started');
         $app->redirect('https://rest.cleverreach.com/oauth/authorize.php?' . http_build_query([
             'client_id' => $values['client_id'], 'response_type' => 'code', 'redirect_uri' => $redirect, 'state' => $state]));

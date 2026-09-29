@@ -1,4 +1,5 @@
 <?php
+if (getenv('INTERCOM_CI') !== '1') { throw new RuntimeException('Integration fixtures require the disposable CI stack'); }
 require __DIR__ . '/bootstrap.php';
 $r=$app->bootComponent('com_intercom')->runtime;
 use FKT\Component\Intercom\Administrator\Domain\Policy;
@@ -35,7 +36,12 @@ $store->execute("INSERT INTO #__intercom_audit(actor_id,event,draft_id,context,c
 $workflow->maintain(30);
 check(!$store->row("SELECT id FROM #__intercom_audit WHERE event='expired'"),'Retention removes expired audit');
 check((bool)$store->row("SELECT id FROM #__intercom_audit WHERE event='release.accepted'"),'Recent audit preserved');
-try {$r->connection->save(['client_id'=>'other-account'],42);throw new Exception('Expected denial');} catch(RuntimeException $e){check($e->getMessage()==='COM_INTERCOM_CONFLICT','Account changes blocked while filters are reserved');}
+check($sent['delivery_mode']==='fake','Simulation mode recorded on draft');
+$r->connection->save(['client_id'=>'real-configuration'],42);
+check($r->connection->credentials()['client_id']==='real-configuration','Simulation leases do not block credentials');
+$store->execute("UPDATE #__intercom_drafts SET delivery_mode='live' WHERE id=$id");
+try {$r->connection->save(['client_id'=>'other-account'],42);throw new Exception('Expected denial');} catch(RuntimeException $e){check($e->getMessage()==='COM_INTERCOM_LIVE_RESERVATIONS','Account changes blocked while filters are reserved');}
+try {$workflow->preview($id,2,'one@example.invalid');throw new Exception('Expected mode rejection');} catch(RuntimeException $e){check($e->getMessage()==='COM_INTERCOM_MODE_CHANGED','Drafts cannot be reused across delivery modes');}
 // Retained upgrade fixture.
 $store->audit(42,'upgrade.fixture', $id);
 file_put_contents('/tmp/intercom-upgrade.json',json_encode(['id'=>$id,'revision'=>$sent['revision'],'envelope'=>$store->row("SELECT envelope FROM #__intercom_connections WHERE provider='cleverreach'")['envelope']]));
