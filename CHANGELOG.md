@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 0.1.3 development: direct signed-out frontend visitors to native Joomla login and preserve their return URL, while retaining permission checks for signed-in users.
+
 - 0.1.2 development: move configuration and connection controls to native Joomla Options, with transactional validation through the bundled extension plugin.
 - Add encrypted manual access/refresh token import with explicit lifetime, access-only support and secret-free audit events.
 - Paginate audit history with selectable page sizes and native Joomla controls.

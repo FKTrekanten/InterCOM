@@ -12,7 +12,10 @@ def token(html):
     match = re.search(r'name="([a-f0-9]{32})"[^>]*value="1"', html)
     assert match, 'Native Joomla CSRF token rendered'
     return match[1]
-assert request('/index.php?option=com_intercom')[0] == 403, 'Guests denied'
+status, guest = request('/index.php?option=com_intercom&view=composer')
+assert status == 200 and 'name="username"' in guest and 'id="ic-form"' not in guest, 'Guests sent to native login without exposing composer'
+match = re.search(r'name="return"[^>]*value="([^"]+)"', guest)
+assert match and 'option=com_intercom' in base64.b64decode(match[1]).decode(), 'Native login preserves return to Intercom'
 _, page = request('/index.php?option=com_users&view=login')
 status, page = request('/index.php?option=com_users&task=user.login', {
     'username':'intercom', 'password':os.environ['INTERCOM_ADMIN_PASSWORD'], token(page):'1',
