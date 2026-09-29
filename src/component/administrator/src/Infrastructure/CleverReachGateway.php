@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace FKT\Component\Intercom\Administrator\Infrastructure;
 
 use FKT\Component\Intercom\Administrator\Domain\DeliveryGateway;
+use FKT\Component\Intercom\Administrator\Domain\FilterCreator;
 use FKT\Component\Intercom\Administrator\Domain\Message;
 
-final class CleverReachGateway implements DeliveryGateway
+final class CleverReachGateway implements DeliveryGateway, FilterCreator
 {
     public function __construct(private \Closure $token, private array $config)
     {
@@ -42,6 +43,29 @@ final class CleverReachGateway implements DeliveryGateway
             throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
         }
         return $result;
+    }
+
+    public function groups(): array
+    {
+        $groups = $this->request('GET', '/groups');
+        if (!is_array($groups) || !array_is_list($groups)) {
+            throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
+        }
+        return $groups;
+    }
+
+    public function createFilter(int $groupId, string $name): int
+    {
+        $result = $this->request('POST', '/groups/' . $groupId . '/filters', [
+            'name' => $name,
+            'operator' => 'AND',
+            'rules' => [['field' => 'email', 'logic' => 'eq', 'condition' => $name . '@example.invalid']],
+        ]);
+        $id = (int) ($result['id'] ?? 0);
+        if ($id < 1) {
+            throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
+        }
+        return $id;
     }
 
     public function mode(): string

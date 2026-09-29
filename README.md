@@ -10,7 +10,7 @@ Requires PHP 8.3+, Composer, Python 3, Node.js (syntax checks), and Docker Compo
 composer install
 python3 scripts/build.py
 bash scripts/stack.sh up
-docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.1.4.zip
+docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.1.5.zip
 ```
 
 Local site: http://localhost:8088. Administrator: `/administrator`. Synthetic local login: `intercom` / `Intercom-local-2026!`. These credentials are only for the localhost-only development stack. Do not deploy this Compose file to production.
@@ -70,4 +70,8 @@ In Intercom → Options → CleverReach connection, paste a freshly issued acces
 
 Use the Options toolbar for ordinary settings and permissions; use the separate buttons for credentials/token import. Secret fields always render blank, stay outside native configuration parameters and are never included in audit metadata. The bundled Extension - Intercom plugin validates and audits configuration saves and must remain enabled. Existing credentials and settings survive installation/update. Audit history and filter reservations remain on the component dashboard.
 
-The filter IDs in Options are the explicit approved pool, not an automatic copy of every CleverReach filter. Historical reservations remain visible in the dashboard for audit but cannot be acquired by new drafts. Saving Options retires unused IDs that are no longer approved.
+The old numeric filter IDs remain visible in Options for migration only. New live drafts use filters created by Intercom. Historical reservations remain visible on the dashboard for audit but cannot be acquired by new drafts.
+
+## Managed CleverReach filter pool
+
+Choose the recipient list from CleverReach in Options and set **Maximum Intercom filters per list** (default 5, range 1–20). Existing manual IDs remain visible as read-only legacy data. New live previews reserve an Intercom-owned filter or create one with an initially empty audience when no owned filter is free. The created filter is then updated with the draft's audience rules. The cap includes filters tied to submitted/uncertain mailings and creation requests whose remote outcome is uncertain. Those slots are not recycled without reconciliation; this release does not yet automate reconciliation, so the cap can remain full after sending. The component never overwrites unrelated CleverReach filters. Simulation uses local filters and makes no remote creation request. Changing the selected list is blocked while a live mailing holds a reservation.

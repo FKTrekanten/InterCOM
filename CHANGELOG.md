@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 0.1.5 development: select the recipient list from CleverReach and create Intercom-owned filters on demand within a configurable cap.
+
 - 0.1.4 development: restrict draft reservations to filter IDs approved in Options and retire unused, unlisted pool IDs when settings are saved. Preserve historical reservations for audit.
 
 - 0.1.3 development: direct signed-out frontend visitors to native Joomla login and preserve their return URL, while retaining permission checks for signed-in users.

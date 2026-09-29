@@ -61,3 +61,27 @@ try {$workflow->preview($id,2,'one@example.invalid');throw new Exception('Expect
 $store->audit(42,'upgrade.fixture', $id);
 file_put_contents('/tmp/intercom-upgrade.json',json_encode(['id'=>$id,'revision'=>$sent['revision'],'envelope'=>$store->row("SELECT envelope FROM #__intercom_connections WHERE provider='cleverreach'")['envelope']]));
 echo "INTEGRATION OK\n";
+
+// Exercise managed live capacity with a local gateway stub; never call CleverReach in CI.
+$store->begin();
+try {
+    $store->execute('UPDATE #__extensions SET params=' . $store->q(json_encode(['mode'=>'live','group_id'=>98765,'filter_ids'=>'','max_filters'=>1])) . " WHERE element='com_intercom'");
+    $managedGateway=new class implements \FKT\Component\Intercom\Administrator\Domain\DeliveryGateway, \FKT\Component\Intercom\Administrator\Domain\FilterCreator {
+        public int $created=0;
+        public function mode(): string { return 'live'; }
+        public function tags(string $origin): array { return $origin==='group'?['group.Youth']:[]; }
+        public function createFilter(int $groupId,string $name): int { $this->created++; return 7777777; }
+        public function prepare(array $message,int $filterId,int $mailingId): int { return 12345; }
+        public function preview(int $mailingId,string $email): void {}
+        public function release(int $mailingId,int $timestamp): void {}
+    };
+    $managed=new Workflow($store,$managedGateway,$policy,42);
+    $first=$managed->save($message);
+    $first=$managed->preview((int)$first['id'],1,'one@example.invalid');
+    check((int)$first['filter_id']===7777777 && $managedGateway->created===1,'First managed filter created on demand');
+    $second=$managed->save($message);
+    try {$managed->preview((int)$second['id'],1,'one@example.invalid');throw new Exception('Expected cap');}
+    catch(RuntimeException $e){check($e->getMessage()==='COM_INTERCOM_POOL_BUSY' && $managedGateway->created===1,'Managed filter cap blocks a second creation');}
+} finally {
+    $store->rollback();
+}

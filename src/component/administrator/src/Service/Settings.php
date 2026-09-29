@@ -33,10 +33,11 @@ final class Settings
             'retention_days' => max(1, min(3650, $input->getInt('retention_days', 30))),
             'group_id' => $input->getInt('group_id'), 'unsubscribe_form_id' => $input->getInt('unsubscribe_form_id'),
             'sender_email' => $input->getString('sender_email'), 'audience_rules' => json_encode($rules),
-            'release_verified' => $input->getBool('release_verified'), 'categories' => [], 'filter_ids' => implode(',', $filters)];
+            'release_verified' => $input->getBool('release_verified'), 'categories' => [], 'filter_ids' => implode(',', $filters),
+            'max_filters' => max(1, min(20, $input->getInt('max_filters', 5)))];
         if (
             $config['mode'] === 'live' && (!$config['group_id'] || !$config['unsubscribe_form_id']
-            || !filter_var($config['sender_email'], FILTER_VALIDATE_EMAIL) || !$filters)
+            || !filter_var($config['sender_email'], FILTER_VALIDATE_EMAIL))
         ) {
             throw new \RuntimeException('COM_INTERCOM_INVALID_SETTINGS');
         }
@@ -59,16 +60,16 @@ final class Settings
                 $r->store->execute("UPDATE #__intercom_drafts SET filter_id=NULL,tested_revision=NULL,state='cancelled' WHERE delivery_mode='fake' AND state IN ('draft','tested','testing')");
                 $r->store->audit($actor, 'simulation.reservations_cleared');
                 // A new provider configuration must supply its own filter IDs.
-                $r->store->execute('DELETE FROM #__intercom_filters WHERE draft_id IS NULL');
+                $r->store->execute('DELETE FROM #__intercom_filters WHERE draft_id IS NULL AND managed=0');
             }
             $json = $r->store->q(json_encode($config, JSON_THROW_ON_ERROR));
             $r->store->execute("UPDATE #__extensions SET params=$json WHERE element='com_intercom' AND type='component'");
             foreach ($filters as $id) {
-                $r->store->execute("INSERT IGNORE INTO #__intercom_filters (filter_id) VALUES ($id)");
+                $r->store->execute("INSERT IGNORE INTO #__intercom_filters (filter_id,group_id,managed) VALUES ($id,0,0)");
             }
             // Keep historical reservations for audit, but retire unused IDs removed from Options.
             $condition = $filters ? ' AND filter_id NOT IN (' . implode(',', $filters) . ')' : '';
-            $r->store->execute('DELETE FROM #__intercom_filters WHERE draft_id IS NULL' . $condition);
+            $r->store->execute('DELETE FROM #__intercom_filters WHERE draft_id IS NULL AND managed=0' . $condition);
             $r->store->audit(
                 $actor,
                 'configuration.saved',

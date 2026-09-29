@@ -8,3 +8,4 @@ check($r->store->row("SELECT envelope FROM #__intercom_connections WHERE provide
 echo "UPGRADE OK\n";
 
 check(array_key_exists("tested_revision", $r->store->row("SELECT * FROM #__intercom_drafts LIMIT 1")), "Native SQL migration restored tested_revision column");
+check(array_key_exists('managed', $r->store->row('SELECT * FROM #__intercom_filters LIMIT 1')), 'Native migration adds filter ownership');

@@ -1,0 +1,3 @@
+ALTER TABLE `#__intercom_filters` ADD COLUMN `group_id` int unsigned NOT NULL DEFAULT 0 AFTER `draft_id`;
+ALTER TABLE `#__intercom_filters` ADD COLUMN `managed` tinyint unsigned NOT NULL DEFAULT 0 AFTER `group_id`;
+CREATE TABLE IF NOT EXISTS `#__intercom_filter_creations` (`id` int unsigned NOT NULL AUTO_INCREMENT, `group_id` int unsigned NOT NULL, `remote_name` varchar(80) NOT NULL, `state` varchar(16) NOT NULL, `filter_id` int unsigned DEFAULT NULL, `created_at` datetime NOT NULL, PRIMARY KEY (`id`), UNIQUE KEY `remote_name` (`remote_name`), KEY `group_state` (`group_id`,`state`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FKT\Component\Intercom\Administrator\Service;
 
 use FKT\Component\Intercom\Administrator\Domain\DeliveryGateway;
+use FKT\Component\Intercom\Administrator\Domain\FilterCreator;
 use FKT\Component\Intercom\Administrator\Domain\Message;
 use FKT\Component\Intercom\Administrator\Domain\Policy;
 use FKT\Component\Intercom\Administrator\Infrastructure\Store;
@@ -64,20 +65,23 @@ final class Workflow
             ) {
                 throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
             }
-            // The pool can retain historical reservations; only current Options IDs may be acquired.
+            // New live mailings use only filters created by Intercom for this list.
             $params = json_decode($settings['params'] ?? '{}', true) ?: [];
-            $allowed = array_values(array_unique(array_filter(
+            $groupId = (int) ($params['group_id'] ?? 0);
+            $legacy = array_values(array_unique(array_filter(
                 array_map('intval', explode(',', (string) ($params['filter_ids'] ?? ''))),
                 static fn ($value) => $value > 0
             )));
-            if (!$allowed) {
-                throw new \RuntimeException('COM_INTERCOM_POOL_BUSY', 409);
-            }
-            if (!empty($draft['filter_id']) && !in_array((int) $draft['filter_id'], $allowed, true)) {
-                throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
-            }
             if (empty($draft['filter_id'])) {
-                $filter = $this->store->row('SELECT filter_id FROM #__intercom_filters WHERE draft_id IS NULL AND filter_id IN (' . implode(',', $allowed) . ') ORDER BY filter_id LIMIT 1 FOR UPDATE');
+                if ($configuredMode === 'live') {
+                    $where = "managed=1 AND group_id=$groupId";
+                } else {
+                    $where = 'managed=1 AND group_id=0';
+                    if ($legacy) {
+                        $where = '(' . $where . ' OR (managed=0 AND filter_id IN (' . implode(',', $legacy) . ')))';
+                    }
+                }
+                $filter = $this->store->row("SELECT filter_id FROM #__intercom_filters WHERE draft_id IS NULL AND $where ORDER BY filter_id LIMIT 1 FOR UPDATE");
                 if (!$filter) {
                     throw new \RuntimeException('COM_INTERCOM_POOL_BUSY', 409);
                 }
@@ -88,6 +92,15 @@ final class Workflow
             if ((int) ($lease['draft_id'] ?? 0) !== $id) {
                 throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
             }
+            $ownership = $this->store->row("SELECT group_id,managed FROM #__intercom_filters WHERE filter_id={$draft['filter_id']}");
+            if (
+                $configuredMode === 'live' && !(
+                ((int) ($ownership['managed'] ?? 0) === 1 && (int) ($ownership['group_id'] ?? 0) === $groupId)
+                || ((int) ($ownership['managed'] ?? 0) === 0 && in_array((int) $draft['filter_id'], $legacy, true))
+                )
+            ) {
+                throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
+            }
             $state = $operation === 'release' ? 'releasing' : 'testing';
             $this->store->execute("UPDATE #__intercom_drafts SET state='$state',filter_id={$draft['filter_id']},updated_at=UTC_TIMESTAMP() WHERE id=$id");
             $this->store->audit($this->actor, $operation . '.intent', $id, ['revision' => $revision]);
@@ -95,12 +108,85 @@ final class Workflow
         });
     }
 
+    private function ensureCapacity(): void
+    {
+        $intent = $this->store->transaction(function (): ?array {
+            $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
+            $settings = $this->store->row("SELECT params FROM #__extensions WHERE element='com_intercom' AND type='component'");
+            $params = json_decode($settings['params'] ?? '{}', true) ?: [];
+            $mode = $params['mode'] ?? 'fake';
+            if ($mode !== $this->gateway->mode()) {
+                throw new \RuntimeException('COM_INTERCOM_MODE_CHANGED', 409);
+            }
+            $cap = max(1, min(20, (int) ($params['max_filters'] ?? 5)));
+            if ($mode === 'fake') {
+                $free = $this->store->row('SELECT filter_id FROM #__intercom_filters WHERE group_id=0 AND managed=1 AND draft_id IS NULL LIMIT 1');
+                if ($free) {
+                    return null;
+                }
+                $legacy = array_values(array_filter(array_map('intval', explode(',', (string) ($params['filter_ids'] ?? ''))), static fn ($value) => $value > 0));
+                if ($legacy && $this->store->row('SELECT filter_id FROM #__intercom_filters WHERE managed=0 AND draft_id IS NULL AND filter_id IN (' . implode(',', $legacy) . ') LIMIT 1')) {
+                    return null;
+                }
+                $count = (int) ($this->store->row('SELECT COUNT(*) AS n FROM #__intercom_filters WHERE group_id=0 AND managed=1')['n'] ?? 0);
+                if ($count >= $cap) {
+                    throw new \RuntimeException('COM_INTERCOM_POOL_BUSY', 409);
+                }
+                $filterId = 4000000001 + $count;
+                $this->store->execute("INSERT INTO #__intercom_filters (filter_id,group_id,managed) VALUES ($filterId,0,1)");
+                $this->store->audit($this->actor, 'filter.simulated_created', 0, ['filter_id' => $filterId]);
+                return null;
+            }
+            $groupId = (int) ($params['group_id'] ?? 0);
+            if ($groupId < 1 || !$this->gateway instanceof FilterCreator) {
+                throw new \RuntimeException('COM_INTERCOM_INVALID_SETTINGS');
+            }
+            if ($this->store->row("SELECT filter_id FROM #__intercom_filters WHERE group_id=$groupId AND managed=1 AND draft_id IS NULL LIMIT 1")) {
+                return null;
+            }
+            $count = (int) ($this->store->row("SELECT COUNT(*) AS n FROM #__intercom_filter_creations WHERE group_id=$groupId")['n'] ?? 0);
+            if ($count >= $cap) {
+                throw new \RuntimeException('COM_INTERCOM_POOL_BUSY', 409);
+            }
+            $name = 'Intercom-' . bin2hex(random_bytes(12));
+            $this->store->execute("INSERT INTO #__intercom_filter_creations (group_id,remote_name,state,created_at) VALUES ($groupId," . $this->store->q($name) . ",'pending',UTC_TIMESTAMP())");
+            return ['intent_id' => (int) $this->store->db->insertid(), 'group_id' => $groupId, 'name' => $name];
+        });
+        if ($intent === null) {
+            return;
+        }
+        try {
+            $filterId = $this->gateway->createFilter($intent['group_id'], $intent['name']);
+            $this->store->transaction(function () use ($intent, $filterId): void {
+                $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
+                $this->store->execute("INSERT INTO #__intercom_filters (filter_id,group_id,managed) VALUES ($filterId,{$intent['group_id']},1)");
+                $this->store->execute("UPDATE #__intercom_filter_creations SET state='created',filter_id=$filterId WHERE id={$intent['intent_id']}");
+                $this->store->audit($this->actor, 'filter.created', 0, ['filter_id' => $filterId, 'group_id' => $intent['group_id']]);
+            });
+        } catch (\Throwable) {
+            // A timed-out POST may have created a remote filter. Hold its slot for reconciliation.
+            $this->store->transaction(function () use ($intent): void {
+                $this->store->execute("UPDATE #__intercom_filter_creations SET state='uncertain' WHERE id={$intent['intent_id']} AND state='pending'");
+                $this->store->audit($this->actor, 'filter.creation_uncertain', 0, ['group_id' => $intent['group_id']]);
+            });
+            throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
+        }
+    }
+
     public function preview(int $id, int $revision, string $email): array
     {
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             throw new \RuntimeException('COM_INTERCOM_INVALID_EMAIL', 422);
         }
-        $draft = $this->begin($id, $revision, 'preview');
+        try {
+            $draft = $this->begin($id, $revision, 'preview');
+        } catch (\RuntimeException $e) {
+            if ($e->getMessage() !== 'COM_INTERCOM_POOL_BUSY') {
+                throw $e;
+            }
+            $this->ensureCapacity();
+            $draft = $this->begin($id, $revision, 'preview');
+        }
         try {
             if ($draft['delivery_mode'] !== $this->gateway->mode()) {
                 throw new \RuntimeException('COM_INTERCOM_MODE_CHANGED', 409);
