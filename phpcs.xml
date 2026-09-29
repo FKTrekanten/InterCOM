@@ -1,0 +1,1 @@
+<?xml version="1.0"?><ruleset name="Intercom"><description>PSR-12 for application PHP.</description><rule ref="PSR12"><exclude name="Generic.Files.LineLength.TooLong"/></rule><file>src</file><file>tests/unit</file><arg name="extensions" value="php"/></ruleset>

@@ -1,0 +1,29 @@
+{
+  "name": "fktrekanten/intercom",
+  "description": "Native Joomla member communications",
+  "type": "joomla-component",
+  "require": {
+    "php": ">=8.3",
+    "ext-sodium": "*",
+    "ext-json": "*"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.5",
+    "squizlabs/php_codesniffer": "^3.13"
+  },
+  "autoload": {
+    "psr-4": {
+      "FKT\\Component\\Intercom\\Administrator\\": "src/component/administrator/src/"
+    }
+  },
+  "scripts": {
+    "test": "phpunit",
+    "style": "phpcs",
+    "lint": "php scripts/lint.php"
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {}
+  },
+  "license": "proprietary"
+}

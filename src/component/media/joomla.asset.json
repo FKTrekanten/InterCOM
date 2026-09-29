@@ -1,0 +1,23 @@
+{
+  "$schema": "https://developer.joomla.org/schemas/json-schema/web_assets.json",
+  "name": "com_intercom",
+  "version": "0.1.0",
+  "assets": [
+    {
+      "name": "com_intercom.app",
+      "type": "style",
+      "uri": "com_intercom/app.css"
+    },
+    {
+      "name": "com_intercom.app",
+      "type": "script",
+      "uri": "com_intercom/app.js",
+      "dependencies": [
+        "core"
+      ],
+      "attributes": {
+        "defer": true
+      }
+    }
+  ]
+}

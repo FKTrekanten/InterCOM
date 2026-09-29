@@ -1,0 +1,1 @@
+<?xml version="1.0"?><phpunit bootstrap="vendor/autoload.php" colors="true" cacheDirectory=".phpunit.cache"><testsuites><testsuite name="unit"><directory>tests/unit</directory></testsuite></testsuites><source><include><directory>src/component/administrator/src/Domain</directory></include></source></phpunit>

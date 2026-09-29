@@ -1,0 +1,1 @@
+<?xml version="1.0"?><config><fieldset name="permissions" label="JCONFIG_PERMISSIONS_LABEL"><field name="rules" type="rules" label="JCONFIG_PERMISSIONS_LABEL" filter="rules" component="com_intercom" section="component"/></fieldset></config>
