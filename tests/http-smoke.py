@@ -118,6 +118,8 @@ rows = lambda html: re.findall(r'data-audit-id="(\d+)"', html)
 assert len(rows(page1)) == 10 and rows(page2) and not set(rows(page1)) & set(rows(page2)), 'Audit pages are bounded and distinct'
 _, history = request('/administrator/index.php?option=com_intercom&view=history')
 assert 'history-limit' in history and 'Latest audit entries' not in history, 'Native paginated sent-mail history renders'
+_, detail = request('/administrator/index.php?option=com_intercom&view=history&id=1')
+assert 'COM_INTERCOM_FILTER' not in detail and 'COM_INTERCOM_MAILING' not in detail, 'History provider references use translated labels'
 print('PASS: Native Options, encrypted credentials/token import, invalid import and audit/history pagination')
 
 management = '/administrator/index.php?option=com_intercom'

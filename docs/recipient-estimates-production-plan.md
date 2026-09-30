@@ -1,6 +1,6 @@
 # Recipient estimates and production readiness
 
-Proposed plan, 30 September 2026. Baseline: Intercom 0.3.4 on main. Progress: #5 is completed in 0.3.5; estimates/history in 0.3.6; delegated Joomla test delivery (#3) in 0.3.7. All three passed local and GitHub CI and dev checks. One-recipient acceptance (#1) is implemented in 0.3.8 and passed local CI; its external delivery confirmation and production checks remain pending.
+Proposed plan, 30 September 2026. Baseline: Intercom 0.3.4 on main. Progress: #5 is completed in 0.3.5; estimates/history in 0.3.6; delegated Joomla test delivery (#3) in 0.3.7. All three passed local and GitHub CI and dev checks. One-recipient acceptance (#1) is implemented in 0.3.8 and passed local/GitHub CI. Its controlled send positively completed in CleverReach; human receipt/form confirmation and production checks remain pending.
 
 ## Intended behaviour
 
@@ -82,18 +82,18 @@ Verify step transitions, saved-draft reopening, error recovery and mobile/keyboa
 
 ## Production blockers and acceptance
 
-Installing a reviewed package with live sending disabled is possible once the production environment and backup are checked. Enabling production sending needs the following unresolved work and acceptance evidence.
+Installing a reviewed package with live sending disabled is possible once the production environment and backup are checked. The table records completed implementation and the remaining production acceptance evidence.
 
-| Item | Required outcome |
+| Item | Outcome and current status |
 | --- | --- |
-| #5 — verified same-account token renewal | Renew expired/expanded-scope tokens without dropping reservations. Pin account identity and reject different-account credentials. Resolve first: more early reservations make the current renewal deadlock more likely. |
-| #3 — reliable tests for delegated Joomla users | A SoMe manager or coach must receive and inspect a real test through a supported route. An accepted CleverReach preview API response currently does not establish delivery. |
-| #1 — enforced one-recipient acceptance preflight | Enforce an approved isolated test audience with exactly one eligible, approved recipient and valid sender/list/unsubscribe setup. Evidence must not be an unchecked operator checkbox. The one-recipient restriction applies to acceptance testing, not normal production mail. |
-| Count semantics and age boundaries | Confirm exclusions and boolean tag matching. The current maximum-age cutoff appears inconsistent with an inclusive Maximum age label: verify and correct the date boundary if confirmed. Establish that the counted audience and tested/sent rules are identical. |
-| Crash/race/lease handling | Prove an abandoned audience-only draft is reclaimable while any uncertain provider write or potentially created mailing stays protected. Old reservations must not be automatically reclassified as safe. |
+| #5 — verified same-account token renewal | Renew expired/expanded-scope tokens without dropping reservations. Pin account identity and reject different-account credentials. **Completed and closed:** verified same-account renewal in dev and native CI. |
+| #3 — reliable tests for delegated Joomla users | A SoMe manager or coach must receive and inspect a real test through a supported route. **Completed and closed:** Joomla multipart tests for both languages reached local SMTP for delegated users. Real production SMTP/inbox acceptance remains required. |
+| #1 — enforced one-recipient acceptance preflight | Enforce an approved isolated test audience with exactly one eligible, approved recipient and valid sender/list/unsubscribe setup. Evidence must not be an unchecked operator checkbox. The restriction applies to acceptance testing. **Implemented and CI/dev-verified:** one real send completed; awaiting human inbox/form confirmation before approval. |
+| Count semantics and age boundaries | Confirm exclusions and boolean tag matching. **Implemented:** inclusive maximum-age boundary corrected and birthday boundaries tested; active-match counts are estimates. Tested rules must match remote rules before release. |
+| Crash/race/lease handling | Prove an abandoned audience-only draft is reclaimable while any uncertain provider write or potentially created mailing stays protected. **Implemented and CI-verified:** existing reservations remain conservatively protected; safe audience-only leases can be reclaimed. |
 | Production environment and scheduler | Confirm actual Joomla/PHP/database versions, required PHP extensions and an install/update on a staging copy. Configure reliable scheduled execution, preferably a server cron invocation, and verify maintenance/cleanup/reconciliation in that environment. |
 | Configuration and acceptance | Verify production account/list, tag visibility, suppression fields/words, sender authorization, list-bound unsubscribe flow and profile/footer URLs. Exercise actual SoMe/coach/board roles and denied direct API requests; test native Danish/English menu switching, mobile layout and received Gmail/Outlook light/dark emails. Verify Joomla core audit coverage for group/member permission changes and close any logging gaps. Test Joomla SMTP if board archive copies are enabled. |
-| Sent-mail history | Verify frozen message snapshots, the dashboard's five latest confirmed sends, paginated full history, historical status wording, content-view permissions and consistent thirty-day/configurable cleanup across all local message copies. Preserve only required operational metadata after content expiry. |
+| Sent-mail history | Verify frozen message snapshots, the dashboard's five latest confirmed sends, paginated full history, historical status wording, content-view permissions and consistent thirty-day/configurable cleanup across all local message copies. **Implemented and CI/dev-verified:** frozen snapshots, protected history ACL, real completion timestamps and safe content retention; production retention execution still needs its scheduler check. |
 | Release and recovery | Back up database and Joomla configuration, preserving the site secret needed to decrypt credentials. Perform staging install/update and a restore rehearsal. The update feed is currently empty: publish the verified GitHub release/package/checksum and update feed, then verify a Joomla update before relying on automatic updates. |
 
 Issues #2 and #4 are completed. New reservations must continue to preserve their safeguards. Future member-system/Postmark integrations and the optional Gmail list display-name enhancement are not dependencies for this release.
