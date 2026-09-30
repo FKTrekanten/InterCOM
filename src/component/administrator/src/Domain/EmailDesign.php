@@ -15,7 +15,6 @@ final class EmailDesign
     public static function defaults(): array
     {
         return ['brand_da' => 'Fægteklubben Trekanten', 'brand_en' => 'Fægteklubben Trekanten',
-            'sender_da' => 'Fægteklubben Trekanten', 'sender_en' => 'Trekanten Fencing',
             'logo_url' => 'https://s3.eu-west-1.amazonaws.com/files.crsend.com/231000/231113/images/2.2_FKT_LOGO_NEG_HVID_AFLEV.png',
             'logo_width' => 96, 'content_width' => 600, 'padding' => 32, 'body_size' => 16, 'heading_size' => 28,
             'heading_font' => 'poppins', 'body_font' => 'system',

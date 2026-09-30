@@ -28,13 +28,21 @@ final class Settings
                 }
             }
         }
+        $sender = $input->get('sender_name', $r->config['sender_name'] ?? 'Trekanten Fencing', 'raw');
+        if (!is_string($sender)) {
+            throw new \RuntimeException('COM_INTERCOM_INVALID_SETTINGS');
+        }
         $config = ['mode' => $input->getCmd('mode') === 'live' ? 'live' : 'fake',
             'retention_days' => max(1, min(3650, $input->getInt('retention_days', 30))),
             'group_id' => $input->getInt('group_id'), 'unsubscribe_form_id' => $input->getInt('unsubscribe_form_id'),
+            'sender_name' => trim($sender),
             'sender_email' => $input->getString('sender_email'), 'audience_rules' => json_encode($rules),
             'release_verified' => $input->getBool('release_verified'), 'board_archive_email' => trim($input->getString('board_archive_email')),
             'communication_catalog_version' => (int) ($r->config['communication_catalog_version'] ?? 1),
             'max_filters' => max(1, min(20, $input->getInt('max_filters', 5)))];
+        if ($config['sender_name'] === '' || strlen($config['sender_name']) > 255 || preg_match('/[\x00-\x1f{}<>]/', $config['sender_name'])) {
+            throw new \RuntimeException('COM_INTERCOM_INVALID_SETTINGS');
+        }
         if (
             $config['mode'] === 'live' && (!$config['group_id'] || !$config['unsubscribe_form_id']
             || !filter_var($config['sender_email'], FILTER_VALIDATE_EMAIL))

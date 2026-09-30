@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1
+
+- Move the single default sender name to Joomla Options beside the sender email, preserving existing draft names and migrating the previous English default.
+- Add independent check/uncheck-all controls for team and membership visibility, with partial-selection state and unavailable-tag protection.
+- Format tag labels and trailing times, support optional translated display names, and preserve original CleverReach filter/permission identities and labels during refreshes.
+- Track same-account manual token renewal blocked by live reservations in issue #5; reservations and credentials remain protected.
+
 ## 0.3.0
 
 - Add editable, versioned email design and localised sender defaults in the component backend, with Danish/English light/dark previews and contrast validation.

@@ -17,10 +17,25 @@ $meta = $store->row('SELECT revision FROM #__intercom_catalogues WHERE list_id=0
 $available = array_column($catalog->tags(false), 'tag');
 $catalog->saveTags($available, [], (int)$meta['revision'], 42);
 check(count($catalog->tags()) === count($available), 'Explicit visibility save enables tags');
+$labelMeta = $store->row('SELECT revision FROM #__intercom_catalogues WHERE list_id=0');
+$catalog->saveTags($available, [], (int)$labelMeta['revision'], 42, ['group.Youth'=>['en-GB'=>'Youth, Wednesday 17:30', 'da-DK'=>'Unge, onsdag 17:30']]);
+check($catalog->label('group.Youth', 'en-GB')==='Youth, Wednesday 17:30', 'Custom label displays without changing raw tag');
+$catalog->refreshTags(new FakeGateway(), 42);
+check($catalog->label('group.Youth', 'da-DK')==='Unge, onsdag 17:30', 'Provider refresh preserves multilingual tag labels');
+
 try { $catalog->saveTags([], [], (int)$meta['revision'], 42); throw new Exception('Expected conflict'); }
 catch (RuntimeException $e) { check($e->getCode() === 409, 'Stale catalogue save rejected'); }
 $store->begin();
 try {
+    $migrationParams = json_decode($store->row("SELECT params FROM #__extensions WHERE element='com_intercom'")['params'], true);
+    unset($migrationParams['sender_name']);
+    $store->execute('UPDATE #__extensions SET params='.$store->q(json_encode($migrationParams))." WHERE element='com_intercom'");
+    $store->execute('UPDATE #__intercom_design SET configuration='.$store->q('{"sender_en":"Custom sender","sender_da":"Dansk afsender","brand_en":"Custom brand"}').' WHERE id=1');
+    \FKT\Component\Intercom\Administrator\Service\SettingsMigration::run($store);
+    $migratedParams = json_decode($store->row("SELECT params FROM #__extensions WHERE element='com_intercom'")['params'], true);
+    check($migratedParams['sender_name']==='Custom sender', 'Upgrade preserves the existing English default as the single sender');
+    \FKT\Component\Intercom\Administrator\Service\SettingsMigration::run($store);
+    check((new \FKT\Component\Intercom\Administrator\Service\Design($store))->snapshot()['settings']['brand_en']==='Custom brand', 'Repeat upgrade preserves design customisations');
     // Independently exercise type creation, native assets and type deletion.
     $input = ['type_key'=>'custom', 'suppression'=>'custom-optout', 'state'=>1,
         'translations'=>['en-GB'=>['name'=>'Custom'], 'da-DK'=>['name'=>'Særlig']], 'rules'=>[]];

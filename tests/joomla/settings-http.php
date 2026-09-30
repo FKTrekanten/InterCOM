@@ -22,3 +22,5 @@ check((bool)$r->store->row("SELECT id FROM #__intercom_audit WHERE event='config
 
 check(!$r->store->row('SELECT filter_id FROM #__intercom_filters WHERE filter_id=100'),'Saving Options retires unused legacy filter');
 check(!array_key_exists('filter_ids', json_decode($params, true, 64, JSON_THROW_ON_ERROR)), 'Options no longer persists manual filter IDs');
+
+check(($r->config['sender_name'] ?? '')==='CI shared sender', 'Options persists the single sender name');

@@ -28,11 +28,13 @@ return new class () implements InstallerScriptInterface {
     public function postflight(string $type, InstallerAdapter $adapter): bool
     {
         if ($type !== 'uninstall') {
-            foreach (['Infrastructure/Store', 'Table/TransactionalAssetTable', 'Table/CommunicationTable', 'Service/CatalogMigration'] as $file) {
+            foreach (['Infrastructure/Store', 'Table/TransactionalAssetTable', 'Table/CommunicationTable', 'Service/CatalogMigration', 'Service/SettingsMigration'] as $file) {
                 require_once JPATH_ADMINISTRATOR . '/components/com_intercom/src/' . $file . '.php';
             }
             $db = \Joomla\CMS\Factory::getContainer()->get(\Joomla\Database\DatabaseInterface::class);
-            \FKT\Component\Intercom\Administrator\Service\CatalogMigration::run(new \FKT\Component\Intercom\Administrator\Infrastructure\Store($db));
+            $store = new \FKT\Component\Intercom\Administrator\Infrastructure\Store($db);
+            \FKT\Component\Intercom\Administrator\Service\CatalogMigration::run($store);
+            \FKT\Component\Intercom\Administrator\Service\SettingsMigration::run($store);
         }
         return true;
     }

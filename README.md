@@ -10,7 +10,7 @@ Requires PHP 8.3+, Composer, Python 3, Node.js (syntax and composer interaction 
 composer install
 python3 scripts/build.py
 bash scripts/stack.sh up
-docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.3.0.zip
+docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.3.1.zip
 ```
 
 Local site: http://localhost:8088. Administrator: `/administrator`. Synthetic local login: `intercom` / `Intercom-local-2026!`. These credentials are only for the localhost-only development stack. Do not deploy this Compose file to production.
@@ -45,9 +45,9 @@ Live delivery requires a controlled one-recipient CR test list (CR has no sandbo
 
 ## Current limitations
 
-The component includes Joomla rich-text composition, a branded bilingual email template, first-name insertion, an isolated matching preview, translated communication groups and structured tag/access administration. Audit history and filters have separate paginated pages. Email design is configurable, with light/dark previews and localised sender defaults. Component and communication permissions saved through Intercom are audited; changes through Joomla user administration still rely on Joomla core action logs.
+The component includes Joomla rich-text composition, a branded bilingual email template, first-name insertion, an isolated matching preview, translated communication groups and structured tag/access administration. Audit history and filters have separate paginated pages. Email design is configurable, with light/dark previews and a single sender default in Options. Component and communication permissions saved through Intercom are audited; changes through Joomla user administration still rely on Joomla core action logs.
 
-Full Danish language-pack/menu-switch acceptance and live email-client/dark-mode verification remain setup/acceptance work. The browser preview does not confirm CleverReach inbox delivery. Automated one-recipient preflight, reliable delivered previews for delegated users, remote filter reconciliation, and list-bound unsubscribe forms remain tracked in [issues #1–4](https://github.com/FKTrekanten/InterCOM/issues). The system must not be represented as production-ready.
+Full Danish language-pack/menu-switch acceptance and live email-client/dark-mode verification remain setup/acceptance work. The browser preview does not confirm CleverReach inbox delivery. Verified same-account manual token renewal is tracked in [issue #5](https://github.com/FKTrekanten/InterCOM/issues/5). Automated one-recipient preflight, reliable delivered previews for delegated users, remote filter reconciliation, and list-bound unsubscribe forms remain tracked in [issues #1–4](https://github.com/FKTrekanten/InterCOM/issues). The system must not be represented as production-ready.
 
 See [implementation plan](docs/implementation-plan.md) and [design sketch](docs/intercom-sketch.html).
 
@@ -101,11 +101,11 @@ Options contains an optional **Board archive email**. Leave it empty to disable.
 
 The archive outbox records pending, sending, submitted or uncertain status in the database and audit log. Provider status failures leave copies pending; interrupted or failed SMTP calls require operator review and are never automatically retried. Retention applies to terminal archive content. The developer archive address remains empty, and automated tests inject fake SMTP/provider completion to avoid real delivery.
 
-## Email design and composer behaviour (0.3.0)
+## Email design and composer behaviour (0.3.1)
 
-**Intercom → Email design** controls branding, the logo, sender-name defaults, typography, spacing, and paired light/dark colours. The header places the club name and communication heading on the left and the logo on the right. Communication headings still come from each group’s language tabs. Poppins is requested where supported, with a sans fallback; the body uses the configured email-safe font stack. Text/link contrast is validated in both palettes. The logo has a protective navy background.
+**Intercom → Email design** controls branding, the logo, typography, spacing, and paired light/dark colours. The header places the club name and communication heading on the left and the logo on the right. Communication headings still come from each group’s language tabs. Poppins is requested where supported, with a sans fallback; the body uses the configured email-safe font stack. Text/link contrast is validated in both palettes. The logo has a protective navy background.
 
-New drafts use the sender default for the Joomla page language: Danish **Fægteklubben Trekanten**, English **Trekanten Fencing**. Existing drafts and edited names retain their value; changing body/preview language does not overwrite the sender.
+New drafts use one sender default from Options for both Danish and English. Existing drafts and edited names retain their value; changing body/preview language does not overwrite the sender. Upgrades preserve the previous English sender default when consolidating the setting.
 
 Design saves/resets are audited and revision checked. Drafts snapshot the design. A design change requires review, saving, and a new test before release; scheduled/submitted mailings keep their approved design. Preview-only changes in the backend are not persisted.
 
@@ -114,3 +114,5 @@ Subject and sender edits update the envelope without requesting or replacing the
 The dashboard reports the current mode/list pool, uncertain creation slots/reservations, draft states, accepted submissions within retained audit history, and maintenance/archives. Full audit history supports actor/event/UTC date filtering; filters support current/historical scope and state filtering. Audit-derived data and underlying routes require audit permission; management pages require component admin permission.
 
 Dark-mode markup includes colour-scheme metadata, targeted media rules, and Outlook overrides. Browser light/dark previews validate the authored themes; they cannot reproduce every mail client’s colour inversion. Actual received-email checks in Apple Mail, Gmail, and Outlook, including CleverReach’s processing, remain a release acceptance requirement. No live mailing is sent by automated CI.
+
+The default sender name is shared by both message languages and configured beside the sender email in Options. Existing draft sender names are retained. Recipient tags and memberships each provide bulk visibility selection and optional per-language display names; blank names use automatic underscore/time formatting. CleverReach tag identifiers and audience permissions retain their original values.

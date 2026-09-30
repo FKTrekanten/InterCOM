@@ -3,6 +3,7 @@
 <fieldset name="settings" label="COM_INTERCOM_SETTINGS">
 <field name="mode" type="list" label="COM_INTERCOM_MODE" default="fake"><option value="fake">COM_INTERCOM_FAKE</option><option value="live">COM_INTERCOM_LIVE</option></field>
 <field name="board_archive_email" type="email" label="COM_INTERCOM_BOARD_ARCHIVE" description="COM_INTERCOM_BOARD_ARCHIVE_HELP" filter="string" />
+<field name="sender_name" type="text" label="COM_INTERCOM_SENDER" description="COM_INTERCOM_SENDER_NAME_HELP" default="Trekanten Fencing" maxlength="255" required="true" filter="raw" />
 <field name="sender_email" type="email" label="COM_INTERCOM_SENDER_EMAIL" filter="string" />
 <field name="group_id" type="IntercomGroup" label="COM_INTERCOM_GROUP_ID" filter="integer" />
 <field name="unsubscribe_form_id" type="number" label="COM_INTERCOM_UNSUBSCRIBE_FORM_ID" min="0" filter="integer" />

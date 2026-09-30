@@ -25,4 +25,6 @@ foreach (['intercom.type.compose', 'intercom.type.send'] as $action) {
     check(!\Joomla\CMS\Access\Access::checkGroup(2, $action, 'com_intercom.communication.' . $club), 'Global compose cannot override denied communication type: ' . $action);
 }
 
-check($r->design->snapshot()['settings']['sender_en'] === 'Trekanten Fencing', 'Native upgrade initializes localized sender and design defaults');
+check(($r->config['sender_name'] ?? '') === 'Trekanten Fencing', 'Native upgrade initializes single sender in Options');
+check(!isset($r->design->snapshot()['settings']['sender_en']), 'Email design excludes sender configuration');
+check((bool)$r->store->row("SHOW COLUMNS FROM #__intercom_tags LIKE 'labels'"), 'Native upgrade installs tag labels');

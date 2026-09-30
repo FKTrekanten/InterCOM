@@ -12,7 +12,7 @@ final class ManagementController extends BaseController
     private function renderDesign($r, array $data): void
     {
         $settings = \FKT\Component\Intercom\Administrator\Domain\EmailDesign::validate($data);
-        $sample = ['type' => 'club', 'sender' => $settings['sender_en'], 'format' => 'html', 'tags' => [],
+        $sample = ['type' => 'club', 'sender' => $r->config['sender_name'] ?? 'Trekanten Fencing', 'format' => 'html', 'tags' => [],
             'body_da' => '<h2>Nyheder fra klubben</h2><p>Kære {FIRSTNAME[std:Medlem]}</p><p>Her kan du se, hvordan din besked og klubbens design ser ud sammen.</p>',
             'body_en' => '<h2>News from the club</h2><p>Hello {FIRSTNAME[std:Member]}</p><p>See how your message and the club design look together.</p>',
             'design' => ['settings' => $settings], 'definition' => $r->catalog->types()['club'] ?? []];
@@ -49,7 +49,7 @@ final class ManagementController extends BaseController
                 'savetype' => $r->catalog->saveType($data, (int) $user->id),
                 'deletetype' => $r->catalog->deleteType((int) ($data['id'] ?? 0), (int) ($data['revision'] ?? 0), (int) $user->id),
                 'refreshtags' => $r->catalog->refreshTags($r->gateway(), (int) $user->id),
-                'savetags' => $r->catalog->saveTags((array) ($data['enabled'] ?? []), (array) ($data['ordering'] ?? []), (int) ($data['revision'] ?? 0), (int) $user->id),
+                'savetags' => $r->catalog->saveTags((array) ($data['enabled'] ?? []), (array) ($data['ordering'] ?? []), (int) ($data['revision'] ?? 0), (int) $user->id, (array) ($data['labels'] ?? [])),
                 'savedesign', 'resetdesign' => $r->design->save($data, (int) ($data['revision'] ?? 0), (int) $user->id, $task === 'resetdesign'),
                 'savescopes' => $r->catalog->saveScopes((array) ($data['scopes'] ?? []), (int) $user->id, (string) ($data['revision'] ?? '')),
                 default => throw new \RuntimeException('COM_INTERCOM_DENIED', 403),

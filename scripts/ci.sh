@@ -10,6 +10,8 @@ python3 -m unittest discover -s tests/tooling
 node --check src/component/media/js/app.js
 node --check src/component/media/js/options.js
 node --check src/component/media/js/design.js
+node --check src/component/media/js/tags.mjs
+node --check src/component/media/js/tags.js
 node --test tests/frontend/*.test.mjs
 python3 scripts/build.py
 # Ephemeral CI credentials are generated at runtime and never committed or printed.

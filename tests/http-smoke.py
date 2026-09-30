@@ -51,6 +51,7 @@ status, admin = request('/administrator/index.php', {
 assert status == 200 and 'Latest audit entries' in admin, 'Administrator audit dashboard available'
 options = '/administrator/index.php?option=com_config&view=component&component=com_intercom'
 _, admin = request(options)
+assert 'jform[sender_name]' in admin and 'jform[sender_email]' in admin, 'Single sender name and email render in Options'
 assert 'id="client_id"' in admin and 'id="access_token"' in admin, 'Secret controls render in native Options'
 assert 'jform_category_club' not in admin and 'jform_audience_rules' not in admin, 'Communication settings moved out of Options'
 assert 'jform_filter_ids' not in admin, 'Obsolete manual filter IDs are absent from Options'
@@ -62,12 +63,12 @@ class HiddenInputs(HTMLParser):
             self.values[attrs.get('name','')] = attrs.get('value','')
 inputs = HiddenInputs(); inputs.feed(admin)
 status, admin = request('/administrator/index.php?option=com_config', {
-    **inputs.values, 'task':'component.apply', 'jform[mode]':'fake',
+    **inputs.values, 'task':'component.apply', 'jform[sender_name]':'CI shared sender', 'jform[mode]':'fake',
     'jform[retention_days]':'45'})
 assert status == 200 and 'Configuration saved' in admin, 'Native Options saves successfully'
 inputs = HiddenInputs(); inputs.feed(admin)
 status, admin = request('/administrator/index.php?option=com_config', {
-    **inputs.values, 'task':'component.apply', 'jform[mode]':'live',
+    **inputs.values, 'task':'component.apply', 'jform[sender_name]':'CI shared sender', 'jform[mode]':'live',
     'jform[retention_days]':'99','jform[audience_rules]':'[]'})
 assert status == 200 and 'Check the recipient list' in admin, ('Invalid native Options rejected', status, re.findall(r'<joomla-alert[^>]*>(.*?)</joomla-alert>', admin, re.S))
 assert request('/administrator/index.php?option=com_intercom&task=connection.importtokens', {'expires_in':'3600'})[0] == 403, 'Token import requires CSRF'
@@ -104,16 +105,20 @@ status, groups = request(management + '&task=management.savetype', {
 assert status == 200 and 'HTTP group' in groups and 'http-optout' in groups, 'Native management form saves translated communication'
 _, tagpage = request(settings + '&section=tags')
 assert 'group.Youth' in tagpage and 'Refresh tags' in tagpage, 'Recipient visibility catalogue renders separately'
+assert '/media/com_intercom/js/tags.js?' in tagpage, 'Joomla resolves the registered bulk-selection script'
+assert tagpage.count('data-toggle-all') == 2 and 'jform[labels][group.Youth][da-DK]' in tagpage and 'Youth, Wednesday 17:30' in tagpage, 'Both tag sections support bulk selection and multilingual display names'
 _, scopepage = request(settings + '&section=access')
 assert 'jform[scopes]' in scopepage and 'Audience access' in scopepage, 'Structured Joomla group audience grants render'
 _, frontend = request('/index.php?option=com_intercom&view=composer')
-assert 'value="Trekanten Fencing"' in frontend, 'English site uses English sender default'
+assert 'value="group.Youth"' in frontend and 'Youth, Wednesday 17:30' in frontend, 'Composer displays friendly names while retaining raw filter values'
+assert 'value="CI shared sender"' in frontend, 'New draft uses the single sender default from Options'
 assert 'allow-custom=' not in frontend, 'Recipient selects never allow arbitrary tags'
 assert 'data-preview-theme="dark"' in frontend, 'Dark theme preview control renders'
 assert 'HTTP group' in frontend, 'Published custom communication appears in frontend'
 print('PASS: Native communication CRUD form, language tabs, asset permissions, tag catalogue and audience grant editor')
 
 _, design = request(settings + '&section=design')
+assert 'jform[sender_en]' not in design and 'jform[sender_da]' not in design, 'Sender options removed from email design'
 assert 'jform[dark_surface]' in design and 'ic-design-preview' in design, 'Design form provides paired colour settings and preview'
 inputs = HiddenInputs(); inputs.feed(design)
 status, saved = request(management + '&task=management.savedesign', {**inputs.values, 'jform[brand_en]':'Trekanten CI'})

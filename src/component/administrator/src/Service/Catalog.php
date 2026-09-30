@@ -214,9 +214,15 @@ final class Catalog
             . ($enabled ? ' AND enabled=1 AND available=1' : '') . ' ORDER BY ordering,tag');
     }
 
-    public function saveTags(array $enabled, array $ordering, int $revision, int $actor): void
+    public function label(string $tag, string $language): string
     {
-        $this->store->transaction(function () use ($enabled, $ordering, $revision, $actor): void {
+        $row = $this->store->row('SELECT tag,labels FROM #__intercom_tags WHERE list_id=' . $this->context() . ' AND tag=' . $this->store->q($tag));
+        return \FKT\Component\Intercom\Administrator\Domain\TagLabel::display($row ?: ['tag' => $tag], $language);
+    }
+
+    public function saveTags(array $enabled, array $ordering, int $revision, int $actor, array $labels = []): void
+    {
+        $this->store->transaction(function () use ($enabled, $ordering, $revision, $actor, $labels): void {
             $this->lockConfiguration();
                 $list = $this->context();
             $meta = $this->store->row("SELECT * FROM #__intercom_catalogues WHERE list_id=$list FOR UPDATE");
@@ -225,16 +231,18 @@ final class Catalog
             }
             $all = $this->tags(false);
             $available = array_column(array_filter($all, static fn ($row) => (int) $row['available'] === 1), 'tag');
-            if (array_diff($enabled, $available)) {
+            if (array_diff($enabled, $available) || array_diff(array_keys($labels), array_column($all, 'tag'))) {
                 throw new \RuntimeException('COM_INTERCOM_SCOPE_DENIED', 403);
             }
             foreach ($all as $row) {
                 $value = (int) in_array($row['tag'], $enabled, true);
                 $position = (int) ($ordering[$row['tag']] ?? $row['ordering']);
-                $this->store->execute("UPDATE #__intercom_tags SET enabled=$value,ordering=$position WHERE list_id=$list AND tag=" . $this->store->q($row['tag']));
+                $names = array_key_exists($row['tag'], $labels) ? \FKT\Component\Intercom\Administrator\Domain\TagLabel::validate((array) $labels[$row['tag']], $this->languages()) : json_decode($row['labels'] ?? '{}', true, 32, JSON_THROW_ON_ERROR);
+                $names = $this->store->q(json_encode($names, JSON_THROW_ON_ERROR));
+                $this->store->execute("UPDATE #__intercom_tags SET enabled=$value,ordering=$position,labels=$names WHERE list_id=$list AND tag=" . $this->store->q($row['tag']));
             }
             $this->store->execute("UPDATE #__intercom_catalogues SET revision=revision+1 WHERE list_id=$list");
-            $this->store->audit($actor, 'tags.visibility_saved', 0, ['list_id' => $list, 'before' => $all, 'enabled' => $enabled]);
+            $this->store->audit($actor, 'tags.visibility_saved', 0, ['list_id' => $list, 'before' => $all, 'enabled' => $enabled, 'after' => $this->tags(false)]);
         });
     }
 
@@ -264,7 +272,7 @@ final class Catalog
         $current = json_decode($settings['params'] ?? '{}', true) ?: [];
         $meta = $this->store->row('SELECT revision FROM #__intercom_catalogues WHERE list_id=' . $this->context());
         return hash('sha256', json_encode([$this->snapshot($message), $meta['revision'] ?? 0,
-            array_intersect_key($current, array_flip(['mode', 'group_id', 'sender_email', 'unsubscribe_form_id', 'board_archive_email'])),
+            array_intersect_key($current, array_flip(['mode', 'group_id', 'sender_name', 'sender_email', 'unsubscribe_form_id', 'board_archive_email'])),
             Message::templateVersion(), (new Design($this->store))->snapshot()], JSON_THROW_ON_ERROR));
     }
 

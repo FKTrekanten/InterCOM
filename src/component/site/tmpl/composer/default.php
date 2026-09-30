@@ -29,7 +29,6 @@ foreach (['SAVED','TESTED','SUBMITTED','DIRTY','ERROR','CONFIRM_SEND','INVALID_M
 $id = $app->input->getInt('id');
 $draft = $id ? $r->store->draft($id, (int) $user->id) : null;
 $content = $draft ? json_decode($draft['content'], true) : [];
-$design = $r->design->snapshot()['settings'];
 $definitions = $r->catalog->types();
 $typeOptions = [];
 foreach ($definitions as $key => $definition) {
@@ -37,8 +36,9 @@ foreach ($definitions as $key => $definition) {
 }
 $initial = ['types' => $typeOptions, 'language' => str_starts_with($app->getLanguage()->getTag(), 'da') ? 'da' : 'en', 'allAudience' => $policy->scope()['all'], 'draft' => $draft, 'message' => $content, 'simulation' => ($r->config['mode'] ?? 'fake') === 'fake'];
 
-$tags = $memberships = [];
+$tags = $memberships = $tagLabels = [];
 foreach ($r->catalog->tags() as $row) {
+    $tagLabels[$row['tag']] = \FKT\Component\Intercom\Administrator\Domain\TagLabel::display($row, $app->getLanguage()->getTag());
     if (str_starts_with($row['tag'], 'group.')) {
         if ($policy->scope()['all'] || in_array($row['tag'], $policy->scope()['tags'], true)) {
             $tags[] = $row['tag'];
@@ -71,14 +71,14 @@ $app->getDocument()->addScriptOptions('com_intercom', $initial);
 <joomla-field-fancy-select placeholder="<?= $esc($t('SELECT_TAGS')) ?>">
 <select id="ic-<?= $field ?>" name="<?= $field ?>[]" multiple>
     <?php foreach (array_values(array_unique(array_merge($choices, $content[$field] ?? []))) as $tag) : ?>
-<option value="<?= $esc($tag) ?>" <?= in_array($tag, $content[$field] ?? [], true) ? 'selected' : '' ?>><?= $esc(substr($tag, $prefix)) ?><?= in_array($tag, $choices, true) ? '' : ' (' . $esc($t('TAG_UNAVAILABLE')) . ')' ?></option>
+<option value="<?= $esc($tag) ?>" <?= in_array($tag, $content[$field] ?? [], true) ? 'selected' : '' ?>><?= $esc($tagLabels[$tag] ?? $r->catalog->label($tag, $app->getLanguage()->getTag())) ?><?= in_array($tag, $choices, true) ? '' : ' (' . $esc($t('TAG_UNAVAILABLE')) . ')' ?></option>
     <?php endforeach; ?></select></joomla-field-fancy-select>
 <?php endforeach; ?>
 <p id="ic-group-error" class="ic-field-error" role="alert" hidden><?= $t('GROUP_REQUIRED') ?></p>
 <p class="ic-help"><?= $t('TAG_MATCH_HELP') ?></p>
 <details><summary><?= $t('MORE_FILTERS') ?></summary>
 <div class="ic-row"><label><?= $t('AGE_FROM') ?><input name="age_from" type="number" min="0" max="120" value="0"></label><label><?= $t('AGE_TO') ?><input name="age_to" type="number" min="0" max="120" value="0"></label><label><?= $t('GENDER') ?><select name="gender"><option value=""><?= $t('ALL') ?></option><option value="male"><?= $t('MALE') ?></option><option value="female"><?= $t('FEMALE') ?></option></select></label></div></details><div class="ic-actions"><span class="ic-help"><?= $t('SCOPE_NOTE') ?></span><button type="button" data-go="1"><?= $t('WRITE') ?> →</button></div></fieldset>
-<fieldset data-panel="1"><legend><?= $t('CONTENT') ?></legend><p class="ic-help"><?= $t('BOTH_LANGUAGES') ?></p><label><?= $t('SENDER') ?><input name="sender" required maxlength="255" value="<?= $esc($design['sender_' . $initial['language']]) ?>"></label>
+<fieldset data-panel="1"><legend><?= $t('CONTENT') ?></legend><p class="ic-help"><?= $t('BOTH_LANGUAGES') ?></p><label><?= $t('SENDER') ?><input name="sender" required maxlength="255" value="<?= $esc($r->config['sender_name'] ?? 'Trekanten Fencing') ?>"></label>
 <div class="ic-edit-langs" aria-label="<?= $t('CONTENT_LANGUAGE') ?>"><button type="button" data-edit-lang="da" aria-pressed="true">Dansk</button><button type="button" data-edit-lang="en" aria-pressed="false">English</button></div>
 <?php foreach (['da','en'] as $lang) :
     ?><div data-language-panel="<?= $lang ?>">

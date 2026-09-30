@@ -12,8 +12,8 @@ final class EmailDesignTest extends TestCase
     public function testDefaultsAreReadableInBothThemes(): void
     {
         $design = EmailDesign::validate([]);
-        self::assertSame('Trekanten Fencing', $design['sender_en']);
-        self::assertSame('Fægteklubben Trekanten', $design['sender_da']);
+        self::assertArrayNotHasKey('sender_en', $design);
+        self::assertArrayNotHasKey('sender_da', $design);
         foreach (['light', 'dark'] as $theme) {
             foreach (['text', 'muted', 'accent'] as $role) {
                 self::assertGreaterThanOrEqual(4.5, EmailDesign::contrast($design[$theme . '_' . $role], $design[$theme . '_surface']));

@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.joomla.org/schemas/json-schema/web_assets.json",
   "name": "com_intercom",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "assets": [
     {
       "name": "com_intercom.app",
@@ -32,6 +32,14 @@
       "dependencies": [
         "core"
       ],
+      "attributes": {
+        "type": "module"
+      }
+    },
+    {
+      "name": "com_intercom.tags",
+      "type": "script",
+      "uri": "com_intercom/tags.js",
       "attributes": {
         "type": "module"
       }
