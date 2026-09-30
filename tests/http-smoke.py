@@ -42,7 +42,20 @@ call('preview', identity)
 call('release', identity, 403)
 assert call('release', {**identity,'confirm':1})['state'] == 'submitted'
 call('release', {**identity,'confirm':1}, 409)
-print('PASS: HTTP login, composer, CSRF, test requirement, explicit confirmation and duplicate-send guard')
+call('delete', identity, 409)
+trash = call('save', {'message':json.dumps(message)})
+trash_id = {'id':trash['id'],'revision':trash['revision']}
+call('delete', {**trash_id,'revision':0}, 409)
+assert request(api, {'task':'api.delete', **trash_id})[0] == 403, 'Deletion requires CSRF'
+call('delete', trash_id)
+call('save', {**trash_id,'message':json.dumps(message)}, 404)
+call('restore', trash_id, 409)
+restored = call('restore', {**trash_id,'revision':trash['revision']+1})
+assert restored['state'] == 'draft' and restored['tested_revision'] is None, 'Restore requires a new test'
+call('delete', {'id':restored['id'],'revision':restored['revision']})
+_, deleted_page = request('/index.php?option=com_intercom&id=' + str(trash['id']))
+assert 'Restore draft' in deleted_page and 'Deleted drafts' in deleted_page, 'Deleted drafts provide native restore navigation'
+print('PASS: HTTP session/CSRF/send guards and draft deletion/restore boundaries')
 # Saving real credentials must remain possible after simulated previews/sends.
 _, admin_login = request('/administrator/index.php?option=com_intercom')
 status, admin = request('/administrator/index.php', {
@@ -63,12 +76,12 @@ class HiddenInputs(HTMLParser):
             self.values[attrs.get('name','')] = attrs.get('value','')
 inputs = HiddenInputs(); inputs.feed(admin)
 status, admin = request('/administrator/index.php?option=com_config', {
-    **inputs.values, 'task':'component.apply', 'jform[sender_name]':'CI shared sender', 'jform[mode]':'fake',
+    **inputs.values, 'task':'component.apply', 'jform[footer_profile_da]':'https://example.org/da/profile', 'jform[footer_profile_en]':'https://example.org/en/profile', 'jform[footer_address]':'HTTP Club address', 'jform[sender_name]':'CI shared sender', 'jform[mode]':'fake',
     'jform[retention_days]':'45'})
 assert status == 200 and 'Configuration saved' in admin, 'Native Options saves successfully'
 inputs = HiddenInputs(); inputs.feed(admin)
 status, admin = request('/administrator/index.php?option=com_config', {
-    **inputs.values, 'task':'component.apply', 'jform[sender_name]':'CI shared sender', 'jform[mode]':'live',
+    **inputs.values, 'task':'component.apply', 'jform[footer_profile_da]':'https://example.org/da/profile', 'jform[footer_profile_en]':'https://example.org/en/profile', 'jform[footer_address]':'HTTP Club address', 'jform[sender_name]':'CI shared sender', 'jform[mode]':'live',
     'jform[retention_days]':'99','jform[audience_rules]':'[]'})
 assert status == 200 and 'Check the recipient list' in admin, ('Invalid native Options rejected', status, re.findall(r'<joomla-alert[^>]*>(.*?)</joomla-alert>', admin, re.S))
 assert request('/administrator/index.php?option=com_intercom&task=connection.importtokens', {'expires_in':'3600'})[0] == 403, 'Token import requires CSRF'
@@ -118,6 +131,7 @@ assert 'HTTP group' in frontend, 'Published custom communication appears in fron
 print('PASS: Native communication CRUD form, language tabs, asset permissions, tag catalogue and audience grant editor')
 
 _, design = request(settings + '&section=design')
+assert 'HTTP Club address' in design and 'https://example.org/da/profile' in design, 'Design preview uses configurable footer and profile links'
 assert 'jform[sender_en]' not in design and 'jform[sender_da]' not in design, 'Sender options removed from email design'
 assert 'jform[dark_surface]' in design and 'ic-design-preview' in design, 'Design form provides paired colour settings and preview'
 inputs = HiddenInputs(); inputs.feed(design)

@@ -67,7 +67,7 @@ final class Message
     public static function templateVersion(): string
     {
         return hash('sha256', implode('|', [hash_file('sha256', dirname(__DIR__, 2) . '/tmpl/email/newsletter.html'),
-            hash_file('sha256', __FILE__), hash_file('sha256', __DIR__ . '/EmailDesign.php')]));
+            hash_file('sha256', __FILE__), hash_file('sha256', __DIR__ . '/EmailDesign.php'), hash_file('sha256', __DIR__ . '/Footer.php')]));
     }
 
     public static function bodyHtml(array $message, string $lang): string
@@ -92,6 +92,7 @@ final class Message
     public static function html(array $message, ?string $locale = null, ?string $theme = null): string
     {
         $escape = static fn ($s) => htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $footer = Footer::validate($message['footer'] ?? []);
         $definition = $message['definition'] ?? [];
         $da = self::translation($definition, 'da-DK');
         $en = self::translation($definition, 'en-GB');
@@ -110,7 +111,7 @@ final class Message
             ' .ic-outer' => 'background-color:' . $design['dark_outer'] . '!important',
             ' .ic-surface' => 'background-color:' . $design['dark_surface'] . '!important;border-color:' . $design['dark_line'] . '!important',
             ' .ic-content' => 'color:' . $design['dark_text'] . '!important;border-top-color:' . $design['dark_accent'] . '!important',
-            ' .ic-footer' => 'color:' . $design['dark_muted'] . '!important',
+            ' .ic-footer' => 'background-color:' . $design['dark_footer'] . '!important;border-top-color:' . $design['dark_line'] . '!important;color:' . $design['dark_muted'] . '!important',
             ' .ic-header' => 'background-color:' . $design['dark_header'] . '!important',
             ' .ic-brand,SELECTOR .ic-title' => 'color:' . $design['dark_header_text'] . '!important',
             ' a' => 'color:' . $design['dark_accent'] . '!important'];
@@ -125,6 +126,8 @@ final class Message
             . $darkCss('body:not(.preview-light)') . '}' . $darkCss('[data-ogsc] body:not(.preview-light)');
         $groups = $escape(implode(', ', array_map(static fn ($tag) => substr($tag, 6), $message['tags'] ?? [])));
         $html = strtr(file_get_contents(dirname(__DIR__, 2) . '/tmpl/email/newsletter.html'), array_merge($tokens, [
+            '{{FOOTER_CONTACT}}' => Footer::html($footer, $design['light_accent']),
+            '{{PROFILE_DA}}' => $escape($footer['footer_profile_da']), '{{PROFILE_EN}}' => $escape($footer['footer_profile_en']),
             '{{BODY_DA}}' => self::bodyHtml($message, 'da'), '{{BODY_EN}}' => self::bodyHtml($message, 'en'),
             '{{HEADER_DA}}' => $escape($da['heading'] ?: ($da['name'] ?: 'Trekanten informerer')),
             '{{HEADER_EN}}' => $escape($en['heading'] ?: ($en['name'] ?: 'Trekanten informs')),
@@ -146,6 +149,6 @@ final class Message
     public static function text(array $message): string
     {
         return "[DA]\n" . EmailContent::text(self::bodyHtml($message, 'da')) . "\n\n[EN]\n"
-            . EmailContent::text(self::bodyHtml($message, 'en')) . "\n\n{ONLINE_VERSION}\n{UNSUBSCRIBE}";
+            . EmailContent::text(self::bodyHtml($message, 'en')) . "\n\n" . Footer::text(Footer::validate($message['footer'] ?? [])) . "\n\n{ONLINE_VERSION}\n{UNSUBSCRIBE}";
     }
 }

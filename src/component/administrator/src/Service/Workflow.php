@@ -26,6 +26,7 @@ final class Workflow
             if ($this->catalog) {
                 $message['definition'] = $this->catalog->snapshot($message);
                 $message['design'] = (new Design($this->store))->snapshot();
+                $message['footer'] = $this->catalog->footer();
                 $this->store->execute('UPDATE #__intercom_types SET used=1 WHERE id=' . (int) $message['definition']['id']);
             }
             $json = $this->store->q(json_encode($message, JSON_THROW_ON_ERROR));
@@ -65,7 +66,7 @@ final class Workflow
             }
             $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
             if ($this->catalog) {
-                if (($message['definition'] ?? null) !== $this->catalog->snapshot($message) || ($message['design'] ?? null) !== (new Design($this->store))->snapshot()) {
+                if (($message['definition'] ?? null) !== $this->catalog->snapshot($message) || ($message['design'] ?? null) !== (new Design($this->store))->snapshot() || ($message['footer'] ?? null) !== $this->catalog->footer()) {
                     throw new \RuntimeException('COM_INTERCOM_DEFINITION_CHANGED', 409);
                 }
                 $fingerprint = $this->catalog->fingerprint($message);
@@ -263,6 +264,41 @@ final class Workflow
         });
     }
 
+    public function delete(int $id, int $revision): void
+    {
+        $this->store->transaction(function () use ($id, $revision): void {
+            $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
+            $draft = $this->store->draft($id, $this->actor, true);
+            if (!in_array($draft['state'], ['draft', 'tested', 'cancelled'], true) || (int) $draft['revision'] !== $revision) {
+                throw new \RuntimeException('COM_INTERCOM_DELETE_DENIED', 409);
+            }
+            $this->policy->assertManageDraft();
+            if ($draft['delivery_mode'] === 'fake') {
+                // Simulation has no external mailing that can still use this filter.
+                $this->store->execute("UPDATE #__intercom_filters SET draft_id=NULL WHERE draft_id=$id");
+                $this->store->execute("UPDATE #__intercom_drafts SET filter_id=NULL,mailing_id=0 WHERE id=$id");
+            }
+            $this->store->execute("UPDATE #__intercom_drafts SET state='deleted',revision=revision+1,tested_revision=NULL,tested_fingerprint=NULL,updated_at=UTC_TIMESTAMP() WHERE id=$id");
+            $this->store->audit($this->actor, 'draft.deleted', $id, ['previous_state' => $draft['state'], 'live_reservation_retained' => $draft['delivery_mode'] !== 'fake' && !empty($draft['filter_id'])]);
+        });
+    }
+
+    public function restore(int $id, int $revision): array
+    {
+        $this->store->transaction(function () use ($id, $revision): void {
+            $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
+            $draft = $this->store->draft($id, $this->actor, true, true);
+            if ($draft['state'] !== 'deleted' || (int) $draft['revision'] !== $revision || $draft['content'] === '{}') {
+                throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
+            }
+            $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
+            $this->policy->assertAllowed($message['type'], $message['tags'], 'compose');
+            $this->store->execute("UPDATE #__intercom_drafts SET state='draft',revision=revision+1,tested_revision=NULL,tested_fingerprint=NULL,updated_at=UTC_TIMESTAMP() WHERE id=$id");
+            $this->store->audit($this->actor, 'draft.restored', $id);
+        });
+        return $this->store->draft($id, $this->actor);
+    }
+
     public function maintain(int $retentionDays): void
     {
         $days = max(1, min(3650, $retentionDays));
@@ -277,7 +313,7 @@ final class Workflow
             $this->store->execute("DELETE FROM #__intercom_audit WHERE created_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             $this->store->execute("DELETE FROM #__intercom_revisions WHERE created_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             // Purge inactive terminal message content, retaining operational IDs/leases.
-            $this->store->execute("UPDATE #__intercom_drafts SET content='{}' WHERE state IN ('submitted','cancelled') AND updated_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
+            $this->store->execute("UPDATE #__intercom_drafts SET content='{}' WHERE state IN ('submitted','cancelled','deleted') AND updated_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             $this->store->audit(0, 'maintenance.completed', 0, ['retention_days' => $days]);
         });
         $this->archive?->maintain();

@@ -6,7 +6,7 @@ defined('_JEXEC') or die;
 <div class="table-responsive"><table class="table"><thead><tr><th><?= $t('FILTER_ID') ?></th><th><?= $t('DRAFT') ?></th><th><?= $t('STATE') ?></th><th><?= $t('RECIPIENT_LIST') ?></th><th><?= $t('FILTER_SCOPE') ?></th></tr></thead><tbody>
 <?php foreach ($filterRows as $row) : ?>
 <tr data-filter-id="<?= (int) $row['filter_id'] ?>"><td><?= (int) $row['filter_id'] ?></td><td>
-    <?php if (!empty($row['draft_id']) && (int) $row['owner_id'] === (int) \Joomla\CMS\Factory::getApplication()->getIdentity()->id) : ?>
+    <?php if ($row['state'] !== 'deleted' && !empty($row['draft_id']) && (int) $row['owner_id'] === (int) \Joomla\CMS\Factory::getApplication()->getIdentity()->id) : ?>
 <a href="../index.php?option=com_intercom&amp;id=<?= (int) $row['draft_id'] ?>">#<?= (int) $row['draft_id'] ?></a>
     <?php else :
         ?><?= (int) $row['draft_id'] ?><?php

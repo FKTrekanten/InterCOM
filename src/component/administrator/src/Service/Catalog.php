@@ -266,6 +266,12 @@ final class Catalog
         return $this->definition($row);
     }
 
+    public function footer(): array
+    {
+        $settings = $this->store->row("SELECT params FROM #__extensions WHERE element='com_intercom' AND type='component'");
+        return \FKT\Component\Intercom\Administrator\Domain\Footer::validate(json_decode($settings['params'] ?? '{}', true, 64, JSON_THROW_ON_ERROR));
+    }
+
     public function fingerprint(array $message): string
     {
         $settings = $this->store->row("SELECT params FROM #__extensions WHERE element='com_intercom' AND type='component'");
@@ -273,6 +279,7 @@ final class Catalog
         $meta = $this->store->row('SELECT revision FROM #__intercom_catalogues WHERE list_id=' . $this->context());
         return hash('sha256', json_encode([$this->snapshot($message), $meta['revision'] ?? 0,
             array_intersect_key($current, array_flip(['mode', 'group_id', 'sender_name', 'sender_email', 'unsubscribe_form_id', 'board_archive_email'])),
+            \FKT\Component\Intercom\Administrator\Domain\Footer::validate($current),
             Message::templateVersion(), (new Design($this->store))->snapshot()], JSON_THROW_ON_ERROR));
     }
 

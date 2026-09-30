@@ -80,10 +80,10 @@ final class Store
         $this->db->insertObject('#__intercom_audit', $record);
     }
 
-    public function draft(int $id, int $owner, bool $lock = false): array
+    public function draft(int $id, int $owner, bool $lock = false, bool $includeDeleted = false): array
     {
         $row = $this->row('SELECT * FROM #__intercom_drafts WHERE id=' . $id . ' AND owner_id=' . $owner
-            . ($lock ? ' FOR UPDATE' : ''));
+            . ($includeDeleted ? '' : " AND state!='deleted'") . ($lock ? ' FOR UPDATE' : ''));
         if (!$row) {
             throw new \RuntimeException('COM_INTERCOM_DRAFT_NOT_FOUND', 404);
         }

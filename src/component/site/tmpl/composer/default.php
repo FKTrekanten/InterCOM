@@ -23,18 +23,21 @@ $editors = Factory::getContainer()->get(EditorsRegistry::class);
 $editors->initRegistry();
 $editorName = (string) $user->getParam('editor', $app->get('editor', 'tinymce'));
 $editor = $editors->get($editors->has($editorName) ? $editorName : 'none');
-foreach (['SAVED','TESTED','SUBMITTED','DIRTY','ERROR','CONFIRM_SEND','INVALID_MESSAGE','FAKE_TESTED','FAKE_SUBMITTED','ALL_AUDIENCE','NO_GROUPS','GROUP_REQUIRED','PREVIEW_UPDATING','PREVIEW_UPDATED','PREVIEW_OUTDATED'] as $key) {
+foreach (['SAVED','TESTED','SUBMITTED','DIRTY','ERROR','CONFIRM_SEND','INVALID_MESSAGE','FAKE_TESTED','FAKE_SUBMITTED','ALL_AUDIENCE','NO_GROUPS','GROUP_REQUIRED','PREVIEW_UPDATING','PREVIEW_UPDATED','PREVIEW_OUTDATED','CONFIRM_DELETE','DELETED','RESTORED'] as $key) {
     Text::script('COM_INTERCOM_' . $key);
 }
 $id = $app->input->getInt('id');
-$draft = $id ? $r->store->draft($id, (int) $user->id) : null;
+$draft = $id ? $r->store->draft($id, (int) $user->id, false, true) : null;
+if ($draft && $draft['state'] === 'deleted' && $draft['content'] === '{}') {
+    throw new \RuntimeException('COM_INTERCOM_DRAFT_NOT_FOUND', 404);
+}
 $content = $draft ? json_decode($draft['content'], true) : [];
 $definitions = $r->catalog->types();
 $typeOptions = [];
 foreach ($definitions as $key => $definition) {
     $typeOptions[$key] = ['requireGroup' => $definition['require_group'], 'prefixes' => ['da' => Message::translation($definition, 'da-DK')['subject_prefix'], 'en' => Message::translation($definition, 'en-GB')['subject_prefix']]];
 }
-$initial = ['types' => $typeOptions, 'language' => str_starts_with($app->getLanguage()->getTag(), 'da') ? 'da' : 'en', 'allAudience' => $policy->scope()['all'], 'draft' => $draft, 'message' => $content, 'simulation' => ($r->config['mode'] ?? 'fake') === 'fake'];
+$initial = ['composerUrl' => Route::_('index.php?option=com_intercom&view=composer', false), 'types' => $typeOptions, 'language' => str_starts_with($app->getLanguage()->getTag(), 'da') ? 'da' : 'en', 'allAudience' => $policy->scope()['all'], 'draft' => $draft, 'message' => $content, 'simulation' => ($r->config['mode'] ?? 'fake') === 'fake'];
 
 $tags = $memberships = $tagLabels = [];
 foreach ($r->catalog->tags() as $row) {
@@ -78,6 +81,7 @@ $app->getDocument()->addScriptOptions('com_intercom', $initial);
 <p class="ic-help"><?= $t('TAG_MATCH_HELP') ?></p>
 <details><summary><?= $t('MORE_FILTERS') ?></summary>
 <div class="ic-row"><label><?= $t('AGE_FROM') ?><input name="age_from" type="number" min="0" max="120" value="0"></label><label><?= $t('AGE_TO') ?><input name="age_to" type="number" min="0" max="120" value="0"></label><label><?= $t('GENDER') ?><select name="gender"><option value=""><?= $t('ALL') ?></option><option value="male"><?= $t('MALE') ?></option><option value="female"><?= $t('FEMALE') ?></option></select></label></div></details><div class="ic-actions"><span class="ic-help"><?= $t('SCOPE_NOTE') ?></span><button type="button" data-go="1"><?= $t('WRITE') ?> →</button></div></fieldset>
+<div class="ic-draft-controls"><button class="ic-quiet" type="button" data-action="delete" disabled><?= $t('DELETE_DRAFT') ?></button><button class="ic-quiet" type="button" data-action="restore" hidden><?= $t('RESTORE_DRAFT') ?></button><p class="ic-help"><?= $t('DELETE_HELP') ?></p></div>
 <fieldset data-panel="1"><legend><?= $t('CONTENT') ?></legend><p class="ic-help"><?= $t('BOTH_LANGUAGES') ?></p><label><?= $t('SENDER') ?><input name="sender" required maxlength="255" value="<?= $esc($r->config['sender_name'] ?? 'Trekanten Fencing') ?>"></label>
 <div class="ic-edit-langs" aria-label="<?= $t('CONTENT_LANGUAGE') ?>"><button type="button" data-edit-lang="da" aria-pressed="true">Dansk</button><button type="button" data-edit-lang="en" aria-pressed="false">English</button></div>
 <?php foreach (['da','en'] as $lang) :
@@ -97,9 +101,17 @@ $app->getDocument()->addScriptOptions('com_intercom', $initial);
 <iframe id="ic-preview-frame" class="ic-preview-frame" sandbox="" referrerpolicy="no-referrer" title="<?= $esc($t('YOUR_MESSAGE')) ?>"></iframe>
 <p class="ic-help"><?= $t('PREVIEW_NOTE') ?></p><p class="ic-help"><?= $t('DARK_PREVIEW_HELP') ?></p><div class="ic-audience"><strong><?= $t('RECIPIENTS') ?></strong><p id="ic-audience-summary"></p></div>
 <details class="ic-draft-list"><summary><?= $t('DRAFTS') ?></summary><h2><?= $t('DRAFTS') ?></h2><ul class="ic-drafts">
-<?php foreach ($r->store->rows('SELECT id,state,revision FROM #__intercom_drafts WHERE owner_id=' . (int) $user->id . ' ORDER BY id DESC LIMIT 30') as $row) : ?>
+<?php foreach ($r->store->rows('SELECT id,state,revision FROM #__intercom_drafts WHERE owner_id=' . (int) $user->id . " AND state!='deleted' ORDER BY id DESC LIMIT 30") as $row) : ?>
 <li><a href="<?= $esc(Route::_('index.php?option=com_intercom&id=' . (int) $row['id'])) ?>">#<?= (int) $row['id'] ?> · <?= $esc($t('STATE_' . strtoupper($row['state']))) ?></a></li>
-<?php endforeach; ?></ul></details></aside></div></div>
+<?php endforeach; ?></ul></details>
+<details class="ic-draft-list"><summary><?= $t('DELETED_DRAFTS') ?></summary><p class="ic-help"><?= sprintf($t('RESTORE_HELP'), max(1, min(3650, (int) ($r->config['retention_days'] ?? 30)))) ?></p><ul class="ic-drafts">
+<?php foreach ($r->store->rows('SELECT id,revision FROM #__intercom_drafts WHERE owner_id=' . (int) $user->id . " AND state='deleted' AND content!='{}' ORDER BY updated_at DESC LIMIT 30") as $row) : ?>
+<li><a href="<?= $esc(Route::_('index.php?option=com_intercom&id=' . (int) $row['id'])) ?>">#<?= (int) $row['id'] ?> · <?= $t('STATE_DELETED') ?></a></li>
+<?php endforeach; ?></ul></details></aside></div>
+<dialog id="ic-delete-dialog" aria-labelledby="ic-delete-title"><form method="dialog">
+<h2 id="ic-delete-title"><?= $t('DELETE_DRAFT') ?></h2><p><?= $t('CONFIRM_DELETE') ?></p>
+<div class="ic-actions"><button class="ic-quiet" value="cancel" autofocus><?= $t('CANCEL_ACTION') ?></button><button value="delete"><?= $t('DELETE_DRAFT') ?></button></div>
+</form></dialog></div>
 <?php
 // Limit TinyMCE to formatting supported by the email sanitiser, independent of the site editor preset.
 $options = $app->getDocument()->getScriptOptions('plg_editor_tinymce');

@@ -34,6 +34,7 @@ final class ApiController extends BaseController
                     ? $workflow->release($id, $revision, $app->input->post->getInt('send_at', 0))
                     : throw new \RuntimeException('COM_INTERCOM_DENIED', 403),
                 'cancel' => $workflow->cancel($id, $revision),
+                'delete' => $workflow->delete($id, $revision), 'restore' => $workflow->restore($id, $revision),
                 default => throw new \RuntimeException('COM_INTERCOM_DENIED', 403),
             };
             echo json_encode(['success' => true, 'data' => $result], JSON_THROW_ON_ERROR);
@@ -57,6 +58,7 @@ final class ApiController extends BaseController
         $runtime->policy($user)->assertAllowed($message['type'], $message['tags'], 'compose');
         $message['definition'] = $runtime->catalog->snapshot($message);
         $message['design'] = $runtime->design->snapshot();
+        $message['footer'] = \FKT\Component\Intercom\Administrator\Domain\Footer::validate($runtime->config);
         $subjects = [];
         foreach (['da' => 'da-DK', 'en' => 'en-GB'] as $lang => $locale) {
             $prefix = Message::translation($message['definition'], $locale)['subject_prefix'];

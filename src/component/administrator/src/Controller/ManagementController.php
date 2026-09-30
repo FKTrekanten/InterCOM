@@ -12,7 +12,7 @@ final class ManagementController extends BaseController
     private function renderDesign($r, array $data): void
     {
         $settings = \FKT\Component\Intercom\Administrator\Domain\EmailDesign::validate($data);
-        $sample = ['type' => 'club', 'sender' => $r->config['sender_name'] ?? 'Trekanten Fencing', 'format' => 'html', 'tags' => [],
+        $sample = ['type' => 'club', 'sender' => $r->config['sender_name'] ?? 'Trekanten Fencing', 'format' => 'html', 'footer' => \FKT\Component\Intercom\Administrator\Domain\Footer::validate($r->config), 'tags' => [],
             'body_da' => '<h2>Nyheder fra klubben</h2><p>Kære {FIRSTNAME[std:Medlem]}</p><p>Her kan du se, hvordan din besked og klubbens design ser ud sammen.</p>',
             'body_en' => '<h2>News from the club</h2><p>Hello {FIRSTNAME[std:Member]}</p><p>See how your message and the club design look together.</p>',
             'design' => ['settings' => $settings], 'definition' => $r->catalog->types()['club'] ?? []];

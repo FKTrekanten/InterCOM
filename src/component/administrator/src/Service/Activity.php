@@ -25,7 +25,7 @@ final class Activity
         $mode = $this->store->q($this->config['mode'] ?? 'fake');
         $days = min(30, max(1, (int) ($this->config['retention_days'] ?? 30)));
         return ['pool' => $pool, 'intents' => $intents, 'cap' => max(1, min(20, (int) ($this->config['max_filters'] ?? 5))),
-            'days' => $days, 'drafts' => $this->store->rows("SELECT state,COUNT(*) total FROM #__intercom_drafts WHERE delivery_mode=$mode GROUP BY state ORDER BY state"),
+            'days' => $days, 'drafts' => $this->store->rows("SELECT state,COUNT(*) total FROM #__intercom_drafts WHERE delivery_mode=$mode AND state!='deleted' GROUP BY state ORDER BY state"),
             'accepted' => (int) $this->store->row("SELECT COUNT(*) total FROM #__intercom_audit a JOIN #__intercom_drafts d ON d.id=a.draft_id WHERE a.event='release.accepted' AND d.delivery_mode=$mode AND a.created_at>=UTC_TIMESTAMP()-INTERVAL $days DAY")['total'],
             'archives' => $this->store->rows("SELECT state,COUNT(*) total FROM #__intercom_archives WHERE state!='submitted' GROUP BY state"),
             'refresh' => $this->store->row("SELECT refreshed_at FROM #__intercom_catalogues WHERE list_id=$list")['refreshed_at'] ?? null,
@@ -69,7 +69,7 @@ final class Activity
             $state = $filters['state'] ?? '';
             if ($state === 'free') {
                 $where[] = 'f.draft_id IS NULL';
-            } elseif (in_array($state, ['draft', 'tested', 'testing', 'releasing', 'submitted', 'scheduled', 'cancelled', 'uncertain'], true)) {
+            } elseif (in_array($state, ['draft', 'tested', 'testing', 'releasing', 'submitted', 'scheduled', 'cancelled', 'uncertain', 'deleted'], true)) {
                 $where[] = 'd.state=' . $this->store->q($state);
             }
         } else {

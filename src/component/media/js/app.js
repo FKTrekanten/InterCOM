@@ -76,6 +76,9 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     form.querySelector('[data-action=preview]').disabled = busy || !draft || dirty || !editable();
     confirm.disabled = busy || !draft || dirty || draft.state !== 'tested';
     form.querySelector('[data-action=release]').disabled = confirm.disabled || !confirm.checked;
+    form.querySelector('[data-action=delete]').disabled = busy || !draft || !['draft','tested','cancelled'].includes(draft.state);
+    const restore = form.querySelector('[data-action=restore]');
+    restore.hidden = draft?.state !== 'deleted'; restore.disabled = busy;
     form.querySelector('[data-action=cancel]').disabled = busy || !draft || dirty || !editable();
     form.querySelectorAll('[data-firstname]').forEach(el => {el.disabled = busy || !editable();});
     document.getElementById('ic-preview-subject').textContent = subjectLabel(initial.types?.[form.elements.type.value]?.prefixes?.[previewLanguage], form.elements['subject_' + previewLanguage].value);
@@ -172,6 +175,14 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     if (firstProvider) scheduleRender(true);
   }, 300);
   window.addEventListener('beforeunload', e => {if (dirty && form.elements.subject_da.value) {e.preventDefault(); e.returnValue = '';}});
+  function confirmDelete() {
+    const dialog = document.getElementById('ic-delete-dialog');
+    dialog.returnValue = 'cancel';
+    return new Promise(resolve => {
+      dialog.addEventListener('close', () => resolve(dialog.returnValue === 'delete'), {once:true});
+      dialog.showModal();
+    });
+  }
   form.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', async () => {
     const action = button.dataset.action;
     if (busy) return;
@@ -181,7 +192,8 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
       const baseline = previous.has(lang) ? previous.get(lang) : loaded;
       if (baseline !== undefined && bodyValue(lang) !== baseline) changed();
     }
-    if (action !== 'save' && dirty) return;
+    if (!['save','delete','restore'].includes(action) && dirty) return;
+    if (action === 'delete' && !await confirmDelete()) return;
     if (action === 'save' && !validForm()) return;
     if (action === 'release' && !window.confirm(text('CONFIRM_SEND'))) return;
     const body = new FormData(form);
@@ -197,7 +209,9 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
       const response = await fetch(form.action,{method:'POST',body,headers:{Accept:'application/json'}});
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || text('ERROR'));
+      if (action === 'delete') {dirty = false; window.location.assign(initial.composerUrl); return;}
       if (result.data) draft = result.data;
+      if (action === 'restore') {dirty = false; window.location.reload(); return;}
       if (action === 'cancel') draft.state = 'cancelled';
       dirty = submittedMessage !== JSON.stringify(message()); confirm.checked = false;
       if (action === 'save') { if (!dirty) showStep(2); scheduleRender(); }

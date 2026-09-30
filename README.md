@@ -10,7 +10,7 @@ Requires PHP 8.3+, Composer, Python 3, Node.js (syntax and composer interaction 
 composer install
 python3 scripts/build.py
 bash scripts/stack.sh up
-docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.3.1.zip
+docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.3.2.zip
 ```
 
 Local site: http://localhost:8088. Administrator: `/administrator`. Synthetic local login: `intercom` / `Intercom-local-2026!`. These credentials are only for the localhost-only development stack. Do not deploy this Compose file to production.
@@ -116,3 +116,7 @@ The dashboard reports the current mode/list pool, uncertain creation slots/reser
 Dark-mode markup includes colour-scheme metadata, targeted media rules, and Outlook overrides. Browser light/dark previews validate the authored themes; they cannot reproduce every mail client’s colour inversion. Actual received-email checks in Apple Mail, Gmail, and Outlook, including CleverReach’s processing, remain a release acceptance requirement. No live mailing is sent by automated CI.
 
 The default sender name is shared by both message languages and configured beside the sender email in Options. Existing draft sender names are retained. Recipient tags and memberships each provide bulk visibility selection and optional per-language display names; blank names use automatic underscore/time formatting. CleverReach tag identifiers and audience permissions retain their original values.
+
+Saved drafts can be deleted and restored through **Deleted drafts**. Only the owner with compose permission can delete them; testing, releasing, submitted, scheduled and uncertain states are protected. Deletion preserves audit and provider identifiers. Live reservations remain blocked pending reconciliation; simulated reservations can be freed. Restored drafts require review, saving and a new test. Scheduled maintenance purges deleted message content under the configured retention period.
+
+Options → **Email footer** configures the address, phone, contact email, website, social links, and Danish/English member-profile URLs. Blank optional fields are hidden. HTTPS links and plain-text contact details are validated. Email design provides paired footer background colours with readable contrast. The supplied Postmark footer inspired the appearance; Intercom retains CleverReach personalisation and unsubscribe directives. Footer changes invalidate previous test approval, and already submitted mailings retain their approved content.

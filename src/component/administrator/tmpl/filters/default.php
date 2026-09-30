@@ -22,7 +22,7 @@ require dirname(__DIR__) . '/navigation.php';
 endforeach; ?>
 </select></label><label><?= $t('STATE') ?><select class="form-select" name="state">
 <option value=""><?= $t('ALL') ?></option>
-<?php foreach (['free','draft','tested','testing','releasing','submitted','scheduled','cancelled','uncertain'] as $state) :
+<?php foreach (['free','draft','tested','testing','releasing','submitted','scheduled','cancelled','uncertain','deleted'] as $state) :
     ?><option value="<?= $state ?>" <?= $this->filters['state'] === $state ? 'selected' : '' ?>><?= $t($state === 'free' ? 'FILTER_FREE' : 'STATE_' . strtoupper($state)) ?></option><?php
 endforeach; ?>
 </select></label>

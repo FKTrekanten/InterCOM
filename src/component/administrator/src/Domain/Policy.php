@@ -42,6 +42,13 @@ final class Policy
         }
     }
 
+    public function assertManageDraft(): void
+    {
+        if (!($this->grants['access'] ?? false) || !($this->grants['compose'] ?? false)) {
+            throw new \RuntimeException('COM_INTERCOM_DENIED', 403);
+        }
+    }
+
     public function scope(): array
     {
         return $this->scope;

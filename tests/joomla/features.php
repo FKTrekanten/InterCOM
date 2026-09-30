@@ -36,6 +36,36 @@ try {
     check($migratedParams['sender_name']==='Custom sender', 'Upgrade preserves the existing English default as the single sender');
     \FKT\Component\Intercom\Administrator\Service\SettingsMigration::run($store);
     check((new \FKT\Component\Intercom\Administrator\Service\Design($store))->snapshot()['settings']['brand_en']==='Custom brand', 'Repeat upgrade preserves design customisations');
+    $cleanupPolicy = new Policy(['access'=>true,'compose'=>true,'send'=>true,'class'=>true], ['all'=>true]);
+    $cleanupWorkflow = new Workflow($store, new FakeGateway(), $cleanupPolicy, 42);
+    $cleanupMessage = ['type'=>'class','sender'=>'Club','subject_da'=>'DA','subject_en'=>'EN','body_da'=>'Dansk','body_en'=>'English','tags'=>['group.Youth']];
+    $cleanup = $cleanupWorkflow->save($cleanupMessage);
+    $cleanupId = (int)$cleanup['id'];
+    $store->execute("INSERT INTO #__intercom_filters(filter_id,draft_id,group_id,managed) VALUES (3999999001,$cleanupId,987654,1)");
+    $store->execute("UPDATE #__intercom_drafts SET delivery_mode='live',filter_id=3999999001,mailing_id=123456 WHERE id=$cleanupId");
+    try { (new Workflow($store,new FakeGateway(),$cleanupPolicy,99))->delete($cleanupId,1); throw new Exception('Expected owner guard'); }
+    catch (RuntimeException $e) { check($e->getCode()===404,'Another owner cannot delete a draft'); }
+    foreach (['testing','releasing','submitted','scheduled','uncertain'] as $protectedState) {
+        $store->execute("UPDATE #__intercom_drafts SET state=".$store->q($protectedState)." WHERE id=$cleanupId");
+        try { $cleanupWorkflow->delete($cleanupId,1); throw new Exception('Expected state guard'); }
+        catch (RuntimeException $e) { check($e->getCode()===409,'Cannot delete protected state: '.$protectedState); }
+    }
+    $store->execute("UPDATE #__intercom_drafts SET state='tested',tested_revision=1,tested_fingerprint='old' WHERE id=$cleanupId");
+    $cleanupWorkflow->delete($cleanupId,1);
+    check((int)$store->row('SELECT draft_id FROM #__intercom_filters WHERE filter_id=3999999001')['draft_id']===$cleanupId,'Deleting live draft preserves remote reservation');
+    try { $store->draft($cleanupId,42); throw new Exception('Expected hidden draft'); }
+    catch (RuntimeException $e) { check($e->getCode()===404,'Deleted draft hidden from ordinary workflow access'); }
+    $restoredCleanup = $cleanupWorkflow->restore($cleanupId,2);
+    check($restoredCleanup['state']==='draft' && $restoredCleanup['tested_fingerprint']===null, 'Restored draft loses old test approval');
+    $store->execute("UPDATE #__intercom_drafts SET delivery_mode='fake' WHERE id=$cleanupId");
+    $cleanupWorkflow->delete($cleanupId,3);
+    check($store->row('SELECT draft_id FROM #__intercom_filters WHERE filter_id=3999999001')['draft_id']===null,'Deleting simulated draft frees its reservation');
+    $store->execute("UPDATE #__intercom_drafts SET updated_at=UTC_TIMESTAMP()-INTERVAL 31 DAY WHERE id=$cleanupId");
+    $cleanupWorkflow->maintain(30);
+    check($store->draft($cleanupId,42,false,true)['content']==='{}','Retention purges deleted draft content');
+    try { $cleanupWorkflow->restore($cleanupId,4); throw new Exception('Expected expired restore'); }
+    catch (RuntimeException $e) { check($e->getCode()===409,'Purged deleted content cannot be restored'); }
+    check((bool)$store->row("SELECT id FROM #__intercom_audit WHERE event='draft.deleted' AND draft_id=$cleanupId"),'Deletion is audited');
     // Independently exercise type creation, native assets and type deletion.
     $input = ['type_key'=>'custom', 'suppression'=>'custom-optout', 'state'=>1,
         'translations'=>['en-GB'=>['name'=>'Custom'], 'da-DK'=>['name'=>'Særlig']], 'rules'=>[]];
@@ -116,6 +146,16 @@ try {
     $savedDesign = $designService->snapshot();
     $designService->save([], $savedDesign['revision'],42,true);
     check($designService->snapshot()['settings']===\FKT\Component\Intercom\Administrator\Domain\EmailDesign::defaults(),'Reset restores design defaults');
+    $footerDraft = $clubWorkflow->save(array_merge($inputMessage,['type'=>'club','tags'=>[]]), (int)$resaved['id'], 2);
+    $footerDraft = $clubWorkflow->preview((int)$footerDraft['id'],3,'one@example.invalid');
+    $footerParams = json_decode($store->row("SELECT params FROM #__extensions WHERE element='com_intercom'")['params'],true);
+    $footerParams['footer_address'] = 'Changed footer address';
+    $store->execute('UPDATE #__extensions SET params='.$store->q(json_encode($footerParams))." WHERE element='com_intercom'");
+    try { $clubWorkflow->release((int)$footerDraft['id'],3,0); throw new Exception('Expected changed footer'); }
+    catch (RuntimeException $e) { check($e->getMessage()==='COM_INTERCOM_DEFINITION_CHANGED','Footer option change invalidates previous test approval'); }
+    $footerDraft = $clubWorkflow->save(array_merge($inputMessage,['type'=>'club','tags'=>[]]), (int)$footerDraft['id'],3);
+    check(json_decode($footerDraft['content'],true)['footer']['footer_address']==='Changed footer address','Saving snapshots current footer despite older Runtime configuration');
+
     $store->execute('INSERT INTO #__intercom_filters (filter_id,group_id,managed) VALUES (3999999000,987654,1)');
     $activity = new \FKT\Component\Intercom\Administrator\Service\Activity($store, $r->config);
     $currentFilters = $activity->page('filters',['scope'=>'current'],100,0);

@@ -12,7 +12,7 @@ $settings = $snapshot['settings'];
 $sample = ['type' => 'club', 'sender' => $r->config['sender_name'] ?? 'Trekanten Fencing', 'format' => 'html',
     'body_da' => '<h2>Nyheder fra klubben</h2><p>Kære {FIRSTNAME[std:Medlem]}</p><p>Her kan du se, hvordan din besked og klubbens design ser ud sammen.</p>',
     'body_en' => '<h2>News from the club</h2><p>Hello {FIRSTNAME[std:Member]}</p><p>See how your message and the club design look together.</p>',
-    'tags' => [], 'design' => $snapshot, 'definition' => $r->catalog->types()['club'] ?? []];
+    'footer' => \FKT\Component\Intercom\Administrator\Domain\Footer::validate($r->config), 'tags' => [], 'design' => $snapshot, 'definition' => $r->catalog->types()['club'] ?? []];
 $wa->useScript('com_intercom.design');
 foreach (['PREVIEW_UPDATING', 'PREVIEW_UPDATED', 'ERROR'] as $key) {
     Text::script('COM_INTERCOM_' . $key);
@@ -39,7 +39,7 @@ foreach (['PREVIEW_UPDATING', 'PREVIEW_UPDATED', 'ERROR'] as $key) {
 <?php endforeach; ?></div></fieldset><p class="small text-muted"><?= $t('FONT_HELP') ?></p>
 <?php foreach (['light','dark'] as $theme) : ?>
 <fieldset><legend><?= $t(strtoupper($theme) . '_MODE') ?></legend><div class="ic-design-colours">
-    <?php foreach (['outer','surface','text','muted','header','header_text','accent','line'] as $role) :
+    <?php foreach (['outer','surface','footer','text','muted','header','header_text','accent','line'] as $role) :
         $key = $theme . '_' . $role; ?>
 <label><?= $t('COLOUR_' . strtoupper($role)) ?><input type="color" class="form-control form-control-color" name="jform[<?= $key ?>]" value="<?= $esc($settings[$key]) ?>" required></label>
     <?php endforeach; ?></div></fieldset>

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.2
+
+- Add audited deletion and restoration of owned drafts. Preserve live reservations and operational IDs, reject active/submitted/scheduled/uncertain messages, clear old test approvals, and purge deleted content under configured retention.
+- Add a subtle contrasting email footer with a thin blue divider, social links, club address and contact details while preserving member preferences, recipient information, online view and CleverReach unsubscribe links.
+- Configure contact/social details and Danish/English profile URLs in native Joomla Options. Snapshot footer settings into drafts and invalidate previous test approvals when they change.
+- Extend footer validation/rendering, draft ownership/state/CSRF/retention, native install/upgrade and HTTP coverage.
+
 ## 0.3.1
 
 - Move the single default sender name to Joomla Options beside the sender email, preserving existing draft names and migrating the previous English default.

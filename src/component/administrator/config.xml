@@ -11,6 +11,18 @@
 <field name="retention_days" type="number" label="COM_INTERCOM_RETENTION_DAYS" min="1" max="3650" default="30" filter="integer" />
 <field name="release_verified" type="radio" layout="joomla.form.field.radio.switcher" label="COM_INTERCOM_RELEASE_VERIFIED" default="0" filter="integer"><option value="0">JNO</option><option value="1">JYES</option></field>
 </fieldset>
+<fieldset name="footer" label="COM_INTERCOM_FOOTER_OPTIONS" description="COM_INTERCOM_FOOTER_HELP">
+<field name="footer_profile_da" type="url" label="COM_INTERCOM_PROFILE_DA" default="https://trekanten.org/min-klub/member-profile" required="true" filter="raw" />
+<field name="footer_profile_en" type="url" label="COM_INTERCOM_PROFILE_EN" default="https://trekanten.org/en/my-club/member-profile" required="true" filter="raw" />
+<field name="footer_address" type="textarea" label="COM_INTERCOM_FOOTER_ADDRESS" default="Fægteklubben Trekanten · Lyngbyvej 104&#10;2100 København Ø · Denmark" rows="3" maxlength="1000" filter="raw" />
+<field name="footer_phone" type="text" label="COM_INTERCOM_FOOTER_PHONE" default="+45 3927 1313" maxlength="1000" filter="raw" />
+<field name="footer_email" type="email" label="COM_INTERCOM_FOOTER_EMAIL" default="info@trekanten.org" filter="raw" />
+<field name="footer_website" type="url" label="COM_INTERCOM_FOOTER_WEBSITE" default="https://trekanten.org" filter="raw" />
+<field name="footer_instagram" type="url" label="Instagram" default="https://www.instagram.com/fktrekanten/" filter="raw" />
+<field name="footer_linkedin" type="url" label="LinkedIn" default="https://www.linkedin.com/company/fktrekanten/" filter="raw" />
+<field name="footer_facebook" type="url" label="Facebook" default="https://www.facebook.com/faegteklubbentrekanten/" filter="raw" />
+<field name="footer_youtube" type="url" label="YouTube" default="https://www.youtube.com/@fktrekanten" filter="raw" />
+</fieldset>
 <fieldset name="connection" label="COM_INTERCOM_CONNECTION"><field name="connection_panel" type="IntercomConnection" hiddenLabel="true" label="COM_INTERCOM_CONNECTION" filter="unset" /></fieldset>
 <fieldset name="permissions" label="JCONFIG_PERMISSIONS_LABEL"><field name="rules" type="rules" label="JCONFIG_PERMISSIONS_LABEL" filter="rules" component="com_intercom" section="component"/></fieldset>
 </config>

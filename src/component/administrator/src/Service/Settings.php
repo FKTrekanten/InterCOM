@@ -52,6 +52,7 @@ final class Settings
         if ($config['board_archive_email'] && !filter_var($config['board_archive_email'], FILTER_VALIDATE_EMAIL)) {
             throw new \RuntimeException('COM_INTERCOM_INVALID_SETTINGS');
         }
+        $config = array_merge($config, \FKT\Component\Intercom\Administrator\Domain\Footer::validate(array_merge($r->config, $values)));
         $r->store->transaction(function () use ($r, &$config, $actor): void {
             $r->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
             $row = $r->store->row("SELECT params FROM #__extensions WHERE element='com_intercom' AND type='component' FOR UPDATE");

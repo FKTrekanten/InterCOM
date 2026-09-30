@@ -19,10 +19,10 @@ final class EmailDesign
             'logo_width' => 96, 'content_width' => 600, 'padding' => 32, 'body_size' => 16, 'heading_size' => 28,
             'heading_font' => 'poppins', 'body_font' => 'system',
             'light_outer' => '#F1F4F4', 'light_surface' => '#FFFFFF', 'light_text' => '#14181B',
-            'light_muted' => '#4A545C', 'light_header' => '#172534', 'light_header_text' => '#FFFFFF',
+            'light_muted' => '#4A545C', 'light_footer' => '#F4F7FA', 'light_header' => '#172534', 'light_header_text' => '#FFFFFF',
             'light_accent' => '#0F6B99', 'light_line' => '#CFD5D9',
             'dark_outer' => '#10171D', 'dark_surface' => '#1C252D', 'dark_text' => '#F1F4F4',
-            'dark_muted' => '#BDC7CE', 'dark_header' => '#172534', 'dark_header_text' => '#FFFFFF',
+            'dark_muted' => '#BDC7CE', 'dark_footer' => '#17212B', 'dark_header' => '#172534', 'dark_header_text' => '#FFFFFF',
             'dark_accent' => '#81C5EA', 'dark_line' => '#4A545C'];
     }
 
@@ -65,6 +65,11 @@ final class EmailDesign
         foreach (['light', 'dark'] as $theme) {
             foreach (['text', 'muted', 'accent'] as $role) {
                 if (self::contrast($clean[$theme . '_' . $role], $clean[$theme . '_surface']) < 4.5) {
+                    throw new \RuntimeException('COM_INTERCOM_DESIGN_CONTRAST', 422);
+                }
+            }
+            foreach (['muted', 'accent'] as $role) {
+                if (self::contrast($clean[$theme . '_' . $role], $clean[$theme . '_footer']) < 4.5) {
                     throw new \RuntimeException('COM_INTERCOM_DESIGN_CONTRAST', 422);
                 }
             }
