@@ -67,7 +67,7 @@ final class Message
     public static function templateVersion(): string
     {
         return hash('sha256', implode('|', [hash_file('sha256', dirname(__DIR__, 2) . '/tmpl/email/newsletter.html'),
-            hash_file('sha256', __FILE__), hash_file('sha256', __DIR__ . '/EmailDesign.php'), hash_file('sha256', __DIR__ . '/Footer.php')]));
+            hash_file('sha256', __FILE__), hash_file('sha256', __DIR__ . '/EmailDesign.php'), hash_file('sha256', __DIR__ . '/Footer.php'), hash_file('sha256', __DIR__ . '/TagLabel.php')]));
     }
 
     public static function bodyHtml(array $message, string $lang): string
@@ -124,15 +124,16 @@ final class Message
         };
         $tokens['{{DARK_CSS}}'] = $darkCss('body.preview-dark') . '@media (prefers-color-scheme:dark){'
             . $darkCss('body:not(.preview-light)') . '}' . $darkCss('[data-ogsc] body:not(.preview-light)');
-        $groups = $escape(implode(', ', array_map(static fn ($tag) => substr($tag, 6), $message['tags'] ?? [])));
+        $groupsDa = $escape(self::groupLabels($message, 'da-DK'));
+        $groupsEn = $escape(self::groupLabels($message, 'en-GB'));
         $html = strtr(file_get_contents(dirname(__DIR__, 2) . '/tmpl/email/newsletter.html'), array_merge($tokens, [
             '{{FOOTER_CONTACT}}' => Footer::html($footer, $design['light_accent']),
             '{{PROFILE_DA}}' => $escape($footer['footer_profile_da']), '{{PROFILE_EN}}' => $escape($footer['footer_profile_en']),
             '{{BODY_DA}}' => self::bodyHtml($message, 'da'), '{{BODY_EN}}' => self::bodyHtml($message, 'en'),
             '{{HEADER_DA}}' => $escape($da['heading'] ?: ($da['name'] ?: 'Trekanten informerer')),
             '{{HEADER_EN}}' => $escape($en['heading'] ?: ($en['name'] ?: 'Trekanten informs')),
-            '{{FOOTER_REASON_DA}}' => $groups ? 'fordi du er tilknyttet: <strong>' . $groups . '</strong>' : 'som registreret medlem af Fægteklubben Trekanten',
-            '{{FOOTER_REASON_EN}}' => $groups ? 'because you belong to: <strong>' . $groups . '</strong>' : 'as a registered member of Trekanten Fencing',
+            '{{FOOTER_REASON_DA}}' => $groupsDa ? 'fordi du er tilknyttet: <strong>' . $groupsDa . '</strong>' : 'som registreret medlem af Fægteklubben Trekanten',
+            '{{FOOTER_REASON_EN}}' => $groupsEn ? 'because you belong to: <strong>' . $groupsEn . '</strong>' : 'as a registered member of Trekanten Fencing',
         ]));
         if ($locale !== null) {
             $html = preg_replace_callback(
@@ -146,9 +147,14 @@ final class Message
         return $html;
     }
 
+    private static function groupLabels(array $message, string $language): string
+    {
+        return implode(', ', array_map(static fn (string $tag): string => $message['tag_labels'][$tag][$language] ?? TagLabel::automatic($tag), $message['tags'] ?? []));
+    }
+
     public static function text(array $message): string
     {
-        return "[DA]\n" . EmailContent::text(self::bodyHtml($message, 'da')) . "\n\n[EN]\n"
-            . EmailContent::text(self::bodyHtml($message, 'en')) . "\n\n" . Footer::text(Footer::validate($message['footer'] ?? [])) . "\n\n{ONLINE_VERSION}\n{UNSUBSCRIBE}";
+        return "[DA]\n" . EmailContent::text(self::bodyHtml($message, 'da')) . (self::groupLabels($message, 'da-DK') ? "\n\nDu modtager denne besked, fordi du er tilknyttet: " . self::groupLabels($message, 'da-DK') : '') . "\n\n[EN]\n"
+            . EmailContent::text(self::bodyHtml($message, 'en')) . (self::groupLabels($message, 'en-GB') ? "\n\nYou receive this message because you belong to: " . self::groupLabels($message, 'en-GB') : '') . "\n\n" . Footer::text(Footer::validate($message['footer'] ?? [])) . "\n\n{ONLINE_VERSION}\n{UNSUBSCRIBE}";
     }
 }

@@ -69,7 +69,7 @@ final class Activity
             $state = $filters['state'] ?? '';
             if ($state === 'free') {
                 $where[] = 'f.draft_id IS NULL';
-            } elseif (in_array($state, ['draft', 'tested', 'testing', 'releasing', 'submitted', 'scheduled', 'cancelled', 'uncertain', 'deleted'], true)) {
+            } elseif (in_array($state, ['draft', 'tested', 'testing', 'releasing', 'submitted', 'scheduled', 'completed', 'cancelled', 'uncertain', 'deleted'], true)) {
                 $where[] = 'd.state=' . $this->store->q($state);
             }
         } else {

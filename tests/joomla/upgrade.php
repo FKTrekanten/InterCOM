@@ -30,3 +30,6 @@ check(!isset($r->design->snapshot()['settings']['sender_en']), 'Email design exc
 check((bool)$r->store->row("SHOW COLUMNS FROM #__intercom_tags LIKE 'labels'"), 'Native upgrade installs tag labels');
 
 check((int) ($r->config['unsubscribe_form_id'] ?? 0) === 432342, 'Upgrade preserves legacy unsubscribe selection');
+
+check((bool)$r->store->row("SHOW COLUMNS FROM #__intercom_filters LIKE 'checked_at'"), 'Upgrade installs reconciliation metadata on existing filters');
+check((bool)$r->store->row("SHOW COLUMNS FROM #__intercom_filter_creations LIKE 'reconciliation_status'"), 'Upgrade installs creation reconciliation metadata');

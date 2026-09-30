@@ -12,7 +12,7 @@ use FKT\Component\Intercom\Administrator\Infrastructure\Store;
 
 final class Workflow
 {
-    public function __construct(private Store $store, private DeliveryGateway $gateway, private Policy $policy, private int $actor, private ?Catalog $catalog = null, private ?Archive $archive = null)
+    public function __construct(private Store $store, private DeliveryGateway $gateway, private Policy $policy, private int $actor, private ?Catalog $catalog = null, private ?Archive $archive = null, private ?Reconciliation $reconciliation = null)
     {
     }
 
@@ -27,6 +27,7 @@ final class Workflow
                 $message['definition'] = $this->catalog->snapshot($message);
                 $message['design'] = (new Design($this->store))->snapshot();
                 $message['footer'] = $this->catalog->footer();
+                $message['tag_labels'] = $this->catalog->tagLabels($message);
                 $this->store->execute('UPDATE #__intercom_types SET used=1 WHERE id=' . (int) $message['definition']['id']);
             }
             $json = $this->store->q(json_encode($message, JSON_THROW_ON_ERROR));
@@ -66,7 +67,7 @@ final class Workflow
             }
             $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
             if ($this->catalog) {
-                if (($message['definition'] ?? null) !== $this->catalog->snapshot($message) || ($message['design'] ?? null) !== (new Design($this->store))->snapshot() || ($message['footer'] ?? null) !== $this->catalog->footer()) {
+                if (($message['definition'] ?? null) !== $this->catalog->snapshot($message) || ($message['design'] ?? null) !== (new Design($this->store))->snapshot() || ($message['footer'] ?? null) !== $this->catalog->footer() || ($message['tag_labels'] ?? null) !== $this->catalog->tagLabels($message)) {
                     throw new \RuntimeException('COM_INTERCOM_DEFINITION_CHANGED', 409);
                 }
                 $fingerprint = $this->catalog->fingerprint($message);
@@ -92,7 +93,7 @@ final class Workflow
                     throw new \RuntimeException('COM_INTERCOM_POOL_BUSY', 409);
                 }
                 $draft['filter_id'] = (int) $filter['filter_id'];
-                $this->store->execute("UPDATE #__intercom_filters SET draft_id=$id WHERE filter_id={$draft['filter_id']} AND draft_id IS NULL");
+                $this->store->execute("UPDATE #__intercom_filters SET draft_id=$id,reconciliation_status='',checked_at=NULL WHERE filter_id={$draft['filter_id']} AND draft_id IS NULL");
             }
             $lease = $this->store->row("SELECT draft_id FROM #__intercom_filters WHERE filter_id={$draft['filter_id']} FOR UPDATE");
             if ((int) ($lease['draft_id'] ?? 0) !== $id) {
@@ -161,6 +162,13 @@ final class Workflow
             $filterId = $this->gateway->createFilter($intent['group_id'], $intent['name']);
             $this->store->transaction(function () use ($intent, $filterId): void {
                 $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
+                $creation = $this->store->row("SELECT state,filter_id FROM #__intercom_filter_creations WHERE id={$intent['intent_id']} FOR UPDATE");
+                if (($creation['state'] ?? '') === 'created') {
+                    if ((int) $creation['filter_id'] === $filterId) {
+                        return;
+                    }
+                    throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
+                }
                 $this->store->execute("INSERT INTO #__intercom_filters (filter_id,group_id,managed) VALUES ($filterId,{$intent['group_id']},1)");
                 $this->store->execute("UPDATE #__intercom_filter_creations SET state='created',filter_id=$filterId WHERE id={$intent['intent_id']}");
                 $this->store->audit($this->actor, 'filter.created', 0, ['filter_id' => $filterId, 'group_id' => $intent['group_id']]);
@@ -313,9 +321,10 @@ final class Workflow
             $this->store->execute("DELETE FROM #__intercom_audit WHERE created_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             $this->store->execute("DELETE FROM #__intercom_revisions WHERE created_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             // Purge inactive terminal message content, retaining operational IDs/leases.
-            $this->store->execute("UPDATE #__intercom_drafts SET content='{}' WHERE state IN ('submitted','cancelled','deleted') AND updated_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
+            $this->store->execute("UPDATE #__intercom_drafts SET content='{}' WHERE state IN ('completed','submitted','cancelled','deleted') AND updated_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             $this->store->audit(0, 'maintenance.completed', 0, ['retention_days' => $days]);
         });
+        $this->reconciliation?->run();
         $this->archive?->maintain();
     }
 }

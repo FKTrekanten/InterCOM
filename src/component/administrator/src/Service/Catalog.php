@@ -220,6 +220,17 @@ final class Catalog
         return \FKT\Component\Intercom\Administrator\Domain\TagLabel::display($row ?: ['tag' => $tag], $language);
     }
 
+    public function tagLabels(array $message): array
+    {
+        $labels = [];
+        foreach ($message['tags'] ?? [] as $tag) {
+            foreach ($this->languages() as $language => $name) {
+                $labels[$tag][$language] = $this->label($tag, $language);
+            }
+        }
+        return $labels;
+    }
+
     public function saveTags(array $enabled, array $ordering, int $revision, int $actor, array $labels = []): void
     {
         $this->store->transaction(function () use ($enabled, $ordering, $revision, $actor, $labels): void {

@@ -35,6 +35,7 @@ def call(action, fields, expected=200):
     return result.get('data')
 preview = call('render', {'message': json.dumps({**message, 'format':'html', 'body_da':'<p>Dansk <strong>Ægte</strong></p>', 'body_en':'<p>English</p>'})})
 assert '<strong>Ægte</strong>' in preview['da'] and 'English</p>' not in preview['da'], 'Server preview uses sanitised single-language branded template'
+assert 'Unge, onsdag 17:30' in preview['da'] and 'Youth, Wednesday 17:30' in preview['en'], 'Native composer renderer uses trusted language labels in email footer'
 draft = call('save', {'message':json.dumps(message)})
 identity = {'id':draft['id'],'revision':draft['revision']}
 call('release', {**identity,'confirm':1}, 409)
@@ -149,6 +150,9 @@ _, unchanged = request(settings + '&section=design')
 assert 'Trekanten CI' in unchanged and 'value="Preview only"' not in unchanged, 'Preview does not persist design settings'
 status, filters = request(management + '&view=filters')
 assert status == 200 and 'filters-limit' in filters, 'Full filter pool has a separate paginated page'
+assert 'Reconcile with CleverReach' in filters and 'Unresolved filter creations' in filters, 'Administrator can see reconciliation and unresolved slots'
+assert request(management + '&task=reconciliation.run', {})[0] == 403, 'Reconciliation requires CSRF'
+assert request(management + '&task=reconciliation.run')[0] == 403, 'Reconciliation cannot run through GET'
 call('save', {'message':json.dumps({**message, 'tags':[]})}, 422)
 print('PASS: Design CRUD/concurrency, theme preview, sender defaults, filter page and team-policy guard')
 
@@ -162,6 +166,7 @@ status, overview = request('/administrator/index.php', {'option':'com_login','ta
 assert status == 200 and 'Intercom dashboard' in overview and 'Latest audit entries' not in overview and 'ic-admin-stats' not in overview, 'Dashboard hides audit-derived data without permission'
 assert request(management + '&view=audit')[0] == 403, 'Audit deep link requires audit permission'
 assert request(management + '&view=filters')[0] == 403, 'Filter deep link requires audit permission'
+assert request(management + '&task=reconciliation.run', {})[0] == 403, 'Manager cannot run reconciliation'
 assert request(settings + '&section=design')[0] == 403, 'Email design deep link requires admin permission'
 assert request(management + '&task=connection.forms&format=json&group_id=0')[0] == 403, 'Form catalogue requires component admin permission'
 client = admin_client

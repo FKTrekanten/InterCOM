@@ -11,7 +11,11 @@ defined('_JEXEC') or die;
     <?php else :
         ?><?= (int) $row['draft_id'] ?><?php
     endif; ?>
-</td><td><?= $esc($t($row['state'] ? 'STATE_' . strtoupper($row['state']) : 'FILTER_FREE')) ?></td><td><?= (int) $row['group_id'] ?: $t('SIMULATION') ?></td><td><?= $t((int) $row['managed'] === 1 && (int) $row['group_id'] === $r->catalog->context() ? 'FILTER_MANAGED' : 'FILTER_HISTORICAL') ?></td></tr>
+</td><td><?= $esc($t($row['state'] ? 'STATE_' . strtoupper($row['state']) : (!empty($row['draft_id']) ? 'RECONCILIATION_UNKNOWN' : 'FILTER_FREE'))) ?>
+    <?php if (!empty($row['reconciliation_status'])) :
+        ?><div class="small"><?= $esc($t('RECONCILIATION_' . strtoupper($row['reconciliation_status']))) ?><br><?= $esc($row['checked_at'] ?? '') ?> UTC</div><?php
+    endif; ?>
+</td><td><?= (int) $row['group_id'] ?: $t('SIMULATION') ?></td><td><?= $t((int) $row['managed'] === 1 && (int) $row['group_id'] === $r->catalog->context() ? 'FILTER_MANAGED' : 'FILTER_HISTORICAL') ?></td></tr>
 <?php endforeach; ?>
 <?php if (!$filterRows) :
     ?><tr><td colspan="5"><?= $t('NO_RESULTS') ?></td></tr><?php

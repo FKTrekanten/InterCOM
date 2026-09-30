@@ -9,7 +9,7 @@ use FKT\Component\Intercom\Administrator\Domain\FilterCreator;
 use FKT\Component\Intercom\Administrator\Domain\Message;
 use FKT\Component\Intercom\Administrator\Domain\UnsubscribeForm;
 
-final class CleverReachGateway implements DeliveryGateway, FilterCreator
+final class CleverReachGateway implements DeliveryGateway, FilterCreator, \FKT\Component\Intercom\Administrator\Domain\ReconciliationGateway
 {
     public function __construct(private \Closure $token, private array $config, private ?\Closure $transport = null)
     {
@@ -23,7 +23,7 @@ final class CleverReachGateway implements DeliveryGateway, FilterCreator
         }
         $curl = curl_init('https://rest.cleverreach.com' . $base . $path);
         curl_setopt_array($curl, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 25, CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => $method === 'GET' ? 10 : 25, CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $token, 'Content-Type: application/json']]);
         if ($data !== null) {
             curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($data, JSON_THROW_ON_ERROR));
@@ -33,7 +33,7 @@ final class CleverReachGateway implements DeliveryGateway, FilterCreator
         $error = curl_errno($curl);
         curl_close($curl);
         if ($error || $status < 200 || $status >= 300) {
-            throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
+            throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR', $status === 404 ? 404 : 0);
         }
         if ($status === 204 || $body === '') {
             return null;
@@ -169,7 +169,7 @@ final class CleverReachGateway implements DeliveryGateway, FilterCreator
         $this->request(
             'PUT',
             '/groups/' . (int) $this->config['group_id'] . '/filters/' . $filterId,
-            ['name' => 'Intercom ' . $filterId, 'rules' => $rules]
+            ['rules' => $rules]
         );
         $category = (int) ($message['definition']['category_id'] ?? 0);
         $da = Message::translation($message['definition'] ?? [], 'da-DK');
@@ -206,10 +206,42 @@ final class CleverReachGateway implements DeliveryGateway, FilterCreator
         $this->request('POST', '/mailings/' . $mailingId . '/sendpreview', ['receivers' => [$email], 'previewText' => ' - TEST']);
     }
 
+    public function mailing(int $id): array
+    {
+        $result = $this->request('GET', '/mailings/' . $id);
+        if (!is_array($result) || array_is_list($result)) {
+            throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
+        }
+        return $result;
+    }
+
+    public function filter(int $groupId, int $id): array
+    {
+        $result = $this->request('GET', '/groups/' . $groupId . '/filters/' . $id);
+        if (!is_array($result) || array_is_list($result)) {
+            throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
+        }
+        return $result;
+    }
+
+    public function filters(int $groupId): array
+    {
+        $result = $this->request('GET', '/groups/' . $groupId . '/filters');
+        if (!is_array($result) || !array_is_list($result)) {
+            throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
+        }
+        foreach ($result as $filter) {
+            if (!is_array($filter) || !isset($filter['id'], $filter['name']) || !is_string($filter['name']) || !ctype_digit((string) $filter['id'])) {
+                throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
+            }
+        }
+        return $result;
+    }
+
     public function finished(int $mailingId): bool
     {
         $mailing = $this->request('GET', '/mailings/' . $mailingId);
-        return is_array($mailing) && !empty($mailing['finished']) && !empty($mailing['started']);
+        return is_array($mailing) && \FKT\Component\Intercom\Administrator\Domain\MailingStatus::status($mailing, $mailingId, (int) ($this->config['group_id'] ?? 0)) === 'completed';
     }
 
     public function release(int $mailingId, int $timestamp): void

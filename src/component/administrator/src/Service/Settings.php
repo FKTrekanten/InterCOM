@@ -62,7 +62,7 @@ final class Settings
             $config['audience_rules'] = $current['audience_rules'] ?? '[]';
             $config['communication_catalog_version'] = (int) ($current['communication_catalog_version'] ?? 1);
             // Do not switch accounts, modes or recipient lists while any filter is reserved.
-            $reserved = $r->store->row('SELECT f.filter_id FROM #__intercom_filters f LEFT JOIN #__intercom_drafts d ON d.id=f.draft_id WHERE f.draft_id IS NOT NULL AND (d.delivery_mode IS NULL OR d.delivery_mode != \'fake\') LIMIT 1 FOR UPDATE');
+            $reserved = $r->store->hasLiveReservations();
             foreach (['mode', 'group_id'] as $key) {
                 if ($reserved && ($current[$key] ?? ($key === 'mode' ? 'fake' : 0)) != $config[$key]) {
                     throw new \RuntimeException('COM_INTERCOM_LIVE_RESERVATIONS');

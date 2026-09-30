@@ -77,8 +77,14 @@ final class Runtime
         );
     }
 
+    public function reconciliation(): ?Reconciliation
+    {
+        $gateway = $this->gateway();
+        return $gateway instanceof \FKT\Component\Intercom\Administrator\Domain\ReconciliationGateway ? new Reconciliation($this->store, $gateway, $this->config) : null;
+    }
+
     public function workflow(User $user): Workflow
     {
-        return new Workflow($this->store, $this->gateway(), $this->policy($user), (int) $user->id, $this->catalog, $this->archive());
+        return new Workflow($this->store, $this->gateway(), $this->policy($user), (int) $user->id, $this->catalog, $this->archive(), $this->reconciliation());
     }
 }

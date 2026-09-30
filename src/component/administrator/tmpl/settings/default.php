@@ -68,29 +68,32 @@ elseif ($this->section === 'types' && $this->record) :
 <?php elseif ($this->section === 'tags') :
     $wa->useScript('com_intercom.tags');
     $meta = $r->store->row('SELECT * FROM #__intercom_catalogues WHERE list_id=' . $r->catalog->context()); ?>
-<h2><?= $t('RECIPIENT_TAGS') ?></h2><p><?= $t('TAG_LABEL_HELP') ?></p><p><?= $t('TAG_CATALOGUE_HELP') ?></p><p><?= $t('LAST_REFRESH') ?>: <?= $esc($meta['refreshed_at'] ?? '-') ?> UTC</p>
+<h2><?= $t('RECIPIENT_TAGS') ?></h2><p><?= $t('DRAG_ROW_HELP') ?></p><p><?= $t('TAG_LABEL_HELP') ?></p><p><?= $t('TAG_CATALOGUE_HELP') ?></p><p><?= $t('LAST_REFRESH') ?>: <?= $esc($meta['refreshed_at'] ?? '-') ?> UTC</p>
 <form action="index.php?option=com_intercom&amp;task=management.refreshtags" method="post" class="mb-3"><?= HTMLHelper::_('form.token') ?><button class="btn btn-secondary"><?= $t('REFRESH_TAGS') ?></button></form>
 <form action="index.php?option=com_intercom&amp;task=management.savetags" method="post"><?= HTMLHelper::_('form.token') ?><input type="hidden" name="jform[revision]" value="<?= (int) ($meta['revision'] ?? 0) ?>">
     <?php foreach (['group' => 'GROUPS', 'membership' => 'MEMBERSHIPS'] as $prefix => $label) : ?>
-<h3><?= $t($label) ?> (<?= $prefix ?>.*)</h3><fieldset data-tag-section="<?= $prefix ?>"><legend class="visually-hidden"><?= $t($label) ?></legend><label class="mb-3"><input type="checkbox" data-toggle-all aria-label="<?= $t('CHECK_ALL') ?> <?= $t($label) ?>"> <?= $t('CHECK_ALL') ?></label><div class="table-responsive"><table class="table"><thead><tr><th><?= $t('SHOW_TAG') ?></th><th><?= $t('TAG') ?></th><th><?= $t('TAG_LABELS') ?></th><th><?= $t('AVAILABILITY') ?></th><th><?= $t('ORDERING') ?></th></tr></thead><tbody>
+<h3><?= $t($label) ?> (<?= $prefix ?>.*)</h3><fieldset data-tag-section="<?= $prefix ?>"><legend class="visually-hidden"><?= $t($label) ?></legend><label class="mb-3"><input type="checkbox" data-toggle-all aria-label="<?= $t('CHECK_ALL') ?> <?= $t($label) ?>"> <?= $t('CHECK_ALL') ?></label><div class="table-responsive"><table class="table"><thead><tr><th><?= $t('SHOW_TAG') ?></th><th><?= $t('TAG') ?></th><th><?= $t('TAG_LABELS') ?></th><th><?= $t('AVAILABILITY') ?></th><th><?= $t('ORDERING') ?></th></tr></thead><tbody data-tag-rows>
         <?php foreach ($r->catalog->tags(false) as $row) :
             if (!str_starts_with($row['tag'], $prefix . '.')) {
                 continue;
             }
             $names = json_decode($row['labels'] ?? '{}', true); ?>
-<tr>
+<tr data-tag-row>
 <td><input data-tag-choice type="checkbox" name="jform[enabled][]" value="<?= $esc($row['tag']) ?>" aria-label="<?= $esc($row['tag']) ?>" <?= $row['enabled'] && $row['available'] ? 'checked' : '' ?> <?= !$row['available'] ? 'disabled' : '' ?>></td>
 <td><strong><?= $esc(\FKT\Component\Intercom\Administrator\Domain\TagLabel::display($row, $locale)) ?></strong><div class="small text-muted text-break"><?= $esc($row['tag']) ?></div></td>
 <td>
             <?php foreach ($r->catalog->languages() as $language => $languageName) : ?>
-<label class="d-block mb-2"><?= $esc($languageName) ?>
-<input class="form-control" maxlength="255" name="jform[labels][<?= $esc($row['tag']) ?>][<?= $esc($language) ?>]" value="<?= $esc($names[$language] ?? '') ?>" placeholder="<?= $esc(\FKT\Component\Intercom\Administrator\Domain\TagLabel::automatic($row['tag'])) ?>"></label>
+<label class="d-flex flex-column align-items-start mb-2"><span class="form-label mb-1"><?= $esc($languageName) ?></span>
+<input class="form-control" style="min-width: 14rem" maxlength="255" name="jform[labels][<?= $esc($row['tag']) ?>][<?= $esc($language) ?>]" value="<?= $esc($names[$language] ?? '') ?>" placeholder="<?= $esc(\FKT\Component\Intercom\Administrator\Domain\TagLabel::automatic($row['tag'])) ?>"></label>
             <?php endforeach; ?>
 </td>
 <td><?= $t($row['available'] ? 'AVAILABLE' : 'UNAVAILABLE') ?></td>
-<td><input class="form-control" type="number" name="jform[ordering][<?= $esc($row['tag']) ?>]" value="<?= (int) $row['ordering'] ?>" aria-label="<?= $t('ORDERING') ?> <?= $esc($row['tag']) ?>"></td>
+<td><input data-tag-order type="hidden" name="jform[ordering][<?= $esc($row['tag']) ?>]" value="<?= (int) $row['ordering'] ?>">
+<div class="d-flex gap-1"><button type="button" class="btn btn-secondary" data-drag-handle draggable="true" aria-label="<?= $t('DRAG_ROW') ?> <?= $esc($row['tag']) ?>" title="<?= $t('DRAG_ROW') ?>"><span aria-hidden="true">⠿</span></button>
+<button type="button" class="btn btn-secondary" data-move-up aria-label="<?= $t('MOVE_UP') ?> <?= $esc($row['tag']) ?>"><span aria-hidden="true">↑</span></button>
+<button type="button" class="btn btn-secondary" data-move-down aria-label="<?= $t('MOVE_DOWN') ?> <?= $esc($row['tag']) ?>"><span aria-hidden="true">↓</span></button></div></td>
 </tr>
-        <?php endforeach; ?></tbody></table></div></fieldset>
+        <?php endforeach; ?></tbody></table></div><p class="visually-hidden" data-order-status role="status" aria-live="polite"></p></fieldset>
     <?php endforeach; ?><button class="btn btn-primary" <?= !$meta ? 'disabled' : '' ?>><?= $t('SAVE_CHANGES') ?></button></form>
 <?php elseif ($this->section === 'access') :
     $rules = json_decode($r->config['audience_rules'] ?? '[]', true) ?: [];

@@ -10,7 +10,7 @@ Requires PHP 8.3+, Composer, Python 3, Node.js (syntax and composer interaction 
 composer install
 python3 scripts/build.py
 bash scripts/stack.sh up
-docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.3.2.zip
+docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.3.4.zip
 ```
 
 Local site: http://localhost:8088. Administrator: `/administrator`. Synthetic local login: `intercom` / `Intercom-local-2026!`. These credentials are only for the localhost-only development stack. Do not deploy this Compose file to production.
@@ -47,7 +47,7 @@ Live delivery requires a controlled one-recipient CR test list (CR has no sandbo
 
 The component includes Joomla rich-text composition, a branded bilingual email template, first-name insertion, an isolated matching preview, translated communication groups and structured tag/access administration. Audit history and filters have separate paginated pages. Email design is configurable, with light/dark previews and a single sender default in Options. Component and communication permissions saved through Intercom are audited; changes through Joomla user administration still rely on Joomla core action logs.
 
-Full Danish language-pack/menu-switch acceptance and live email-client/dark-mode verification remain setup/acceptance work. The browser preview does not confirm CleverReach inbox delivery. Verified same-account manual token renewal is tracked in [issue #5](https://github.com/FKTrekanten/InterCOM/issues/5). Automated one-recipient preflight, reliable delivered previews for delegated users and remote filter reconciliation remain tracked in [issues #1–3](https://github.com/FKTrekanten/InterCOM/issues). List-bound unsubscribe forms are implemented and verified with the dev recipient for [issue #4](https://github.com/FKTrekanten/InterCOM/issues/4). The system must not be represented as production-ready.
+Full Danish language-pack/menu-switch acceptance and live email-client/dark-mode verification remain setup/acceptance work. The browser preview does not confirm CleverReach inbox delivery. Verified same-account manual token renewal is tracked in [issue #5](https://github.com/FKTrekanten/InterCOM/issues/5). Automated one-recipient preflight and reliable delivered previews for delegated users remain tracked in [issue #1](https://github.com/FKTrekanten/InterCOM/issues/1) and [issue #3](https://github.com/FKTrekanten/InterCOM/issues/3). Safe filter reconciliation is implemented for [issue #2](https://github.com/FKTrekanten/InterCOM/issues/2); see [its contract and dev verification](docs/reconciliation.md). List-bound unsubscribe forms are implemented and verified with the dev recipient for [issue #4](https://github.com/FKTrekanten/InterCOM/issues/4). The system must not be represented as production-ready.
 
 See [implementation plan](docs/implementation-plan.md) and [design sketch](docs/intercom-sketch.html).
 
@@ -76,7 +76,9 @@ Manual filter IDs are retired on upgrade. New drafts use only filters created by
 
 ## Managed CleverReach filter pool
 
-Choose the recipient list from CleverReach in Options and set **Maximum Intercom filters per list** (default 5, range 1–20). New live previews reserve an Intercom-owned filter or create one with an initially empty audience when no owned filter is free. The created filter is then updated with the draft's audience rules. The cap includes filters tied to submitted/uncertain mailings and creation requests whose remote outcome is uncertain. Those slots are not recycled without reconciliation; this release does not yet automate reconciliation, so the cap can remain full after sending. The component never overwrites unrelated CleverReach filters. Simulation uses local filters and makes no remote creation request. Changing the selected list is blocked while a live mailing holds a reservation.
+Choose the recipient list from CleverReach in Options and set **Maximum Intercom filters per list** (default 5, range 1–20). New live previews reserve an Intercom-owned filter or create one with an initially empty audience when no owned filter is free. The created filter is then updated with the draft's audience rules. The cap includes filters tied to submitted/uncertain mailings and creation requests whose remote outcome is uncertain. Scheduled maintenance reconciles these slots, and administrators can run **Filters → Reconcile with CleverReach**. A filter becomes reusable only after the provider confirms a completed static mailing on the selected list and confirms the filter still exists. Scheduled, missing, dynamic/campaign and failed checks retain their reservations. The component never overwrites unrelated CleverReach filters. Simulation uses local filters and makes no remote creation request. Changing the selected list or connection is blocked while live reservations or unresolved creation requests exist.
+
+The Filters page shows the last check and reason for each retained reservation, plus unresolved creation requests. Recovery adopts exactly one filter matching the unique name recorded before its creation POST; zero or multiple matches remain blocked and still count towards the cap. It never retries an uncertain POST or frees a slot based on age. Recent creation requests are not inspected while they could still be in progress. Checks are bounded per maintenance run and serialized with account/lease changes; repeated runs do not release a filter acquired by a newer draft. All state transitions are audited. Historical unmanaged reservations require separate operator review.
 
 ## Preview and unsubscribe forms
 
@@ -100,6 +102,8 @@ Drafts snapshot their communication definition. Changes to group settings, tag v
 Options contains an optional **Board archive email**. Leave it empty to disable. After CleverReach confirms a mailing has finished, scheduled maintenance sends one bilingual archive copy through Joomla’s configured mail transport. This separate operation records the approved revision, sender and audience criteria; it never sends ordinary previews to the board and never repeats the member mailing. The v3 contract does not provide a verified `bcc_email` integration, so Intercom does not depend on that legacy field.
 
 The archive outbox records pending, sending, submitted or uncertain status in the database and audit log. Provider status failures leave copies pending; interrupted or failed SMTP calls require operator review and are never automatically retried. Retention applies to terminal archive content. The developer archive address remains empty, and automated tests inject fake SMTP/provider completion to avoid real delivery.
+
+Recipient tags have automatically formatted and capitalized names, with optional per-language overrides. Drag rows within each tag section or use the arrow buttons (including on mobile); save to keep the order. Language labels sit above their inputs. The email footer and plain-text alternative use the same trusted language labels as the composer; raw CleverReach tags still determine the audience. Existing drafts need saving and a new test to pick up label/design changes.
 
 ## Email design and composer behaviour (0.3.1)
 

@@ -12,6 +12,7 @@ final class HtmlView extends BaseView
     public $runtime;
     public array $rows = [];
     public array $filters = [];
+    public array $creations = [];
     public $pagination;
 
     public function display($tpl = null)
@@ -30,6 +31,8 @@ final class HtmlView extends BaseView
         $limit = in_array($limit, [10, 20, 50, 100], true) ? $limit : 20;
         $result = (new Activity($this->runtime->store, $this->runtime->config))->page($view, $this->filters, $limit, $app->input->getInt('limitstart', 0));
         $this->rows = $result['rows'];
+        $list = $this->runtime->catalog->context();
+        $this->creations = $this->runtime->store->rows("SELECT * FROM #__intercom_filter_creations WHERE group_id=$list AND state IN ('pending','uncertain') ORDER BY created_at,id LIMIT 20");
         $this->pagination = new Pagination($result['total'], $result['start'], $result['limit']);
         foreach (['option' => 'com_intercom', 'view' => $view] + $this->filters as $key => $value) {
             $this->pagination->setAdditionalUrlParam($key, $value);

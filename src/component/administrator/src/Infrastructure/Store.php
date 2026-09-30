@@ -80,6 +80,12 @@ final class Store
         $this->db->insertObject('#__intercom_audit', $record);
     }
 
+    public function hasLiveReservations(): bool
+    {
+        return $this->row("SELECT f.filter_id FROM #__intercom_filters f LEFT JOIN #__intercom_drafts d ON d.id=f.draft_id WHERE f.draft_id IS NOT NULL AND (d.delivery_mode IS NULL OR d.delivery_mode!='fake') LIMIT 1 FOR UPDATE") !== null
+            || $this->row("SELECT id FROM #__intercom_filter_creations WHERE state IN ('pending','uncertain') LIMIT 1 FOR UPDATE") !== null;
+    }
+
     public function draft(int $id, int $owner, bool $lock = false, bool $includeDeleted = false): array
     {
         $row = $this->row('SELECT * FROM #__intercom_drafts WHERE id=' . $id . ' AND owner_id=' . $owner

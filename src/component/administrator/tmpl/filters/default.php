@@ -3,6 +3,7 @@
 defined('_JEXEC') or die;
 
 use Joomla\CMS\Language\Text;
+use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 
 $r = $this->runtime;
@@ -12,7 +13,10 @@ ToolbarHelper::title($t('RESERVATIONS'), 'envelope');
 ToolbarHelper::preferences('com_intercom');
 require dirname(__DIR__) . '/navigation.php';
 ?>
-<p><?= $t('RESERVATION_HELP') ?></p>
+<p><?= $t('RESERVATION_HELP') ?></p><p><?= $t('RECONCILE_HELP') ?></p>
+<?php if (\Joomla\CMS\Factory::getApplication()->getIdentity()->authorise('core.admin', 'com_intercom')) : ?>
+<form method="post" action="index.php?option=com_intercom&amp;task=reconciliation.run" class="mb-4"><?= HTMLHelper::_('form.token') ?><button type="submit" class="btn btn-primary" <?= ($r->config['mode'] ?? 'fake') !== 'live' ? 'disabled' : '' ?>><?= $t('RECONCILE_NOW') ?></button></form>
+<?php endif; ?>
 <form method="get" action="index.php" id="adminForm" name="adminForm">
 <input type="hidden" name="option" value="com_intercom"><input type="hidden" name="view" value="filters"><input type="hidden" name="task" value=""><input type="hidden" name="limitstart" value="<?= (int) $this->pagination->limitstart ?>">
 <div class="ic-admin-search">
@@ -35,3 +39,13 @@ endforeach; ?>
 <?php $filterRows = $this->rows;
 require dirname(__DIR__) . '/filter-table.php'; ?>
 <?= $this->pagination->getPagesLinks() ?><p><?= $this->pagination->getResultsCounter() ?></p></form>
+
+<h2><?= $t('UNRESOLVED_CREATIONS') ?></h2><p><?= $t('UNRESOLVED_CREATIONS_HELP') ?></p>
+<div class="table-responsive"><table class="table"><thead><tr><th><?= $t('TAG') ?></th><th><?= $t('STATE') ?></th><th><?= $t('LAST_CHECKED') ?></th></tr></thead><tbody>
+<?php foreach ($this->creations as $creation) :
+    ?><tr><td><?= $esc($creation['remote_name']) ?></td><td><?= $t('RECONCILIATION_' . strtoupper($creation['reconciliation_status'] ?: ($creation['state'] === 'pending' ? 'IN_PROGRESS' : 'UNKNOWN'))) ?></td><td><?= $esc($creation['checked_at'] ?? '-') ?> UTC</td></tr><?php
+endforeach; ?>
+<?php if (!$this->creations) :
+    ?><tr><td colspan="3"><?= $t('NO_RESULTS') ?></td></tr><?php
+endif; ?>
+</tbody></table></div>

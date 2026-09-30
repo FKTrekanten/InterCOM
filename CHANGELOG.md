@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.4
+
+- Use translated, readable and capitalized automatic group labels in email previews and HTML/text mailings, preserving raw audience tags.
+- Align backend language labels above inputs and reorder recipient tags with drag handles or accessible up/down buttons.
+- Reconcile completed static CleverReach mailings before reusing their filters, automatically through scheduled maintenance or manually in the backend.
+- Recover uncertain filter creations by their unique remote name; keep missing, ambiguous and failed checks blocked and show their status to administrators.
+- Audit reconciliation transitions and protect unresolved creation slots from account/list changes.
+
 ## 0.3.3
 
 - Replace the numeric unsubscribe input with a CleverReach list-bound form selector; reload forms when the recipient list changes and preserve existing legacy selections during upgrades or provider outages.

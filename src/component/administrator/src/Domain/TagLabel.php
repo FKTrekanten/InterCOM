@@ -10,7 +10,7 @@ final class TagLabel
     {
         $name = preg_replace('/^(group|membership)\./', '', $tag);
         $name = preg_replace('/_([01][0-9]|2[0-3])_([0-5][0-9])$/D', ' $1:$2', $name);
-        return preg_replace('/_+/', ', ', trim($name, '_'));
+        return implode(', ', array_map(static fn (string $part): string => mb_strtoupper(mb_substr($part, 0, 1)) . mb_substr($part, 1), preg_split('/_+/', trim($name, '_'))));
     }
 
     public static function display(array $row, string $language): string

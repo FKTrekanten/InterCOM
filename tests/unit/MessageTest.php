@@ -19,6 +19,21 @@ final class MessageTest extends TestCase
         self::assertStringContainsString('{UNSUBSCRIBE}', $html);
         self::assertStringContainsString('{FIRSTNAME[std:Member]}', $html);
     }
+    public function testEmailUsesLanguageLabelsAndAutomaticFallback(): void
+    {
+        $message = Message::validate($this->message());
+        $message['tags'] = ['group.Adult_Ryparken_Monday_17_30', 'group.epee'];
+        $message['tag_labels'] = ['group.Adult_Ryparken_Monday_17_30' => ['da-DK' => 'Voksne, Ryparken, mandag 17:30']];
+        $da = Message::html($message, 'da-DK');
+        $en = Message::html($message, 'en-GB');
+        self::assertStringContainsString('Voksne, Ryparken, mandag 17:30, Epee', $da);
+        self::assertStringContainsString('Adult, Ryparken, Monday 17:30, Epee', $en);
+        self::assertStringNotContainsString('Adult_Ryparken_Monday_17_30', $da . $en . Message::text($message));
+        self::assertStringContainsString('Voksne, Ryparken, mandag 17:30', Message::text($message));
+        self::assertStringContainsString('Adult, Ryparken, Monday 17:30', Message::text($message));
+        self::assertSame(['group.Adult_Ryparken_Monday_17_30', 'group.epee'], $message['tags']);
+    }
+
     public function testCommaInjectionIntoTagRulesIsDenied(): void
     {
         $message = $this->message();

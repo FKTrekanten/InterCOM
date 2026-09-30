@@ -58,6 +58,7 @@ final class ApiController extends BaseController
         $runtime->policy($user)->assertAllowed($message['type'], $message['tags'], 'compose');
         $message['definition'] = $runtime->catalog->snapshot($message);
         $message['design'] = $runtime->design->snapshot();
+        $message['tag_labels'] = $runtime->catalog->tagLabels($message);
         $message['footer'] = \FKT\Component\Intercom\Administrator\Domain\Footer::validate($runtime->config);
         $subjects = [];
         foreach (['da' => 'da-DK', 'en' => 'en-GB'] as $lang => $locale) {
