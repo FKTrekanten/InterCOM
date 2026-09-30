@@ -20,7 +20,7 @@ final class IntercomConnectionField extends FormField
         $t = static fn ($key) => Text::_('COM_INTERCOM_' . $key);
         $escape = static fn ($value) => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
         $html = '<div class="intercom-connection"><p>' . $t('SECRET_ACTION_HELP') . '</p>';
-        $html .= '<p>' . $t('ACCOUNT_HELP') . '</p><button type="button" class="btn btn-secondary mb-3" data-intercom-task="verifyaccount">' . $t('VERIFY_ACCOUNT') . '</button>';
+        $html .= '<p>' . $t('ACCOUNT_HELP') . '</p><div class="mb-3"><button type="button" class="btn btn-secondary" data-intercom-task="verifyaccount">' . $t('VERIFY_ACCOUNT') . '</button></div>';
         foreach (['client_id', 'client_secret'] as $name) {
             $html .= '<label class="form-label" for="' . $name . '">' . $t(strtoupper($name)) . '</label><input class="form-control mb-3" type="password" name="' . $name . '" id="' . $name . '" value="" autocomplete="new-password">';
         }
