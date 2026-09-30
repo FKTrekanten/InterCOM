@@ -4,7 +4,7 @@
 
 - Replace the numeric unsubscribe input with a CleverReach list-bound form selector; reload forms when the recipient list changes and preserve existing legacy selections during upgrades or provider outages.
 - Use the separate Flow API catalogue and pass new form UUIDs losslessly in the mailing API's existing unsubscribe setting. Validate list/type before preparation and verify the saved mailing selection before preview or release.
-- Add contract, selector race/error, permission, settings fingerprint and native upgrade coverage for issue #4. Fix native browser textarea line-break validation in footer Options.
+- Verify one-recipient dev delivery and the new unsubscribe destination with the recipient. Add contract, selector race/error, permission, settings fingerprint and native upgrade coverage for issue #4. Fix native browser textarea line-break validation in footer Options.
 
 ## 0.3.2
 

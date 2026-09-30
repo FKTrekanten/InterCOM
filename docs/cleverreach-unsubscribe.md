@@ -12,7 +12,9 @@ Native Options reloads forms when the list changes. The server independently val
 - Its existing `Unsubscribes` flow is `06b3cdcb-acd5-4987-8d4f-47673cd418ab`; the API confirmed its unsubscribe playbook and exact list binding.
 - Native Options successfully selected and saved it. Credentials, list, mode and existing submitted reservation were preserved. Ordinary live release remains disabled.
 - Acceptance mailing 17448403 was created unsent, verified to contain only this list, updated with the current HTML/text template, and released only after repeating the one-recipient check. CleverReach subsequently reported it finished. Creation/release are audited locally without recipient data or credentials.
-- Inbox receipt and opening the new destination require recipient confirmation. Do not submit an unsubscribe as part of this check. Keep issue #4 open and the legacy form intact until that is confirmed. Never delete a legacy form used by another list or historical mailing.
+- CleverReach reported one recipient, one delivery, zero bounces and zero unsubscribes. The dev recipient confirmed inbox receipt and that the delivered unsubscribe link opens the new form. No unsubscribe was submitted.
+- The legacy form is retired from current dev configuration but remains intact for historical mailings. Never delete a form still used by another list or historical mailing. Issue #5 was not a prerequisite: the existing token could read flows, create the mailing and retrieve its report.
+- Local CI passed: 63 PHPUnit tests / 179 assertions, seven frontend tests, code style, native install/upgrade, database and HTTP permissions. [GitHub Actions for the implementation](https://github.com/FKTrekanten/InterCOM/actions/runs/36731863048) also passed.
 
 ## Sources
 
