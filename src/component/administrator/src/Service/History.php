@@ -77,7 +77,7 @@ final class History
     public function maintain(int $days): void
     {
         $days = max(1, min(3650, $days));
-        $this->store->execute("UPDATE #__intercom_history h JOIN #__intercom_drafts d ON d.id=h.draft_id SET h.snapshot=NULL WHERE h.snapshot IS NOT NULL AND d.state IN ('completed','submitted','cancelled','deleted') AND COALESCE(h.finished_at,h.requested_at,h.created_at)<UTC_TIMESTAMP()-INTERVAL $days DAY");
+        $this->store->execute("UPDATE #__intercom_history h JOIN #__intercom_drafts d ON d.id=h.draft_id SET h.snapshot=NULL WHERE h.snapshot IS NOT NULL AND (d.state IN ('completed','cancelled','deleted') OR (d.delivery_mode='fake' AND d.state='submitted')) AND COALESCE(h.finished_at,h.requested_at,h.created_at)<UTC_TIMESTAMP()-INTERVAL $days DAY");
     }
 
     public function page(array $filters, int $limit, int $start, bool $latest = false): array

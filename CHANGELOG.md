@@ -5,7 +5,8 @@
 - Enforce administrator one-recipient CleverReach delivery acceptance instead of an editable release checkbox. Recheck eligibility, blacklists, list, sender and unsubscribe form before sending.
 - Bind approval to the verified account and current email configuration; require actual receipt confirmation and provider completion. Keep ambiguous operations reserved without automatic retries.
 - Add bilingual acceptance screens and secure native POST actions, plus eligibility and native database regression checks.
-- Fix the Verify account Options button submission.
+- Fix the Verify account Options button submission and align acceptance/history language labels.
+- Preserve saved content and frozen history for pending live submissions beyond the retention window; purge only completed/terminal content or simulation.
 
 
 ## 0.3.7

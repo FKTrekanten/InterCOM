@@ -72,6 +72,10 @@ try {
     check($gateway->releases===1 && $d['state']==='submitted','Confirmed updated estimate allows one release');
     $h=new History($s);$history=$h->detail($id);$frozen=$history['snapshot'];
     check((int)json_decode($frozen,true)['estimate']===1,'History preserves the count at preparation independently of final submission');
+    $s->execute("UPDATE #__intercom_drafts SET updated_at=UTC_TIMESTAMP()-INTERVAL 31 DAY WHERE id=$id");
+    $s->execute("UPDATE #__intercom_history SET requested_at=UTC_TIMESTAMP()-INTERVAL 31 DAY WHERE draft_id=$id");
+    $w->maintain(30);
+    check($s->draft($id,42)['content']!=='{}' && $h->detail($id)['snapshot']===$frozen,'A live submission awaiting provider completion retains current message and history after the retention window');
     $h->completed($id,['started'=>time()-50,'finished'=>time()-30]);
     check($h->page([],5,0,true)['rows'][0]['draft_id']===$d['id'],'Confirmed send appears on dashboard');
     $h->outcome($id,'uncertain');

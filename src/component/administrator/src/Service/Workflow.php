@@ -555,7 +555,7 @@ final class Workflow
             $this->store->execute("DELETE FROM #__intercom_audit WHERE created_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             $this->store->execute("DELETE FROM #__intercom_revisions WHERE created_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             // Purge inactive terminal message content, retaining operational IDs/leases.
-            $this->store->execute("UPDATE #__intercom_drafts SET content='{}' WHERE state IN ('completed','submitted','cancelled','deleted') AND updated_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
+            $this->store->execute("UPDATE #__intercom_drafts SET content='{}' WHERE (state IN ('completed','cancelled','deleted') OR (delivery_mode='fake' AND state='submitted')) AND updated_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             (new History($this->store))->maintain($days);
             $this->store->audit(0, 'maintenance.completed', 0, ['retention_days' => $days]);
         });
