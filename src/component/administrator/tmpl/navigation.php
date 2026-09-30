@@ -16,7 +16,7 @@ if ($user->authorise('intercom.audit', 'com_intercom')) {
 }
 if ($user->authorise('core.admin', 'com_intercom')) {
     $links += ['types' => ['COMMUNICATION_GROUPS', 'settings&section=types'], 'tags' => ['RECIPIENT_TAGS', 'settings&section=tags'],
-        'access' => ['AUDIENCE_ACCESS', 'settings&section=access'], 'design' => ['EMAIL_DESIGN', 'settings&section=design']];
+        'access' => ['AUDIENCE_ACCESS', 'settings&section=access'], 'design' => ['EMAIL_DESIGN', 'settings&section=design'], 'acceptance' => ['ACCEPTANCE', 'acceptance']];
 }
 $active = $app->input->getCmd('view', 'dashboard') === 'settings' ? $app->input->getCmd('section', 'types') : $app->input->getCmd('view', 'dashboard');
 $app->getDocument()->getWebAssetManager()->useStyle('com_intercom.admin');

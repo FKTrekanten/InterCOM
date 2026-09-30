@@ -67,8 +67,15 @@ status, admin = request('/administrator/index.php', {
     'option':'com_login','task':'login','username':'intercom','passwd':os.environ['INTERCOM_ADMIN_PASSWORD'],
     token(admin_login):'1','return':base64.b64encode(b'index.php?option=com_intercom').decode()})
 assert status == 200 and 'Latest sent emails' in admin, 'Administrator audit dashboard available'
+acceptance = '/administrator/index.php?option=com_intercom&view=acceptance'
+status, gate = request(acceptance)
+assert status == 200 and 'Member sends are blocked' in gate and 'Simulation never verifies' in gate, 'Native acceptance screen is fail-closed in simulation'
+for task in ['prepare','release','verify','retire']:
+    route = '/administrator/index.php?option=com_intercom&task=acceptance.' + task
+    assert request(route, {})[0] == 403 and request(route)[0] == 403, 'Acceptance mutation requires POST and CSRF'
 options = '/administrator/index.php?option=com_config&view=component&component=com_intercom'
 _, admin = request(options)
+assert 'name="jform[release_verified]"' not in admin and 'jform[acceptance_recipient]' in admin, 'Options displays computed approval and editable approved recipient'
 assert 'jform[sender_name]' in admin and 'jform[sender_email]' in admin, 'Single sender name and email render in Options'
 assert 'id="client_id"' in admin and 'id="access_token"' in admin, 'Secret controls render in native Options'
 assert 'jform_category_club' not in admin and 'jform_audience_rules' not in admin, 'Communication settings moved out of Options'
@@ -174,6 +181,8 @@ assert request(management + '&view=history&id=1')[0] == 403, 'Message detail dee
 assert request(management + '&view=audit')[0] == 403, 'Audit deep link requires audit permission'
 assert request(management + '&view=filters')[0] == 403, 'Filter deep link requires audit permission'
 assert request(management + '&task=reconciliation.run', {})[0] == 403, 'Manager cannot run reconciliation'
+assert request(management + '&view=acceptance')[0] == 403, 'Manager cannot inspect delivery acceptance'
+assert request(management + '&task=acceptance.prepare', {})[0] == 403, 'Manager cannot initiate acceptance'
 assert request(settings + '&section=design')[0] == 403, 'Email design deep link requires admin permission'
 assert request(management + '&task=connection.forms&format=json&group_id=0')[0] == 403, 'Form catalogue requires component admin permission'
 client = admin_client

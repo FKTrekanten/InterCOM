@@ -21,7 +21,7 @@ final class UnsubscribeFormTest extends TestCase
 
     private function config(): array
     {
-        return ['group_id' => 758666, 'unsubscribe_form_id' => self::FLOW, 'sender_email' => 'club@example.org', 'release_verified' => true];
+        return ['group_id' => 758666, 'unsubscribe_form_id' => self::FLOW, 'sender_name' => 'Club', 'sender_email' => 'club@example.org', 'release_verified' => true];
     }
 
     public function testIdentifiersPreserveLegacyNumbersAndFlowUuid(): void
@@ -90,9 +90,10 @@ final class UnsubscribeFormTest extends TestCase
                 return $this->flow();
             }
             if ($method === 'GET') {
-                return ['unsubscribe_form_id' => self::FLOW];
+                return ['id' => 456, 'unsubscribe_form_id' => self::FLOW, 'sender_name' => 'Club', 'sender_email' => 'club@example.org', 'is_mailing' => true, 'is_campaign' => false, 'is_dynamic' => false, 'mailing_groups' => ['group_ids' => ['758666']]];
             }
             return ['id' => 456];
+        }, static function (): void {
         });
         $message = Message::validate(['type' => 'club', 'sender' => 'Club', 'subject_da' => 'DA', 'subject_en' => 'EN',
             'body_da' => 'Dansk', 'body_en' => 'English', 'tags' => []]);
@@ -116,6 +117,7 @@ final class UnsubscribeFormTest extends TestCase
         $gateway = new CleverReachGateway(fn () => 'fixture', $this->config(), function ($method, $path) {
             self::assertSame('GET', $method);
             return str_starts_with($path, '/flow/') ? $this->flow() : ['unsubscribe_form_id' => '432342'];
+        }, static function (): void {
         });
         foreach (['preview', 'release'] as $action) {
             try {
@@ -132,6 +134,7 @@ final class UnsubscribeFormTest extends TestCase
         $gateway = new CleverReachGateway(fn () => 'fixture', $this->config(), function ($method) {
             self::assertSame('GET', $method);
             throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
+        }, static function (): void {
         });
         $this->expectExceptionMessage('COM_INTERCOM_PROVIDER_ERROR');
         $gateway->release(456, 0);

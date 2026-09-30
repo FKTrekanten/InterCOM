@@ -1,0 +1,2 @@
+CREATE TABLE IF NOT EXISTS `#__intercom_acceptance` (`draft_id` int unsigned NOT NULL, `actor_id` int unsigned NOT NULL, `fingerprint` varchar(64) NOT NULL, `recipient_hash` varchar(64) NOT NULL, `state` varchar(24) NOT NULL, `created_at` datetime NOT NULL, `verified_at` datetime DEFAULT NULL, PRIMARY KEY (`draft_id`), KEY `verified` (`state`,`fingerprint`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+UPDATE `#__extensions` SET params=JSON_SET(params,'$.release_verified',false) WHERE element='com_intercom' AND type='component' AND JSON_VALID(params);

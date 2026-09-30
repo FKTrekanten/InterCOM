@@ -1,6 +1,6 @@
 # Recipient estimates and production readiness
 
-Proposed plan, 30 September 2026. Baseline: Intercom 0.3.4 on main. Progress: #5 is completed and verified in local/GitHub CI. Recipient estimates and backend history are implemented in 0.3.6; dev acceptance and the remaining delivery/release work continue below.
+Proposed plan, 30 September 2026. Baseline: Intercom 0.3.4 on main. Progress: #5 is completed in 0.3.5; estimates/history in 0.3.6; delegated Joomla test delivery (#3) in 0.3.7. All three passed local and GitHub CI and dev checks. One-recipient acceptance (#1) is implemented in 0.3.8 and passed local CI; its external delivery confirmation and production checks remain pending.
 
 ## Intended behaviour
 
@@ -106,3 +106,31 @@ References:
 - https://github.com/FKTrekanten/InterCOM/issues/1
 - https://github.com/FKTrekanten/InterCOM/blob/main/docs/reconciliation.md
 - https://rest.cleverreach.com/v3/explorer/swagger.json
+
+## Current production handoff
+
+The dev stack is upgraded to 0.3.8. The controlled acceptance uses the authorized
+one-recipient dev list; ordinary sends are disabled until actual receipt is
+confirmed in Delivery acceptance. Joomla tests go to local Mailpit, not the
+recipient's external inbox. See [acceptance procedure](release-acceptance.md).
+
+Before production installation/release, obtain and verify:
+
+- A backup and demonstrated restore, preserving Joomla's encryption secret.
+- Production PHP 8.3+, Sodium/cURL and the agreed MariaDB/InnoDB database;
+  production sender/domain and Joomla SMTP with both-language inbox tests.
+- Native Danish/English menus and delegated SoMe/coach/board role tests on the
+  production configuration, including denied team/all-member operations.
+- A configured Joomla scheduler/cron that actually runs catalog refresh, audit
+  retention, reservation reconciliation and optional archive delivery.
+- A separate one-approved-recipient CleverReach acceptance on production:
+  correct headers, member profile links, selected unsubscribe form, HTML/text
+  and desktop/mobile dark-mode rendering in real clients. Never unsubscribe
+  the test member merely to test that the form opens.
+- Reviewed release notes and a clean main branch with exact-commit GitHub CI,
+  then run the release script and verify the package/update-feed URL and checksum.
+  The public update feed must not be described as ready while no release exists.
+
+CI proves isolated install/upgrade, migrations, native sessions/ACL/CSRF, provider
+fixtures, unit/style and SMTP capture. It cannot prove the production environment
+or receipt in a real client. No production deployment or public release is claimed.

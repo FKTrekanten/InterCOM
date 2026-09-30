@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.8 — 2026-09-30
+
+- Enforce administrator one-recipient CleverReach delivery acceptance instead of an editable release checkbox. Recheck eligibility, blacklists, list, sender and unsubscribe form before sending.
+- Bind approval to the verified account and current email configuration; require actual receipt confirmation and provider completion. Keep ambiguous operations reserved without automatic retries.
+- Add bilingual acceptance screens and secure native POST actions, plus eligibility and native database regression checks.
+- Fix the Verify account Options button submission.
+
+
 ## 0.3.7
 
 Deliver bilingual composer tests through Joomla's native mail service so delegated users do not need CleverReach account access. Add a pinned local Mailpit inbox and real SMTP regression coverage. Keep provider unsubscribe acceptance separate from sample test links, and use native timezone settings for recipient estimate timestamps.

@@ -9,6 +9,7 @@ $db->setQuery('ALTER TABLE #__intercom_drafts DROP COLUMN tested_fingerprint, DR
 $db->setQuery('ALTER TABLE #__intercom_filters DROP COLUMN group_id, DROP COLUMN managed, DROP COLUMN reconciliation_status, DROP COLUMN checked_at')->execute();
 $db->setQuery('DROP TABLE #__intercom_filter_creations')->execute();
 $db->setQuery('DROP TABLE #__intercom_history')->execute();
+$db->setQuery('DROP TABLE #__intercom_acceptance')->execute();
 foreach (['types', 'type_translations', 'tags', 'catalogues', 'archives', 'design'] as $table) {
     $db->setQuery('DROP TABLE #__intercom_' . $table)->execute();
 }

@@ -1,2 +1,2 @@
 <?xml version='1.0' encoding='utf-8'?>
-<extension type="plugin" group="task" method="upgrade"><name>PLG_TASK_INTERCOM</name><author>FKTrekanten</author><version>0.3.7</version><description>PLG_TASK_INTERCOM_DESCRIPTION</description><namespace path="src">FKT\Plugin\Task\Intercom</namespace><files><folder plugin="intercom">services</folder><folder>src</folder><folder>language</folder></files></extension>
+<extension type="plugin" group="task" method="upgrade"><name>PLG_TASK_INTERCOM</name><author>FKTrekanten</author><version>0.3.8</version><description>PLG_TASK_INTERCOM_DESCRIPTION</description><namespace path="src">FKT\Plugin\Task\Intercom</namespace><files><folder plugin="intercom">services</folder><folder>src</folder><folder>language</folder></files></extension>

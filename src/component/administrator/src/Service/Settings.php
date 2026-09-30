@@ -37,7 +37,7 @@ final class Settings
             'group_id' => $input->getInt('group_id'), 'unsubscribe_form_id' => \FKT\Component\Intercom\Administrator\Domain\UnsubscribeForm::identifier($input->get('unsubscribe_form_id', '', 'raw')),
             'sender_name' => trim($sender),
             'sender_email' => $input->getString('sender_email'), 'audience_rules' => json_encode($rules),
-            'release_verified' => $input->getBool('release_verified'), 'board_archive_email' => trim($input->getString('board_archive_email')),
+            'release_verified' => false, 'acceptance_recipient' => strtolower(trim($input->getString('acceptance_recipient', $r->config['acceptance_recipient'] ?? ''))), 'board_archive_email' => trim($input->getString('board_archive_email')),
             'communication_catalog_version' => (int) ($r->config['communication_catalog_version'] ?? 1),
             'estimate_cache_minutes' => max(1, min(60, $input->getInt('estimate_cache_minutes', (int) ($r->config['estimate_cache_minutes'] ?? 5)))),
             'audience_lease_minutes' => max(5, min(240, $input->getInt('audience_lease_minutes', (int) ($r->config['audience_lease_minutes'] ?? 30)))),
@@ -49,6 +49,9 @@ final class Settings
             $config['mode'] === 'live' && (!$config['group_id'] || !$config['unsubscribe_form_id']
             || !filter_var($config['sender_email'], FILTER_VALIDATE_EMAIL))
         ) {
+            throw new \RuntimeException('COM_INTERCOM_INVALID_SETTINGS');
+        }
+        if ($config['acceptance_recipient'] !== '' && !filter_var($config['acceptance_recipient'], FILTER_VALIDATE_EMAIL)) {
             throw new \RuntimeException('COM_INTERCOM_INVALID_SETTINGS');
         }
         if ($config['board_archive_email'] && !filter_var($config['board_archive_email'], FILTER_VALIDATE_EMAIL)) {
@@ -94,7 +97,7 @@ final class Settings
                 $actor,
                 'configuration.saved',
                 0,
-                ['before' => array_diff_key($current, array_flip(['client_id', 'client_secret', 'access_token', 'refresh_token'])), 'configuration' => $config]
+                ['before' => array_diff_key($current, array_flip(['client_id', 'client_secret', 'access_token', 'refresh_token', 'acceptance_recipient'])), 'configuration' => array_diff_key($config, ['acceptance_recipient' => true]), 'acceptance_recipient_hash' => hash('sha256', $config['acceptance_recipient'])]
             );
         });
         return $config;

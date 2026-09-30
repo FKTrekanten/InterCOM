@@ -21,6 +21,14 @@ final class Workflow
         return $this->saveMessage(Message::validate($input), $id, $revision);
     }
 
+    public function saveAcceptance(array $input, string $recipient, int $id = 0, int $revision = 0): array
+    {
+        if (!filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+            throw new \RuntimeException('COM_INTERCOM_ACCEPTANCE_RECIPIENT', 422);
+        }
+        return $this->saveMessage(array_merge(Message::validate($input), ['acceptance_email' => $recipient]), $id, $revision);
+    }
+
     public function saveAudience(array $input, int $id = 0, int $revision = 0): array
     {
         $audience = \FKT\Component\Intercom\Administrator\Domain\Audience::validate($input);
@@ -430,6 +438,9 @@ final class Workflow
             throw new \RuntimeException('COM_INTERCOM_INVALID_DATE', 422);
         }
         $this->releasePreflight($id, $revision, $approvedCount);
+        if ($this->gateway instanceof \FKT\Component\Intercom\Administrator\Domain\ReleaseGateway) {
+            $this->gateway->preflightRelease((int) $this->store->draft($id, $this->actor)['mailing_id']);
+        }
         $draft = $this->store->transaction(function () use ($id, $revision, $timestamp): array {
             $draft = $this->begin($id, $revision, 'release');
             (new History($this->store))->intent($draft, $timestamp);
@@ -444,6 +455,11 @@ final class Workflow
                 $this->archive?->queue($draft, $timestamp, $this->actor);
                 $this->store->audit($this->actor, 'release.accepted', $id, ['send_at' => $timestamp]);
             });
+        } catch (\FKT\Component\Intercom\Administrator\Domain\ReleaseBlocked $e) {
+            $this->store->execute("UPDATE #__intercom_drafts SET state='tested' WHERE id=$id AND state='releasing'");
+            $this->store->execute("UPDATE #__intercom_history SET state='prepared' WHERE draft_id=$id AND state='releasing'");
+            $this->store->audit($this->actor, 'release.blocked', $id);
+            throw $e;
         } catch (\Throwable) {
             $this->store->execute("UPDATE #__intercom_drafts SET state='uncertain',updated_at=UTC_TIMESTAMP() WHERE id=$id AND state='releasing'");
             (new History($this->store))->outcome($id, 'uncertain');

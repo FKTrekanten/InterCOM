@@ -11,7 +11,8 @@
 <field name="estimate_cache_minutes" type="number" label="COM_INTERCOM_ESTIMATE_CACHE" min="1" max="60" default="5" filter="integer" />
 <field name="audience_lease_minutes" type="number" label="COM_INTERCOM_AUDIENCE_LEASE" min="5" max="240" default="30" filter="integer" />
 <field name="retention_days" type="number" label="COM_INTERCOM_RETENTION_DAYS" min="1" max="3650" default="30" filter="integer" />
-<field name="release_verified" type="radio" layout="joomla.form.field.radio.switcher" label="COM_INTERCOM_RELEASE_VERIFIED" default="0" filter="integer"><option value="0">JNO</option><option value="1">JYES</option></field>
+<field name="acceptance_recipient" type="email" label="COM_INTERCOM_ACCEPTANCE_RECIPIENT_LABEL" description="COM_INTERCOM_ACCEPTANCE_RECIPIENT_HELP" filter="string" />
+<field name="release_verified" type="IntercomAcceptance" label="COM_INTERCOM_RELEASE_VERIFIED" filter="unset" />
 </fieldset>
 <fieldset name="footer" label="COM_INTERCOM_FOOTER_OPTIONS" description="COM_INTERCOM_FOOTER_HELP">
 <field name="footer_profile_da" type="url" label="COM_INTERCOM_PROFILE_DA" default="https://trekanten.org/min-klub/member-profile" required="true" filter="raw" />

@@ -53,7 +53,7 @@ final class Runtime
         if (($this->config['mode'] ?? 'fake') === 'fake') {
             return new FakeGateway();
         }
-        return new CleverReachGateway(fn () => $this->connection->token(), $this->config);
+        return new CleverReachGateway(fn () => $this->connection->token(), $this->config, null, fn (int $mailing) => (new ReleaseApproval($this->store))->authorize($mailing));
     }
 
     public function archive(): Archive
@@ -96,6 +96,20 @@ final class Runtime
             $mail->AltBody = $payload['text'];
             return $mail->send() === true;
         });
+    }
+
+    public function acceptanceWorkflow(User $user, int $draftId): Workflow
+    {
+        if (!$user->authorise('core.admin', 'com_intercom') || ($this->config['mode'] ?? 'fake') !== 'live') {
+            throw new \RuntimeException('COM_INTERCOM_DENIED', 403);
+        }
+        $approval = new ReleaseApproval($this->store);
+        $readGateway = new CleverReachGateway(fn () => $this->connection->token(), $this->config);
+        $gateway = new CleverReachGateway(fn () => $this->connection->token(), $this->config, null, function (int $mailing) use ($approval, $readGateway, $user, $draftId): void {
+            $approval->authorize($mailing, $draftId, (int) $user->id);
+            $approval->check($draftId, (int) $user->id, $this->config, $readGateway);
+        });
+        return new Workflow($this->store, $gateway, $this->policy($user), (int) $user->id, $this->catalog, null, $this->reconciliation(), $this->config, $this->testDelivery());
     }
 
     public function workflow(User $user): Workflow

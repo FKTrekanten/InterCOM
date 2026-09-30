@@ -25,3 +25,14 @@ test('List changes clear the old form and ignore stale responses; scope failures
   group.value='0'; await events.change();assert.equal(pending.length,3);
   assert.equal(forms.items[0].text,'COM_INTERCOM_CHOOSE_UNSUBSCRIBE');
 });
+
+
+test('Verify account button submits the native CSRF form to the correct task', () => {
+  let handler, submits = 0;
+  const task = {value:'config.save'};
+  const form = {action:'old',elements:{namedItem:() => task},submit:() => submits++};
+  const button = {dataset:{intercomTask:'verifyaccount'},closest:() => form,addEventListener:(_,fn) => handler=fn};
+  const document = {getElementById:() => null,querySelectorAll:() => [button],addEventListener:(_,fn) => fn()};
+  runInNewContext(readFileSync(new URL('../../src/component/media/js/options.js',import.meta.url),'utf8'),{document});
+  handler();assert.equal(submits,1);assert.equal(task.value,'connection.verifyaccount');assert.equal(form.action,'index.php?option=com_intercom');
+});

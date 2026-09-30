@@ -9,9 +9,9 @@ use FKT\Component\Intercom\Administrator\Domain\FilterCreator;
 use FKT\Component\Intercom\Administrator\Domain\Message;
 use FKT\Component\Intercom\Administrator\Domain\UnsubscribeForm;
 
-final class CleverReachGateway implements DeliveryGateway, FilterCreator, \FKT\Component\Intercom\Administrator\Domain\AudienceGateway, \FKT\Component\Intercom\Administrator\Domain\ReconciliationGateway
+final class CleverReachGateway implements \FKT\Component\Intercom\Administrator\Domain\ReleaseGateway, DeliveryGateway, FilterCreator, \FKT\Component\Intercom\Administrator\Domain\AudienceGateway, \FKT\Component\Intercom\Administrator\Domain\ReconciliationGateway
 {
-    public function __construct(private \Closure $token, private array $config, private ?\Closure $transport = null)
+    public function __construct(private \Closure $token, private array $config, private ?\Closure $transport = null, private ?\Closure $authorizeRelease = null)
     {
     }
 
@@ -142,6 +142,9 @@ final class CleverReachGateway implements DeliveryGateway, FilterCreator, \FKT\C
         $add = static function (string $field, string $logic, string $condition) use (&$rules): void {
             $rules[] = ['operator' => $rules ? 'AND' : '', 'field' => $field, 'logic' => $logic, 'condition' => $condition];
         };
+        if (isset($message['acceptance_email'])) {
+            $add('email', 'EQ', $message['acceptance_email']);
+        }
         if ($message['tags']) {
             $add('tags', 'CONTAINS', implode(',', $message['tags']));
         }
@@ -278,14 +281,67 @@ final class CleverReachGateway implements DeliveryGateway, FilterCreator, \FKT\C
         return is_array($mailing) && \FKT\Component\Intercom\Administrator\Domain\MailingStatus::status($mailing, $mailingId, (int) ($this->config['group_id'] ?? 0)) === 'completed';
     }
 
-    public function release(int $mailingId, int $timestamp): void
+    public function assertOneRecipient(int $filterId, string $approved): void
     {
-        // Live release is intentionally gated until the one-recipient acceptance check.
-        if (empty($this->config['release_verified'])) {
-            throw new \RuntimeException('COM_INTERCOM_RELEASE_NOT_VERIFIED');
+        if (!filter_var($approved, FILTER_VALIDATE_EMAIL) || $this->statistics($filterId) !== 1) {
+            throw new \RuntimeException('COM_INTERCOM_ACCEPTANCE_RECIPIENT', 409);
         }
+        $rows = $this->request('GET', '/groups/' . (int) $this->config['group_id'] . '/filters/' . $filterId . '/receivers?type=active&pagesize=2&page=0');
+        if (
+            !is_array($rows) || !array_is_list($rows) || count($rows) !== 1 || !is_array($rows[0])
+            || !is_string($rows[0]['email'] ?? null) || !hash_equals(strtolower($approved), strtolower($rows[0]['email']))
+            || (!is_int($rows[0]['group_id'] ?? null) && !is_string($rows[0]['group_id'] ?? null)) || (string) ($rows[0]['group_id'] ?? '') !== (string) $this->config['group_id']
+            || (!is_int($rows[0]['activated'] ?? null) && !is_string($rows[0]['activated'] ?? null)) || !ctype_digit((string) ($rows[0]['activated'] ?? '')) || (int) $rows[0]['activated'] < 1
+            || !in_array($rows[0]['deactivated'] ?? null, [0, '0'], true) || !in_array($rows[0]['bounced'] ?? null, [0, '0'], true)
+        ) {
+            throw new \RuntimeException('COM_INTERCOM_ACCEPTANCE_RECIPIENT', 409);
+        }
+        try {
+            $this->request('GET', '/blacklist/' . rawurlencode($approved));
+            throw new \RuntimeException('COM_INTERCOM_ACCEPTANCE_RECIPIENT', 409);
+        } catch (\RuntimeException $e) {
+            if ($e->getCode() !== 404) {
+                throw $e;
+            }
+        }
+        $blocked = $this->request('GET', '/groups/' . (int) $this->config['group_id'] . '/blacklist');
+        if (!is_array($blocked) || !array_is_list($blocked)) {
+            throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
+        }
+        foreach ($blocked as $entry) {
+            $email = is_string($entry) ? $entry : (is_array($entry) ? ($entry['email'] ?? null) : null);
+            if (!is_string($email) || strtolower($email) === strtolower($approved)) {
+                throw new \RuntimeException('COM_INTERCOM_ACCEPTANCE_RECIPIENT', 409);
+            }
+        }
+    }
+
+    public function preflightRelease(int $mailingId): void
+    {
+        if ($this->authorizeRelease === null) {
+            throw new \RuntimeException('COM_INTERCOM_RELEASE_NOT_VERIFIED', 409);
+        }
+        ($this->authorizeRelease)($mailingId);
         $this->assertUnsubscribeForm((string) ($this->config['unsubscribe_form_id'] ?? ''), (int) ($this->config['group_id'] ?? 0));
         $this->assertMailingForm($mailingId);
+        $mailing = $this->mailing($mailingId);
+        if (
+            (string) ($mailing['id'] ?? '') !== (string) $mailingId || !filter_var($this->config['sender_email'] ?? '', FILTER_VALIDATE_EMAIL)
+            || ($mailing['sender_email'] ?? '') !== $this->config['sender_email'] || ($mailing['sender_name'] ?? '') !== ($this->config['sender_name'] ?? '') || ($mailing['is_mailing'] ?? null) !== true
+            || ($mailing['is_campaign'] ?? null) !== false || ($mailing['is_dynamic'] ?? null) !== false
+            || array_map('strval', $mailing['mailing_groups']['group_ids'] ?? []) !== [(string) $this->config['group_id']]
+        ) {
+            throw new \RuntimeException('COM_INTERCOM_ACCEPTANCE_MAILING', 409);
+        }
+    }
+
+    public function release(int $mailingId, int $timestamp): void
+    {
+        try {
+            $this->preflightRelease($mailingId);
+        } catch (\Throwable $e) {
+            throw new \FKT\Component\Intercom\Administrator\Domain\ReleaseBlocked(str_starts_with($e->getMessage(), 'COM_INTERCOM_') ? $e->getMessage() : 'COM_INTERCOM_PROVIDER_ERROR', in_array($e->getCode(), [403, 409, 422], true) ? $e->getCode() : 409);
+        }
         $this->request('POST', '/mailings/' . $mailingId . '/release', ['time' => $timestamp ?: time() + 30]);
     }
 }
