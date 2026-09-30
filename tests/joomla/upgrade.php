@@ -24,3 +24,5 @@ foreach (['intercom.type.compose', 'intercom.type.send'] as $action) {
     $club = $r->catalog->types()['club']['id'];
     check(!\Joomla\CMS\Access\Access::checkGroup(2, $action, 'com_intercom.communication.' . $club), 'Global compose cannot override denied communication type: ' . $action);
 }
+
+check($r->design->snapshot()['settings']['sender_en'] === 'Trekanten Fencing', 'Native upgrade initializes localized sender and design defaults');

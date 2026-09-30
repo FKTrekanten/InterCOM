@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0
+
+- Add editable, versioned email design and localised sender defaults in the component backend, with Danish/English light/dark previews and contrast validation.
+- Align mail typography with the approved design and restore the two-line club/communication heading, with the logo on the right. Preserve bilingual content and preference links.
+- Snapshot email design in drafts; audit changes and require saving/retesting after design changes.
+- Update subjects/senders without reloading email HTML; debounce body rendering and reject stale responses. Refresh saved content when Joomla editors finish initialising.
+- Match gender styling, toggle recipient dropdowns closed on repeated clicks, disable arbitrary tags, and require a permitted team before advancing Team news.
+- Add a dashboard and native Joomla submenus, separate paginated audit/filter pages, scoped pool statistics, audit filters, and backend permission checks.
+- Extend frontend timing/interaction, unit, database, native install/upgrade and HTTP tests. Mail-client dark-mode and existing production acceptance work remain open; no public release is published by this change.
+
 ## 0.2.0
 
 - Add administrator-managed communication groups with translated names, descriptions, subject prefixes, headings, suppression words, publication/order, categories and native record permissions.

@@ -48,7 +48,7 @@ _, admin_login = request('/administrator/index.php?option=com_intercom')
 status, admin = request('/administrator/index.php', {
     'option':'com_login','task':'login','username':'intercom','passwd':os.environ['INTERCOM_ADMIN_PASSWORD'],
     token(admin_login):'1','return':base64.b64encode(b'index.php?option=com_intercom').decode()})
-assert status == 200 and 'audit-limit' in admin, 'Administrator audit dashboard available'
+assert status == 200 and 'Latest audit entries' in admin, 'Administrator audit dashboard available'
 options = '/administrator/index.php?option=com_config&view=component&component=com_intercom'
 _, admin = request(options)
 assert 'id="client_id"' in admin and 'id="access_token"' in admin, 'Secret controls render in native Options'
@@ -85,8 +85,8 @@ for value in (access, os.environ['INTERCOM_TEST_CLIENT_ID'], os.environ['INTERCO
 status, admin = request('/administrator/index.php?option=com_intercom&task=connection.importtokens', {
     token(admin):'1','access_token':access,'expires_in':'0'})
 assert status == 200 and 'Enter an access token and a valid remaining lifetime' in admin, 'Invalid import rejected safely'
-_, page1 = request('/administrator/index.php?option=com_intercom&limit=10&limitstart=0')
-_, page2 = request('/administrator/index.php?option=com_intercom&limit=10&limitstart=10')
+_, page1 = request('/administrator/index.php?option=com_intercom&view=audit&limit=10&limitstart=0')
+_, page2 = request('/administrator/index.php?option=com_intercom&view=audit&limit=10&limitstart=10')
 rows = lambda html: re.findall(r'data-audit-id="(\d+)"', html)
 assert len(rows(page1)) == 10 and rows(page2) and not set(rows(page1)) & set(rows(page2)), 'Audit pages are bounded and distinct'
 print('PASS: Native Options, encrypted credentials/token import, invalid import and audit pagination')
@@ -107,5 +107,40 @@ assert 'group.Youth' in tagpage and 'Refresh tags' in tagpage, 'Recipient visibi
 _, scopepage = request(settings + '&section=access')
 assert 'jform[scopes]' in scopepage and 'Audience access' in scopepage, 'Structured Joomla group audience grants render'
 _, frontend = request('/index.php?option=com_intercom&view=composer')
+assert 'value="Trekanten Fencing"' in frontend, 'English site uses English sender default'
+assert 'allow-custom=' not in frontend, 'Recipient selects never allow arbitrary tags'
+assert 'data-preview-theme="dark"' in frontend, 'Dark theme preview control renders'
 assert 'HTTP group' in frontend, 'Published custom communication appears in frontend'
 print('PASS: Native communication CRUD form, language tabs, asset permissions, tag catalogue and audience grant editor')
+
+_, design = request(settings + '&section=design')
+assert 'jform[dark_surface]' in design and 'ic-design-preview' in design, 'Design form provides paired colour settings and preview'
+inputs = HiddenInputs(); inputs.feed(design)
+status, saved = request(management + '&task=management.savedesign', {**inputs.values, 'jform[brand_en]':'Trekanten CI'})
+assert status == 200 and 'Saved' in saved and 'Trekanten CI' in saved, 'Design saves and redirects to its page'
+status, stale = request(management + '&task=management.savedesign', {**inputs.values, 'jform[brand_en]':'Stale'})
+assert status == 200 and 'Reload before continuing' in stale and 'value="Stale"' not in stale, 'Concurrent stale design edits rejected'
+assert request(management + '&task=management.renderdesign', {})[0] == 403, 'Design preview requires CSRF'
+status, preview = request(management + '&task=management.renderdesign', {token(saved):'1', 'jform[brand_en]':'Preview only'})
+preview = json.loads(preview)
+assert status == 200 and 'Preview only' in preview['data']['en_dark'] and 'preview-dark' in preview['data']['en_dark'], 'Backend preview uses the shared bilingual dark-mode renderer'
+_, unchanged = request(settings + '&section=design')
+assert 'Trekanten CI' in unchanged and 'value="Preview only"' not in unchanged, 'Preview does not persist design settings'
+status, filters = request(management + '&view=filters')
+assert status == 200 and 'filters-limit' in filters, 'Full filter pool has a separate paginated page'
+call('save', {'message':json.dumps({**message, 'tags':[]})}, 422)
+print('PASS: Design CRUD/concurrency, theme preview, sender defaults, filter page and team-policy guard')
+
+# Native Manager role can open the component but cannot inspect audits or settings.
+admin_client = client
+client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+_, login = request(management)
+status, overview = request('/administrator/index.php', {'option':'com_login','task':'login','username':'ci-manager',
+    'passwd':os.environ['INTERCOM_ADMIN_PASSWORD'],token(login):'1',
+    'return':base64.b64encode(b'index.php?option=com_intercom').decode()})
+assert status == 200 and 'Intercom dashboard' in overview and 'Latest audit entries' not in overview and 'ic-admin-stats' not in overview, 'Dashboard hides audit-derived data without permission'
+assert request(management + '&view=audit')[0] == 403, 'Audit deep link requires audit permission'
+assert request(management + '&view=filters')[0] == 403, 'Filter deep link requires audit permission'
+assert request(settings + '&section=design')[0] == 403, 'Email design deep link requires admin permission'
+client = admin_client
+print('PASS: Native backend permission boundaries for dashboard, audit, filters and email design')

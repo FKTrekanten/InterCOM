@@ -5,6 +5,7 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Editor\EditorsRegistry;
 use Joomla\CMS\Plugin\PluginHelper;
 use FKT\Component\Intercom\Administrator\Domain\Message;
+use FKT\Component\Intercom\Administrator\Domain\EmailDesign;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Router\Route;
@@ -22,15 +23,20 @@ $editors = Factory::getContainer()->get(EditorsRegistry::class);
 $editors->initRegistry();
 $editorName = (string) $user->getParam('editor', $app->get('editor', 'tinymce'));
 $editor = $editors->get($editors->has($editorName) ? $editorName : 'none');
-foreach (['SAVED','TESTED','SUBMITTED','DIRTY','ERROR','CONFIRM_SEND','INVALID_MESSAGE','FAKE_TESTED','FAKE_SUBMITTED','ALL_AUDIENCE','NO_GROUPS'] as $key) {
+foreach (['SAVED','TESTED','SUBMITTED','DIRTY','ERROR','CONFIRM_SEND','INVALID_MESSAGE','FAKE_TESTED','FAKE_SUBMITTED','ALL_AUDIENCE','NO_GROUPS','GROUP_REQUIRED','PREVIEW_UPDATING','PREVIEW_UPDATED','PREVIEW_OUTDATED'] as $key) {
     Text::script('COM_INTERCOM_' . $key);
 }
 $id = $app->input->getInt('id');
 $draft = $id ? $r->store->draft($id, (int) $user->id) : null;
 $content = $draft ? json_decode($draft['content'], true) : [];
-$initial = ['allAudience' => $policy->scope()['all'], 'draft' => $draft, 'message' => $content, 'simulation' => ($r->config['mode'] ?? 'fake') === 'fake'];
-$app->getDocument()->addScriptOptions('com_intercom', $initial);
+$design = $r->design->snapshot()['settings'];
 $definitions = $r->catalog->types();
+$typeOptions = [];
+foreach ($definitions as $key => $definition) {
+    $typeOptions[$key] = ['requireGroup' => $definition['require_group'], 'prefixes' => ['da' => Message::translation($definition, 'da-DK')['subject_prefix'], 'en' => Message::translation($definition, 'en-GB')['subject_prefix']]];
+}
+$initial = ['types' => $typeOptions, 'language' => str_starts_with($app->getLanguage()->getTag(), 'da') ? 'da' : 'en', 'allAudience' => $policy->scope()['all'], 'draft' => $draft, 'message' => $content, 'simulation' => ($r->config['mode'] ?? 'fake') === 'fake'];
+
 $tags = $memberships = [];
 foreach ($r->catalog->tags() as $row) {
     if (str_starts_with($row['tag'], 'group.')) {
@@ -41,6 +47,9 @@ foreach ($r->catalog->tags() as $row) {
         $memberships[] = $row['tag'];
     }
 }
+$initial['editorBodies'] = ['da' => !empty($content['body_da']) ? Message::bodyHtml($content, 'da') : '', 'en' => !empty($content['body_en']) ? Message::bodyHtml($content, 'en') : ''];
+$initial['availableTeams'] = $tags;
+$app->getDocument()->addScriptOptions('com_intercom', $initial);
 ?>
 <div class="intercom">
 <header><p class="ic-eyebrow">INTERCOM</p><h1><?= $t('NEW') ?></h1><p><?= $t('INTRO') ?></p></header>
@@ -59,16 +68,17 @@ foreach ($r->catalog->tags() as $row) {
 <p class="ic-help"><?= $t('GROUP_HELP') ?></p>
 <?php foreach (['tags' => [$tags, 'GROUPS', 6], 'memberships' => [$memberships, 'MEMBERSHIPS', 11]] as $field => [$choices, $label, $prefix]) : ?>
 <label for="ic-<?= $field ?>"><?= $t($label) ?></label>
-<joomla-field-fancy-select allow-custom="false" placeholder="<?= $esc($t('SELECT_TAGS')) ?>">
+<joomla-field-fancy-select placeholder="<?= $esc($t('SELECT_TAGS')) ?>">
 <select id="ic-<?= $field ?>" name="<?= $field ?>[]" multiple>
     <?php foreach (array_values(array_unique(array_merge($choices, $content[$field] ?? []))) as $tag) : ?>
 <option value="<?= $esc($tag) ?>" <?= in_array($tag, $content[$field] ?? [], true) ? 'selected' : '' ?>><?= $esc(substr($tag, $prefix)) ?><?= in_array($tag, $choices, true) ? '' : ' (' . $esc($t('TAG_UNAVAILABLE')) . ')' ?></option>
     <?php endforeach; ?></select></joomla-field-fancy-select>
 <?php endforeach; ?>
+<p id="ic-group-error" class="ic-field-error" role="alert" hidden><?= $t('GROUP_REQUIRED') ?></p>
 <p class="ic-help"><?= $t('TAG_MATCH_HELP') ?></p>
 <details><summary><?= $t('MORE_FILTERS') ?></summary>
 <div class="ic-row"><label><?= $t('AGE_FROM') ?><input name="age_from" type="number" min="0" max="120" value="0"></label><label><?= $t('AGE_TO') ?><input name="age_to" type="number" min="0" max="120" value="0"></label><label><?= $t('GENDER') ?><select name="gender"><option value=""><?= $t('ALL') ?></option><option value="male"><?= $t('MALE') ?></option><option value="female"><?= $t('FEMALE') ?></option></select></label></div></details><div class="ic-actions"><span class="ic-help"><?= $t('SCOPE_NOTE') ?></span><button type="button" data-go="1"><?= $t('WRITE') ?> →</button></div></fieldset>
-<fieldset data-panel="1"><legend><?= $t('CONTENT') ?></legend><p class="ic-help"><?= $t('BOTH_LANGUAGES') ?></p><label><?= $t('SENDER') ?><input name="sender" required maxlength="255" value="Fægteklubben Trekanten"></label>
+<fieldset data-panel="1"><legend><?= $t('CONTENT') ?></legend><p class="ic-help"><?= $t('BOTH_LANGUAGES') ?></p><label><?= $t('SENDER') ?><input name="sender" required maxlength="255" value="<?= $esc($design['sender_' . $initial['language']]) ?>"></label>
 <div class="ic-edit-langs" aria-label="<?= $t('CONTENT_LANGUAGE') ?>"><button type="button" data-edit-lang="da" aria-pressed="true">Dansk</button><button type="button" data-edit-lang="en" aria-pressed="false">English</button></div>
 <?php foreach (['da','en'] as $lang) :
     ?><div data-language-panel="<?= $lang ?>">
@@ -82,8 +92,10 @@ foreach ($r->catalog->tags() as $row) {
 </form><aside>
 <div class="ic-preview-top"><span class="ic-eyebrow"><?= $t('YOUR_MESSAGE') ?></span><div class="ic-preview-langs"><button type="button" data-preview-lang="da" aria-pressed="true">DA</button><button type="button" data-preview-lang="en" aria-pressed="false">EN</button></div></div>
 <dl class="ic-envelope"><dt><?= $t('SENDER') ?></dt><dd id="ic-preview-sender"></dd><dt><?= $t('SUBJECT') ?></dt><dd id="ic-preview-subject"></dd></dl>
+<div class="ic-preview-themes"><button type="button" data-preview-theme="light" aria-pressed="true"><?= $t('LIGHT_MODE') ?></button><button type="button" data-preview-theme="dark" aria-pressed="false"><?= $t('DARK_MODE') ?></button></div>
+<p id="ic-preview-status" class="ic-help" role="status"></p>
 <iframe id="ic-preview-frame" class="ic-preview-frame" sandbox="" referrerpolicy="no-referrer" title="<?= $esc($t('YOUR_MESSAGE')) ?>"></iframe>
-<p class="ic-help"><?= $t('PREVIEW_NOTE') ?></p><div class="ic-audience"><strong><?= $t('RECIPIENTS') ?></strong><p id="ic-audience-summary"></p></div>
+<p class="ic-help"><?= $t('PREVIEW_NOTE') ?></p><p class="ic-help"><?= $t('DARK_PREVIEW_HELP') ?></p><div class="ic-audience"><strong><?= $t('RECIPIENTS') ?></strong><p id="ic-audience-summary"></p></div>
 <details class="ic-draft-list"><summary><?= $t('DRAFTS') ?></summary><h2><?= $t('DRAFTS') ?></h2><ul class="ic-drafts">
 <?php foreach ($r->store->rows('SELECT id,state,revision FROM #__intercom_drafts WHERE owner_id=' . (int) $user->id . ' ORDER BY id DESC LIMIT 30') as $row) : ?>
 <li><a href="<?= $esc(Route::_('index.php?option=com_intercom&id=' . (int) $row['id'])) ?>">#<?= (int) $row['id'] ?> · <?= $esc($t('STATE_' . strtoupper($row['state']))) ?></a></li>
@@ -96,7 +108,7 @@ if ($editor->getName() === 'tinymce') {
         $options['tinyMCE'][$field] = array_replace($options['tinyMCE'][$field] ?? [], [
             'joomlaMergeDefaults' => true, 'toolbar' => 'undo redo | blocks | bold italic underline | bullist numlist | link | removeformat',
             'block_formats' => 'Paragraph=p;Heading 1=h1;Heading 2=h2;Heading 3=h3',
-            'content_style' => 'body {font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65} p {margin:0 0 14px}',
+            'content_style' => 'body {font-family:' . EmailDesign::FONTS[$design['body_font']] . ';font-size:' . $design['body_size'] . 'px;line-height:1.65} p {margin:0 0 16px} h1,h2,h3 {font-family:' . EmailDesign::FONTS[$design['heading_font']] . ';line-height:1.3}',
             'menubar' => false, 'branding' => false, 'resize' => false, 'toolbar_mode' => 'sliding',
         ]);
     }

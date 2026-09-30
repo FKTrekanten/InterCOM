@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.joomla.org/schemas/json-schema/web_assets.json",
   "name": "com_intercom",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "assets": [
     {
       "name": "com_intercom.app",
@@ -15,6 +15,22 @@
       "dependencies": [
         "core",
         "editors"
+      ],
+      "attributes": {
+        "type": "module"
+      }
+    },
+    {
+      "name": "com_intercom.admin",
+      "type": "style",
+      "uri": "com_intercom/admin.css"
+    },
+    {
+      "name": "com_intercom.design",
+      "type": "script",
+      "uri": "com_intercom/design.js",
+      "dependencies": [
+        "core"
       ],
       "attributes": {
         "type": "module"

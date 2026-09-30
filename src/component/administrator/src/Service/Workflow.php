@@ -25,6 +25,7 @@ final class Workflow
             $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
             if ($this->catalog) {
                 $message['definition'] = $this->catalog->snapshot($message);
+                $message['design'] = (new Design($this->store))->snapshot();
                 $this->store->execute('UPDATE #__intercom_types SET used=1 WHERE id=' . (int) $message['definition']['id']);
             }
             $json = $this->store->q(json_encode($message, JSON_THROW_ON_ERROR));
@@ -64,7 +65,7 @@ final class Workflow
             }
             $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
             if ($this->catalog) {
-                if (($message['definition'] ?? null) !== $this->catalog->snapshot($message)) {
+                if (($message['definition'] ?? null) !== $this->catalog->snapshot($message) || ($message['design'] ?? null) !== (new Design($this->store))->snapshot()) {
                     throw new \RuntimeException('COM_INTERCOM_DEFINITION_CHANGED', 409);
                 }
                 $fingerprint = $this->catalog->fingerprint($message);

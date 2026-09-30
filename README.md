@@ -4,18 +4,18 @@ Native Joomla 6.1 / PHP 8.3+ member communications. All development is on `main`
 
 ## Development
 
-Requires PHP 8.3+, Composer, Python 3, Node.js (syntax checks), and Docker Compose (Rancher Desktop/Moby).
+Requires PHP 8.3+, Composer, Python 3, Node.js (syntax and composer interaction tests), and Docker Compose (Rancher Desktop/Moby).
 
 ```sh
 composer install
 python3 scripts/build.py
 bash scripts/stack.sh up
-docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.2.0.zip
+docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.3.0.zip
 ```
 
 Local site: http://localhost:8088. Administrator: `/administrator`. Synthetic local login: `intercom` / `Intercom-local-2026!`. These credentials are only for the localhost-only development stack. Do not deploy this Compose file to production.
 
-Create an Intercom frontend menu item. Configure component-wide Joomla permissions and delivery settings in **Intercom → Options**. Open **Intercom → Component settings** for translated communication groups, per-group permissions, visible recipient tags, and Joomla-group audience grants. Refresh recipient tags and explicitly select the ones composers may use; new tags start hidden. Super Users have all-audience access; other groups start without access. Default delivery is an in-process fake gateway: **no emails leave the system**. Simulation creates local filters on demand within the same configured cap. `legacy_base/` is ignored and excluded from packages.
+Create an Intercom frontend menu item. Configure component-wide Joomla permissions and delivery settings in **Intercom → Options**. Intercom opens a dashboard with recent activity and pool statistics. Use its submenus for communication groups, per-group permissions, recipient tags, audience access, email design, the full audit history, and filters. Refresh recipient tags and explicitly select the ones composers may use; new tags start hidden. Super Users have all-audience access; other groups start without access. Default delivery is an in-process fake gateway: **no emails leave the system**. Simulation creates local filters on demand within the same configured cap. `legacy_base/` is ignored and excluded from packages.
 
 ## Tests
 
@@ -45,7 +45,7 @@ Live delivery requires a controlled one-recipient CR test list (CR has no sandbo
 
 ## Current limitations
 
-The component includes Joomla rich-text composition, a branded bilingual email template, first-name insertion, an isolated matching preview, translated communication groups and structured tag/access administration. Audit history is paginated. Component and communication permissions saved through Intercom are audited; changes through Joomla user administration still rely on Joomla core action logs.
+The component includes Joomla rich-text composition, a branded bilingual email template, first-name insertion, an isolated matching preview, translated communication groups and structured tag/access administration. Audit history and filters have separate paginated pages. Email design is configurable, with light/dark previews and localised sender defaults. Component and communication permissions saved through Intercom are audited; changes through Joomla user administration still rely on Joomla core action logs.
 
 Full Danish language-pack/menu-switch acceptance and live email-client/dark-mode verification remain setup/acceptance work. The browser preview does not confirm CleverReach inbox delivery. Automated one-recipient preflight, reliable delivered previews for delegated users, remote filter reconciliation, and list-bound unsubscribe forms remain tracked in [issues #1–4](https://github.com/FKTrekanten/InterCOM/issues). The system must not be represented as production-ready.
 
@@ -100,3 +100,17 @@ Drafts snapshot their communication definition. Changes to group settings, tag v
 Options contains an optional **Board archive email**. Leave it empty to disable. After CleverReach confirms a mailing has finished, scheduled maintenance sends one bilingual archive copy through Joomla’s configured mail transport. This separate operation records the approved revision, sender and audience criteria; it never sends ordinary previews to the board and never repeats the member mailing. The v3 contract does not provide a verified `bcc_email` integration, so Intercom does not depend on that legacy field.
 
 The archive outbox records pending, sending, submitted or uncertain status in the database and audit log. Provider status failures leave copies pending; interrupted or failed SMTP calls require operator review and are never automatically retried. Retention applies to terminal archive content. The developer archive address remains empty, and automated tests inject fake SMTP/provider completion to avoid real delivery.
+
+## Email design and composer behaviour (0.3.0)
+
+**Intercom → Email design** controls branding, the logo, sender-name defaults, typography, spacing, and paired light/dark colours. The header places the club name and communication heading on the left and the logo on the right. Communication headings still come from each group’s language tabs. Poppins is requested where supported, with a sans fallback; the body uses the configured email-safe font stack. Text/link contrast is validated in both palettes. The logo has a protective navy background.
+
+New drafts use the sender default for the Joomla page language: Danish **Fægteklubben Trekanten**, English **Trekanten Fencing**. Existing drafts and edited names retain their value; changing body/preview language does not overwrite the sender.
+
+Design saves/resets are audited and revision checked. Drafts snapshot the design. A design change requires review, saving, and a new test before release; scheduled/submitted mailings keep their approved design. Preview-only changes in the backend are not persisted.
+
+Subject and sender edits update the envelope without requesting or replacing the email HTML. Body edits render after an 800 ms pause, plus the Joomla editor polling interval where applicable. The last email remains visible with an updating indicator. Stale requests are ignored; save/test actions always read the current editor value. Team-required communications cannot progress without an available permitted team. Group and membership controls close on repeated trigger clicks and do not allow arbitrary tags.
+
+The dashboard reports the current mode/list pool, uncertain creation slots/reservations, draft states, accepted submissions within retained audit history, and maintenance/archives. Full audit history supports actor/event/UTC date filtering; filters support current/historical scope and state filtering. Audit-derived data and underlying routes require audit permission; management pages require component admin permission.
+
+Dark-mode markup includes colour-scheme metadata, targeted media rules, and Outlook overrides. Browser light/dark previews validate the authored themes; they cannot reproduce every mail client’s colour inversion. Actual received-email checks in Apple Mail, Gmail, and Outlook, including CleverReach’s processing, remain a release acceptance requirement. No live mailing is sent by automated CI.

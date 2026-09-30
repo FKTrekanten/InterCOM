@@ -265,7 +265,7 @@ final class Catalog
         $meta = $this->store->row('SELECT revision FROM #__intercom_catalogues WHERE list_id=' . $this->context());
         return hash('sha256', json_encode([$this->snapshot($message), $meta['revision'] ?? 0,
             array_intersect_key($current, array_flip(['mode', 'group_id', 'sender_email', 'unsubscribe_form_id', 'board_archive_email'])),
-            Message::templateVersion()], JSON_THROW_ON_ERROR));
+            Message::templateVersion(), (new Design($this->store))->snapshot()], JSON_THROW_ON_ERROR));
     }
 
     public function saveScopes(array $input, int $actor, string $revision): void

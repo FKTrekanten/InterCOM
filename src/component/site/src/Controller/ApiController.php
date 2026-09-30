@@ -56,11 +56,12 @@ final class ApiController extends BaseController
         $message = Message::validate($input);
         $runtime->policy($user)->assertAllowed($message['type'], $message['tags'], 'compose');
         $message['definition'] = $runtime->catalog->snapshot($message);
+        $message['design'] = $runtime->design->snapshot();
         $subjects = [];
         foreach (['da' => 'da-DK', 'en' => 'en-GB'] as $lang => $locale) {
             $prefix = Message::translation($message['definition'], $locale)['subject_prefix'];
             $subjects[$lang] = ($prefix ? '[' . $prefix . '] ' : '') . $message['subject_' . $lang];
         }
-        return ['da' => Message::html($message, 'da-DK'), 'en' => Message::html($message, 'en-GB'), 'subjects' => $subjects];
+        return ['da' => Message::html($message, 'da-DK', 'light'), 'en' => Message::html($message, 'en-GB', 'light'), 'subjects' => $subjects, 'da_dark' => Message::html($message, 'da-DK', 'dark'), 'en_dark' => Message::html($message, 'en-GB', 'dark')];
     }
 }

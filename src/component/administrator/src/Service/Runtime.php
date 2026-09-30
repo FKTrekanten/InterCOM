@@ -18,12 +18,14 @@ final class Runtime
     public readonly Connection $connection;
     public readonly array $config;
     public readonly Catalog $catalog;
+    public readonly Design $design;
 
     public function __construct(public readonly Store $store, string $secret)
     {
         $this->connection = new Connection($store, new CredentialCipher($secret));
         $this->config = ComponentHelper::getParams('com_intercom')->toArray();
         $this->catalog = new Catalog($store, $this->config);
+        $this->design = new Design($store);
     }
 
     public function policy(User $user): Policy

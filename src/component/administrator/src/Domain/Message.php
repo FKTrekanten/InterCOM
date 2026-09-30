@@ -66,7 +66,8 @@ final class Message
 
     public static function templateVersion(): string
     {
-        return hash_file('sha256', dirname(__DIR__, 2) . '/tmpl/email/newsletter.html');
+        return hash('sha256', implode('|', [hash_file('sha256', dirname(__DIR__, 2) . '/tmpl/email/newsletter.html'),
+            hash_file('sha256', __FILE__), hash_file('sha256', __DIR__ . '/EmailDesign.php')]));
     }
 
     public static function bodyHtml(array $message, string $lang): string
@@ -88,20 +89,48 @@ final class Message
         return $selected;
     }
 
-    public static function html(array $message, ?string $locale = null): string
+    public static function html(array $message, ?string $locale = null, ?string $theme = null): string
     {
         $escape = static fn ($s) => htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $definition = $message['definition'] ?? [];
         $da = self::translation($definition, 'da-DK');
         $en = self::translation($definition, 'en-GB');
+        $design = EmailDesign::validate($message['design']['settings'] ?? []);
+        $tokens = [];
+        foreach ($design as $key => $value) {
+            $tokens['{{' . strtoupper($key) . '}}'] = $escape($value);
+        }
+        foreach (['body', 'heading'] as $role) {
+            $tokens['{{' . strtoupper($role) . '_FONT}}'] = EmailDesign::FONTS[$design[$role . '_font']];
+        }
+        $tokens['{{FONT_IMPORT}}'] = in_array('poppins', [$design['heading_font'], $design['body_font']], true)
+            ? '@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&display=swap");' : '';
+        $tokens['{{PREVIEW_CLASS}}'] = $theme === 'dark' ? 'preview-dark' : ($theme === 'light' ? 'preview-light' : '');
+        $rules = ['' => 'background-color:' . $design['dark_outer'] . '!important;color:' . $design['dark_text'] . '!important',
+            ' .ic-outer' => 'background-color:' . $design['dark_outer'] . '!important',
+            ' .ic-surface' => 'background-color:' . $design['dark_surface'] . '!important;border-color:' . $design['dark_line'] . '!important',
+            ' .ic-content' => 'color:' . $design['dark_text'] . '!important;border-top-color:' . $design['dark_accent'] . '!important',
+            ' .ic-footer' => 'color:' . $design['dark_muted'] . '!important',
+            ' .ic-header' => 'background-color:' . $design['dark_header'] . '!important',
+            ' .ic-brand,SELECTOR .ic-title' => 'color:' . $design['dark_header_text'] . '!important',
+            ' a' => 'color:' . $design['dark_accent'] . '!important'];
+        $darkCss = static function (string $selector) use ($rules): string {
+            $css = '';
+            foreach ($rules as $suffix => $style) {
+                $css .= str_replace('SELECTOR', $selector, $selector . $suffix) . '{' . $style . '}';
+            }
+            return $css;
+        };
+        $tokens['{{DARK_CSS}}'] = $darkCss('body.preview-dark') . '@media (prefers-color-scheme:dark){'
+            . $darkCss('body:not(.preview-light)') . '}' . $darkCss('[data-ogsc] body:not(.preview-light)');
         $groups = $escape(implode(', ', array_map(static fn ($tag) => substr($tag, 6), $message['tags'] ?? [])));
-        $html = strtr(file_get_contents(dirname(__DIR__, 2) . '/tmpl/email/newsletter.html'), [
+        $html = strtr(file_get_contents(dirname(__DIR__, 2) . '/tmpl/email/newsletter.html'), array_merge($tokens, [
             '{{BODY_DA}}' => self::bodyHtml($message, 'da'), '{{BODY_EN}}' => self::bodyHtml($message, 'en'),
             '{{HEADER_DA}}' => $escape($da['heading'] ?: ($da['name'] ?: 'Trekanten informerer')),
             '{{HEADER_EN}}' => $escape($en['heading'] ?: ($en['name'] ?: 'Trekanten informs')),
             '{{FOOTER_REASON_DA}}' => $groups ? 'fordi du er tilknyttet: <strong>' . $groups . '</strong>' : 'som registreret medlem af Fægteklubben Trekanten',
             '{{FOOTER_REASON_EN}}' => $groups ? 'because you belong to: <strong>' . $groups . '</strong>' : 'as a registered member of Trekanten Fencing',
-        ]);
+        ]));
         if ($locale !== null) {
             $html = preg_replace_callback(
                 '/<!--#loopitem if="\{IF\[LANGUAGE(!=|==)da-DK\]\}"#-->(.*?)<!--#\/loopitem endif="\{ENDIF\[LANGUAGE\]\}"#-->/s',

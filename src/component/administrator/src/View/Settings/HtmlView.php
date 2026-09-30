@@ -24,6 +24,9 @@ final class HtmlView extends BaseView
         }
         $this->runtime = $app->bootComponent('com_intercom')->runtime;
         $this->section = $app->input->getCmd('section', 'types');
+        if (!in_array($this->section, ['types', 'tags', 'access', 'design'], true)) {
+            throw new \RuntimeException('Unknown settings page', 404);
+        }
         $r = $this->runtime;
         if ($this->section === 'types' && $app->input->getBool('edit')) {
             $id = $app->input->getInt('id');

@@ -82,7 +82,58 @@ try {
     $store->execute('UPDATE #__extensions SET params='.$store->q(json_encode($params))." WHERE element='com_intercom'");
     $saved = (new \FKT\Component\Intercom\Administrator\Service\Settings($r))->save(['mode'=>'fake','retention_days'=>30,'max_filters'=>2],42);
     check($saved['audience_rules'] === $newRules, 'Options preserves audience grants changed after Runtime was constructed');
+
+    $clubPolicy = new Policy(['access'=>true,'compose'=>true,'send'=>true,'club'=>true,'send_club'=>true], ['all'=>true], $catalog->types());
+    $clubWorkflow = new Workflow($store, new FakeGateway(), $clubPolicy, 42, $catalog);
+    $designDraft = $clubWorkflow->save(array_merge($inputMessage, ['type'=>'club', 'tags'=>[]]));
+    $designDraft = $clubWorkflow->preview((int)$designDraft['id'], 1, 'one@example.invalid');
+    $designService = new \FKT\Component\Intercom\Administrator\Service\Design($store);
+    $beforeDesign = $designService->snapshot();
+    $designService->save(array_merge($beforeDesign['settings'], ['heading_font'=>'system']), $beforeDesign['revision'], 42);
+    check($store->draft((int)$designDraft['id'],42)['state']==='draft', 'Design change invalidates tested draft');
+    try { $clubWorkflow->release((int)$designDraft['id'],1,0); throw new Exception('Expected changed design'); }
+    catch (RuntimeException $e) { check($e->getMessage()==='COM_INTERCOM_DEFINITION_CHANGED','Old design cannot be released'); }
+    try { $designService->save([], $beforeDesign['revision'],42); throw new Exception('Expected design conflict'); }
+    catch (RuntimeException $e) { check($e->getCode()===409,'Stale design save rejected'); }
+    $resaved = $clubWorkflow->save(array_merge($inputMessage,['type'=>'club','tags'=>[]]),(int)$designDraft['id'],1);
+    $resaved = $clubWorkflow->preview((int)$resaved['id'],2,'one@example.invalid');
+    check($resaved['state']==='tested' && $resaved['tested_fingerprint']!==$designDraft['tested_fingerprint'], 'New test binds updated design revision');
+    $savedDesign = $designService->snapshot();
+    $designService->save([], $savedDesign['revision'],42,true);
+    check($designService->snapshot()['settings']===\FKT\Component\Intercom\Administrator\Domain\EmailDesign::defaults(),'Reset restores design defaults');
+    $store->execute('INSERT INTO #__intercom_filters (filter_id,group_id,managed) VALUES (3999999000,987654,1)');
+    $activity = new \FKT\Component\Intercom\Administrator\Service\Activity($store, $r->config);
+    $currentFilters = $activity->page('filters',['scope'=>'current'],100,0);
+    check(!in_array('3999999000',array_column($currentFilters['rows'],'filter_id')),'Current pool excludes historical lists');
+    check(in_array('3999999000',array_column($activity->page('filters',['scope'=>'historical'],100,0)['rows'],'filter_id')),'Historical filters remain inspectable');
+    $expected = (int)$store->row('SELECT COUNT(*) n FROM #__intercom_filters WHERE managed=1 AND group_id=0')['n'];
+    check((int)$activity->overview()['pool']['total']===$expected,'Dashboard pool totals match current list');
+    $store->audit(42,'design.test_marker');
+    $specific = $activity->page('audit',['event'=>'design.test_marker','actor'=>'42'],10,0);
+    check($specific['total']===1 && count($specific['rows'])===1,'Audit actor/event filters apply before pagination');
+    check($activity->page('audit',[],10,999999)['start']<999999,'Out-of-range pagination clamps to the last page');
 } finally { $store->rollback(); }
 check(isset($catalog->types()['offer']), 'Transaction rollback restores communication and native asset tree');
 check(in_array('group.Youth', array_column($catalog->tags(), 'tag')), 'Transaction rollback preserves catalogue visibility');
+
+// Explicitly model a delegated backend role in this disposable database.
+$managerAsset = new \Joomla\CMS\Table\Asset($db);
+$managerAsset->loadByName('com_intercom');
+$managerRules = json_decode($managerAsset->rules, true);
+$managerRules['core.manage'][6] = 1;
+$managerRules['core.admin'][6] = 0;
+$managerRules['intercom.audit'][6] = 0;
+$managerAsset->rules = json_encode($managerRules);
+check($managerAsset->store(), 'Configure disposable delegated Manager permissions');
+\Joomla\CMS\Access\Access::clearStatics();
+$manager = new \Joomla\CMS\User\User();
+$managerData = ['name'=>'CI manager','username'=>'ci-manager','email'=>'ci-manager@example.invalid',
+    'password'=>getenv('INTERCOM_ADMIN_PASSWORD'),'password2'=>getenv('INTERCOM_ADMIN_PASSWORD'),'groups'=>[6],'block'=>0];
+check($manager->bind($managerData),'Bind disposable manager fixture');
+$managerTable = new \Joomla\CMS\Table\User($db);
+$managerRecord = $manager->getProperties();
+$managerRecord['params'] = '{}';
+check($managerTable->bind($managerRecord) && $managerTable->check() && $managerTable->store(),'Save disposable manager fixture without registration notifications');
+$manager = new \Joomla\CMS\User\User((int)$managerTable->id);
+check($manager->authorise('core.manage','com_intercom') && !$manager->authorise('intercom.audit','com_intercom') && !$manager->authorise('core.admin','com_intercom'),'Manager fixture has component access without audit/admin grants');
 echo "FEATURES OK\n";

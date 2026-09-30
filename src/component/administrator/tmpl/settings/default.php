@@ -17,11 +17,10 @@ ToolbarHelper::preferences('com_intercom');
 $wa = Factory::getApplication()->getDocument()->getWebAssetManager();
 $wa->usePreset('choicesjs')->useScript('webcomponent.field-fancy-select')->useScript('core');
 ?>
-<nav class="mb-4 d-flex gap-3 flex-wrap" aria-label="<?= $t('COMPONENT_SETTINGS') ?>">
-<?php foreach (['types' => 'COMMUNICATION_GROUPS', 'tags' => 'RECIPIENT_TAGS', 'access' => 'AUDIENCE_ACCESS'] as $section => $label) : ?>
-<a href="index.php?option=com_intercom&amp;view=settings&amp;section=<?= $section ?>" <?= $this->section === $section ? 'aria-current="page"' : '' ?>><?= $t($label) ?></a>
-<?php endforeach; ?><a href="index.php?option=com_intercom"><?= $t('AUDIT') ?></a></nav>
-<?php if ($this->section === 'types' && $this->record) :
+<?php require dirname(__DIR__) . '/navigation.php'; ?>
+<?php if ($this->section === 'design') :
+    require __DIR__ . '/design.php';
+elseif ($this->section === 'types' && $this->record) :
     $row = $this->record;
     $definition = (int) $row['id'] ? $r->catalog->definition($row) : ['translations' => []]; ?>
 <form action="index.php?option=com_intercom&amp;task=management.savetype" method="post" id="adminForm" name="adminForm">

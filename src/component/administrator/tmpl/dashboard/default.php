@@ -3,31 +3,49 @@
 defined('_JEXEC') or die;
 
 use Joomla\CMS\Factory;
+use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 
-ToolbarHelper::title(Text::_('COM_INTERCOM'), 'envelope');
+ToolbarHelper::title(Text::_('COM_INTERCOM_DASHBOARD'), 'envelope');
 ToolbarHelper::preferences('com_intercom');
 $r = $this->runtime;
 $user = Factory::getApplication()->getIdentity();
 $esc = static fn ($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $t = static fn ($key) => Text::_('COM_INTERCOM_' . $key);
-Factory::getApplication()->getDocument()->getWebAssetManager()->useScript('core');
+require dirname(__DIR__) . '/navigation.php';
 ?>
 <p><?= $t('OPTIONS_HELP') ?></p>
-<?php if ($user->authorise('core.admin', 'com_intercom')) :
-    ?><p><a class="btn btn-primary" href="index.php?option=com_intercom&amp;view=settings"><?= $t('COMPONENT_SETTINGS') ?></a></p><?php
-endif; ?>
-<?php if ($user->authorise('intercom.audit', 'com_intercom')) : ?>
-<h2 class="mt-4"><?= $t('AUDIT') ?></h2><p><?= $t('AUDIT_HELP') ?></p>
-<form action="index.php?option=com_intercom" method="get" id="adminForm" name="adminForm"><input type="hidden" name="option" value="com_intercom"><input type="hidden" name="task" value=""><input type="hidden" name="limitstart" value="<?= (int) $this->pagination->limitstart ?>"><label for="audit-limit"><?= $t('PER_PAGE') ?></label><select id="audit-limit" name="limit" onchange="this.form.limitstart.value=0;this.form.submit()"><option value="10" <?= $this->pagination->limit === 10 ? 'selected' : '' ?>>10</option><option value="20" <?= $this->pagination->limit === 20 ? 'selected' : '' ?>>20</option><option value="50" <?= $this->pagination->limit === 50 ? 'selected' : '' ?>>50</option><option value="100" <?= $this->pagination->limit === 100 ? 'selected' : '' ?>>100</option></select><div class="table-responsive"><table class="table"><thead><tr><th><?= $t('DATE') ?> (UTC)</th><th><?= $t('ACTOR') ?></th><th><?= $t('EVENT') ?></th><th><?= $t('DRAFT') ?></th><th><?= $t('DETAILS') ?></th></tr></thead><tbody>
-    <?php foreach ($this->events as $event) : ?>
-<tr data-audit-id="<?= (int) $event['id'] ?>"><td><?= $esc($event['created_at']) ?></td><td><?= (int) $event['actor_id'] ?></td><td><?= $esc($event['event']) ?></td><td><?= (int) $event['draft_id'] ?></td><td><?= $esc($event['context']) ?></td></tr>
-    <?php endforeach; ?></tbody></table></div>
-    <?= $this->pagination->getPagesLinks() ?><p><?= $this->pagination->getResultsCounter() ?></p></form>
-<h2><?= $t('RESERVATIONS') ?></h2><p><?= $t('RESERVATION_HELP') ?></p>
-<div class="table-responsive"><table class="table"><tr><th><?= $t('FILTER_ID') ?></th><th><?= $t('DRAFT') ?></th><th><?= $t('STATE') ?></th><th><?= $t('FILTER_SCOPE') ?></th></tr>
-    <?php foreach ($r->store->rows('SELECT f.filter_id,f.draft_id,f.group_id,f.managed,d.state FROM #__intercom_filters f LEFT JOIN #__intercom_drafts d ON d.id=f.draft_id') as $row) : ?>
-<tr><td><?= (int) $row['filter_id'] ?></td><td><?= (int) $row['draft_id'] ?></td><td><?= $esc(isset($row['state']) ? $t('STATE_' . strtoupper($row['state'])) : '-') ?></td><td><?= $t((int) $row['managed'] === 1 && (int) $row['group_id'] === (($r->config['mode'] ?? 'fake') === 'fake' ? 0 : (int) ($r->config['group_id'] ?? 0)) ? 'FILTER_MANAGED' : 'FILTER_HISTORICAL') ?></td></tr>
-    <?php endforeach; ?></table></div>
+<p class="badge bg-secondary"><?= $t(($r->config['mode'] ?? 'fake') === 'fake' ? 'SIMULATION' : 'LIVE') ?> · <?= $t('RECIPIENT_LIST') ?> <?= $r->catalog->context() ?></p>
+<?php if ($user->authorise('intercom.audit', 'com_intercom')) :
+    $s = $this->statistics; ?>
+<div class="ic-admin-stats">
+<div><span><?= $t('POOL_CREATED') ?></span><strong><?= (int) $s['intents']['total'] ?> / <?= (int) $s['cap'] ?></strong><small><?= $t('POOL_CAP_HELP') ?></small></div>
+<div><span><?= $t('FILTER_FREE') ?></span><strong><?= (int) $s['pool']['free'] ?></strong><small><?= $t('POOL_ACTIVE_HELP') ?></small></div>
+<div><span><?= $t('POOL_RESERVED') ?></span><strong><?= (int) $s['pool']['total'] - (int) $s['pool']['free'] ?></strong><small><?= $t('POOL_ACTIVE_HELP') ?></small></div>
+<div><span><?= $t('NEEDS_REVIEW') ?></span><strong><?= (int) $s['pool']['uncertain'] + (int) $s['intents']['uncertain'] ?></strong><small><?= $t('POOL_REVIEW_HELP') ?></small></div>
+<div><span><?= $t('ACCEPTED_SUBMISSIONS') ?></span><strong><?= (int) $s['accepted'] ?></strong><small><?= Text::sprintf('COM_INTERCOM_LAST_DAYS', (int) $s['days']) ?></small></div>
+</div><p class="small text-muted"><?= $t('ACCEPTED_HELP') ?></p>
+<div class="ic-admin-summary"><section><h2><?= $t('DRAFT_STATES') ?></h2><dl class="ic-state-counts">
+    <?php foreach ($s['drafts'] as $row) :
+        ?><dt><?= $esc($t('STATE_' . strtoupper($row['state']))) ?></dt><dd><?= (int) $row['total'] ?></dd><?php
+    endforeach; ?>
+    <?php if (!$s['drafts']) :
+        ?><dt><?= $t('NO_RESULTS') ?></dt><?php
+    endif; ?>
+</dl></section><section><h2><?= $t('MAINTENANCE') ?></h2>
+<p><?= $t('LAST_REFRESH') ?>: <?= $s['refresh'] ? $esc(HTMLHelper::_('date', $s['refresh'], Text::_('DATE_FORMAT_LC6'))) : $t('NOT_YET') ?></p>
+<p><?= $t('LAST_MAINTENANCE') ?>: <?= $s['maintenance'] ? $esc(HTMLHelper::_('date', $s['maintenance'], Text::_('DATE_FORMAT_LC6'))) : $t('NOT_YET') ?></p>
+    <?php foreach ($s['archives'] as $row) :
+        ?><p><?= $t('ARCHIVE_QUEUE') ?> · <?= $esc($t('ARCHIVE_' . strtoupper($row['state']))) ?>: <?= (int) $row['total'] ?></p><?php
+    endforeach; ?>
+</section></div>
+<h2><?= $t('LATEST_AUDIT') ?></h2>
+    <?php $events = $this->events;
+    require dirname(__DIR__) . '/audit-table.php'; ?>
+<p><a href="index.php?option=com_intercom&amp;view=audit"><?= $t('VIEW_ALL_AUDIT') ?> →</a></p>
+<h2><?= $t('RECENT_FILTERS') ?></h2>
+    <?php $filterRows = $this->filters;
+    require dirname(__DIR__) . '/filter-table.php'; ?>
+<p><a href="index.php?option=com_intercom&amp;view=filters"><?= $t('VIEW_ALL_FILTERS') ?> →</a></p>
 <?php endif; ?>

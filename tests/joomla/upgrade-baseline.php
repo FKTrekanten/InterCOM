@@ -6,7 +6,7 @@ $id = (int) $db->setQuery("SELECT extension_id FROM #__extensions WHERE element=
 $db->setQuery('ALTER TABLE #__intercom_drafts DROP COLUMN tested_fingerprint, DROP COLUMN tested_revision, DROP COLUMN delivery_mode')->execute();
 $db->setQuery('ALTER TABLE #__intercom_filters DROP COLUMN group_id, DROP COLUMN managed')->execute();
 $db->setQuery('DROP TABLE #__intercom_filter_creations')->execute();
-foreach (['types', 'type_translations', 'tags', 'catalogues', 'archives'] as $table) {
+foreach (['types', 'type_translations', 'tags', 'catalogues', 'archives', 'design'] as $table) {
     $db->setQuery('DROP TABLE #__intercom_' . $table)->execute();
 }
 // Preserve native asset nesting when removing synthetic record assets.
