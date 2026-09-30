@@ -10,12 +10,12 @@ Requires PHP 8.3+, Composer, Python 3, Node.js (syntax checks), and Docker Compo
 composer install
 python3 scripts/build.py
 bash scripts/stack.sh up
-docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.1.6.zip
+docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.2.0.zip
 ```
 
 Local site: http://localhost:8088. Administrator: `/administrator`. Synthetic local login: `intercom` / `Intercom-local-2026!`. These credentials are only for the localhost-only development stack. Do not deploy this Compose file to production.
 
-Create an Intercom frontend menu item. Configure native Joomla group/type permissions in Intercom → Options. Configure allowed recipient tags and delivery settings in the same Options page. Super Users have all-audience access; other groups start without access. Default delivery is an in-process fake gateway: **no emails leave the system**. Simulation creates local filters on demand within the same configured cap. `legacy_base/` is ignored and excluded from packages.
+Create an Intercom frontend menu item. Configure component-wide Joomla permissions and delivery settings in **Intercom → Options**. Open **Intercom → Component settings** for translated communication groups, per-group permissions, visible recipient tags, and Joomla-group audience grants. Refresh recipient tags and explicitly select the ones composers may use; new tags start hidden. Super Users have all-audience access; other groups start without access. Default delivery is an in-process fake gateway: **no emails leave the system**. Simulation creates local filters on demand within the same configured cap. `legacy_base/` is ignored and excluded from packages.
 
 ## Tests
 
@@ -39,13 +39,15 @@ Requires clean `main` matching origin. Preparation runs local CI, updates versio
 
 XChaCha20-Poly1305 envelopes use fresh nonces, HKDF-SHA-256 from Joomla's site secret, and Intercom/provider-specific authenticated context. Changing the Joomla secret requires re-encryption or reconnecting. Backups containing both database and site configuration can decrypt secrets. Live OAuth redirects must be registered in CleverReach. Credentials and tokens are never returned to forms or audit logs.
 
-Enable the task plugin and schedule `Intercom` maintenance daily in Joomla Scheduled Tasks. Default audit/revision retention is 30 days, configurable 1–3650. Operational IDs and active/uncertain drafts are retained for reconciliation. Uninstall intentionally retains data; explicit database removal is a separate operator action.
+Enable the task plugin and schedule `Intercom` maintenance in Joomla Scheduled Tasks. Daily is sufficient for retention; every five minutes is recommended when archive copies are enabled. Default audit/revision retention is 30 days, configurable 1–3650. Operational IDs and active/uncertain drafts are retained for reconciliation. Uninstall intentionally retains data; explicit database removal is a separate operator action.
 
 Live delivery requires a controlled one-recipient CR test list (CR has no sandbox), approved preview address, verified sender, category/form IDs and exclusively allocated filters. Submitted/uncertain/cancelled remote mailings keep their filter reservations until reconciled. No time-based automatic recycling, automatic cross-provider failover or blind send retries.
 
 ## Current limitations
 
-First development version uses plain-text composition converted to safe HTML; rich text and the exact branded email template are follow-up work. Native locale resources are included; installing Joomla's Danish language pack and full multilingual menu-switch/browser coverage remain setup/validation work. The admin audience-rule editor is JSON in this initial version. One one-recipient release was delivered and confirmed through the CleverReach report; automated one-recipient preflight, preview delivery for delegated users, recipient evaluation timing and scheduled cancellation still need verification before production. Permission changes made through Joomla core Options/user administration still need dedicated Intercom audit integration; core action logs are separate. Audit history is paginated, with 20 events by default and choices of 10, 20, 50 or 100. No automatic remote filter reconciliation yet; maintenance flags interrupted operations for review. The system must not be represented as production-ready.
+The component includes Joomla rich-text composition, a branded bilingual email template, first-name insertion, an isolated matching preview, translated communication groups and structured tag/access administration. Audit history is paginated. Component and communication permissions saved through Intercom are audited; changes through Joomla user administration still rely on Joomla core action logs.
+
+Full Danish language-pack/menu-switch acceptance and live email-client/dark-mode verification remain setup/acceptance work. The browser preview does not confirm CleverReach inbox delivery. Automated one-recipient preflight, reliable delivered previews for delegated users, remote filter reconciliation, and list-bound unsubscribe forms remain tracked in [issues #1–4](https://github.com/FKTrekanten/InterCOM/issues). The system must not be represented as production-ready.
 
 See [implementation plan](docs/implementation-plan.md) and [design sketch](docs/intercom-sketch.html).
 
@@ -60,7 +62,7 @@ Local verification: Joomla 6.1.3, PHP 8.3.35, MariaDB 10.6; unit tests also pass
 
 ## Simulation and CleverReach credentials
 
-Drafts record their delivery mode. Simulated reservations do not block saving or connecting real OAuth credentials; live reservations still protect the associated account. Changing delivery mode clears simulated leases and invalidates pending simulated drafts. Drafts cannot be reused in another mode. Save real credentials under Options → CleverReach connection before selecting Connect CleverReach. The callback shown there uses the current site host: use the same host consistently (localhost and 127.0.0.1 have separate browser sessions). The composer now follows the approved three-step layout with selection cards, language controls and an illustrative email preview. The actual email editor is still plain text.
+Drafts record their delivery mode. Simulated reservations do not block saving or connecting real OAuth credentials; live reservations still protect the associated account. Changing delivery mode clears simulated leases and invalidates pending simulated drafts. Drafts cannot be reused in another mode. Save real credentials under Options → CleverReach connection before selecting Connect CleverReach. The callback shown there uses the current site host: use the same host consistently (localhost and 127.0.0.1 have separate browser sessions). The composer now follows the approved three-step layout with selection cards, language controls and an illustrative email preview. The editor now uses Joomla’s editor provider and sanitises email HTML on the server. Old plain-text drafts remain readable and become rich-text drafts when saved.
 
 Integration fixtures can only run with INTERCOM_CI=1 in disposable CI. They must not be run on the persistent development site.
 
@@ -81,3 +83,20 @@ Choose the recipient list from CleverReach in Options and set **Maximum Intercom
 CleverReach accepts preview requests only for users of the CleverReach account. An accepted API response does not prove inbox delivery. The composer shows this limitation; operators must inspect the actual test message before release. A provider-independent preview route for delegated Joomla users is tracked separately.
 
 CleverReach has deprecated the v3 forms endpoints. New unsubscribe forms are configured in the CleverReach UI for a recipient list. Intercom still passes a legacy unsubscribe form ID when creating a mailing because the current mailing API exposes that setting and the one-recipient release was verified with it. Do not remove the existing dev form until a list-bound replacement has been verified end to end.
+
+
+## Communication groups and recipient tags
+
+In **Component settings → Communication groups**, add or edit a group’s stable key, suppression word, category, publication, order and team-selection requirement. Language tabs offer name, description, subject prefix and email heading for Danish, English and configured content languages. A name in the default site language is required; missing translations fall back to it. Additional interface languages do not add email-body languages.
+
+In each record’s native Permissions section, grant composition and sending separately to Joomla groups. Component-wide access/compose/send permissions are still prerequisites. New records have no delegated grants. An explicit denial overrides inherited grants. Used groups can be archived/unpublished but their identities cannot be deleted. Upgrades copy the former fixed-type permissions and category IDs and preserve operational history.
+
+**Recipient tags** refreshes account-wide CleverReach tags without altering member data. Select the tags that should appear, set their order and save. **Audience access** restricts which `group.*` tags each Joomla group may target, or grants all-member access. The composer provides exactly one searchable multi-select for `group.*` and one for `membership.*`; deeper prefixes stay within these controls. Matching uses OR within each selection and AND between selections, age, gender and suppression. A refresh preserves visibility, hides vanished tags, and leaves new tags hidden. A failed refresh preserves the old catalogue. Simulation and each recipient list have separate catalogues.
+
+Drafts snapshot their communication definition. Changes to group settings, tag visibility, list/sender/form/archive settings, or the email template require a new test. Changed definitions require review and saving first. Stale administrator revisions are rejected. Hidden/unavailable tags cannot silently disappear and broaden a saved audience.
+
+## Board archive copies
+
+Options contains an optional **Board archive email**. Leave it empty to disable. After CleverReach confirms a mailing has finished, scheduled maintenance sends one bilingual archive copy through Joomla’s configured mail transport. This separate operation records the approved revision, sender and audience criteria; it never sends ordinary previews to the board and never repeats the member mailing. The v3 contract does not provide a verified `bcc_email` integration, so Intercom does not depend on that legacy field.
+
+The archive outbox records pending, sending, submitted or uncertain status in the database and audit log. Provider status failures leave copies pending; interrupted or failed SMTP calls require operator review and are never automatically retried. Retention applies to terminal archive content. The developer archive address remains empty, and automated tests inject fake SMTP/provider completion to avoid real delivery.

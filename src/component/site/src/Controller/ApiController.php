@@ -2,6 +2,7 @@
 
 namespace FKT\Component\Intercom\Site\Controller;
 
+use FKT\Component\Intercom\Administrator\Domain\Message;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\Controller\BaseController;
@@ -26,6 +27,7 @@ final class ApiController extends BaseController
             $id = $app->input->post->getInt('id', 0);
             $revision = $app->input->post->getInt('revision', 0);
             $result = match ($task) {
+                'render' => $this->renderMessage($runtime, $user, json_decode($app->input->post->get('message', '{}', 'raw'), true, 64, JSON_THROW_ON_ERROR)),
                 'save' => $workflow->save(json_decode($app->input->post->get('message', '{}', 'raw'), true, 64, JSON_THROW_ON_ERROR), $id, $revision),
                 'preview' => $workflow->preview($id, $revision, $user->email),
                 'release' => $app->input->post->getBool('confirm')
@@ -43,5 +45,22 @@ final class ApiController extends BaseController
             echo json_encode(['success' => false, 'error' => Text::_($key)]);
         }
         $app->close();
+    }
+    private function renderMessage($runtime, $user, array $input): array
+    {
+        // Empty draft content gets preview-only guidance, never persisted as message text.
+        foreach (['da' => 'da-DK', 'en' => 'en-GB'] as $lang => $locale) {
+            $input['subject_' . $lang] = trim((string) ($input['subject_' . $lang] ?? '')) ?: Text::_('COM_INTERCOM_SUBJECT_' . strtoupper($lang));
+            $input['body_' . $lang] = trim((string) ($input['body_' . $lang] ?? '')) ?: ($lang === 'da' ? '<p>Din besked vises her.</p>' : '<p>Your message appears here.</p>');
+        }
+        $message = Message::validate($input);
+        $runtime->policy($user)->assertAllowed($message['type'], $message['tags'], 'compose');
+        $message['definition'] = $runtime->catalog->snapshot($message);
+        $subjects = [];
+        foreach (['da' => 'da-DK', 'en' => 'en-GB'] as $lang => $locale) {
+            $prefix = Message::translation($message['definition'], $locale)['subject_prefix'];
+            $subjects[$lang] = ($prefix ? '[' . $prefix . '] ' : '') . $message['subject_' . $lang];
+        }
+        return ['da' => Message::html($message, 'da-DK'), 'en' => Message::html($message, 'en-GB'), 'subjects' => $subjects];
     }
 }

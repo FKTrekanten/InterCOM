@@ -21,6 +21,8 @@ status, page = request('/index.php?option=com_users&task=user.login', {
     'username':'intercom', 'password':os.environ['INTERCOM_ADMIN_PASSWORD'], token(page):'1',
     'return':base64.b64encode(b'index.php?option=com_intercom').decode()})
 assert status == 200 and 'id="ic-form"' in page, 'Native session login opens component'
+assert '<joomla-field-fancy-select' in page and 'name="tags[]" multiple' in page and 'name="memberships[]" multiple' in page, 'Exactly two native multi-select recipient fields render'
+assert 'joomla-editor-tinymce' in page, 'Native Joomla editor renders'
 csrf = token(page)
 api = '/index.php?option=com_intercom&format=json'
 assert request(api, {'task':'api.save'})[0] == 403, 'Missing CSRF denied'
@@ -31,6 +33,8 @@ def call(action, fields, expected=200):
     result = json.loads(raw)
     assert status == expected, (action, status, result)
     return result.get('data')
+preview = call('render', {'message': json.dumps({**message, 'format':'html', 'body_da':'<p>Dansk <strong>Ægte</strong></p>', 'body_en':'<p>English</p>'})})
+assert '<strong>Ægte</strong>' in preview['da'] and 'English</p>' not in preview['da'], 'Server preview uses sanitised single-language branded template'
 draft = call('save', {'message':json.dumps(message)})
 identity = {'id':draft['id'],'revision':draft['revision']}
 call('release', {**identity,'confirm':1}, 409)
@@ -48,6 +52,7 @@ assert status == 200 and 'audit-limit' in admin, 'Administrator audit dashboard 
 options = '/administrator/index.php?option=com_config&view=component&component=com_intercom'
 _, admin = request(options)
 assert 'id="client_id"' in admin and 'id="access_token"' in admin, 'Secret controls render in native Options'
+assert 'jform_category_club' not in admin and 'jform_audience_rules' not in admin, 'Communication settings moved out of Options'
 assert 'jform_filter_ids' not in admin, 'Obsolete manual filter IDs are absent from Options'
 class HiddenInputs(HTMLParser):
     def __init__(self): super().__init__(); self.values = {}
@@ -58,8 +63,7 @@ class HiddenInputs(HTMLParser):
 inputs = HiddenInputs(); inputs.feed(admin)
 status, admin = request('/administrator/index.php?option=com_config', {
     **inputs.values, 'task':'component.apply', 'jform[mode]':'fake',
-    'jform[retention_days]':'45','jform[audience_rules]':'[]',
-    'jform[category_club]':'71'})
+    'jform[retention_days]':'45'})
 assert status == 200 and 'Configuration saved' in admin, 'Native Options saves successfully'
 inputs = HiddenInputs(); inputs.feed(admin)
 status, admin = request('/administrator/index.php?option=com_config', {
@@ -86,3 +90,22 @@ _, page2 = request('/administrator/index.php?option=com_intercom&limit=10&limits
 rows = lambda html: re.findall(r'data-audit-id="(\d+)"', html)
 assert len(rows(page1)) == 10 and rows(page2) and not set(rows(page1)) & set(rows(page2)), 'Audit pages are bounded and distinct'
 print('PASS: Native Options, encrypted credentials/token import, invalid import and audit pagination')
+
+management = '/administrator/index.php?option=com_intercom'
+settings = management + '&view=settings'
+status, groups = request(settings)
+assert status == 200 and 'Communication groups' in groups, 'Component communication catalogue is available'
+assert request(management + '&task=management.savetype', {'jform[type_key]':'forged'})[0] == 403, 'Management requires CSRF'
+status, editor = request(settings + '&section=types&edit=1')
+assert status == 200 and 'jform[translations][da-DK][name]' in editor and 'jform[rules][intercom.type.compose]' in editor, 'Language tabs and native record permissions render'
+status, groups = request(management + '&task=management.savetype', {
+    token(editor):'1', 'jform[type_key]':'http_group', 'jform[suppression]':'http-optout', 'jform[state]':'1',
+    'jform[translations][en-GB][name]':'HTTP group', 'jform[translations][da-DK][name]':'HTTP gruppe'})
+assert status == 200 and 'HTTP group' in groups and 'http-optout' in groups, 'Native management form saves translated communication'
+_, tagpage = request(settings + '&section=tags')
+assert 'group.Youth' in tagpage and 'Refresh tags' in tagpage, 'Recipient visibility catalogue renders separately'
+_, scopepage = request(settings + '&section=access')
+assert 'jform[scopes]' in scopepage and 'Audience access' in scopepage, 'Structured Joomla group audience grants render'
+_, frontend = request('/index.php?option=com_intercom&view=composer')
+assert 'HTTP group' in frontend, 'Published custom communication appears in frontend'
+print('PASS: Native communication CRUD form, language tabs, asset permissions, tag catalogue and audience grant editor')

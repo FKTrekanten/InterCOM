@@ -93,7 +93,7 @@ final class CleverReachGateway implements DeliveryGateway, FilterCreator
         throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
     }
 
-    public function prepare(array $message, int $filterId, int $mailingId): int
+    public static function filterRules(array $message, ?\DateTimeImmutable $today = null): array
     {
         $rules = [];
         $add = static function (string $field, string $logic, string $condition) use (&$rules): void {
@@ -105,7 +105,7 @@ final class CleverReachGateway implements DeliveryGateway, FilterCreator
         if ($message['memberships']) {
             $add('tags', 'CONTAINS', implode(',', $message['memberships']));
         }
-        $today = new \DateTimeImmutable('today', new \DateTimeZone('Europe/Copenhagen'));
+        $today ??= new \DateTimeImmutable('today', new \DateTimeZone('Europe/Copenhagen'));
         if ($message['age_from']) {
             $add('birthdate', 'SM', $today->modify('-' . $message['age_from'] . ' years +1 day')->format('Y-m-d'));
         }
@@ -115,18 +115,27 @@ final class CleverReachGateway implements DeliveryGateway, FilterCreator
         if ($message['gender']) {
             $add('gender', 'EQ', $message['gender']);
         }
-        $add('suppression', 'NOCONTAINS', $message['type']);
+        $add('suppression', 'NOCONTAINS', $message['definition']['suppression'] ?? $message['type']);
+        return $rules;
+    }
+
+    public function prepare(array $message, int $filterId, int $mailingId): int
+    {
+        $rules = self::filterRules($message);
         $this->request(
             'PUT',
             '/groups/' . (int) $this->config['group_id'] . '/filters/' . $filterId,
             ['name' => 'Intercom ' . $filterId, 'rules' => $rules]
         );
-        $category = (int) (($this->config['categories'][$message['type']] ?? 0));
+        $category = (int) ($message['definition']['category_id'] ?? 0);
+        $da = Message::translation($message['definition'] ?? [], 'da-DK');
+        $en = Message::translation($message['definition'] ?? [], 'en-GB');
+        $prefix = static fn ($value) => $value ? '[' . $value . '] ' : '';
         $body = ['name' => 'Intercom ' . gmdate('Y-m-d H:i'), 'subject' =>
-            '{IF[language=="da-DK"]}' . $message['subject_da'] . '{ELSE[language]}' . $message['subject_en'] . '{ENDIF[language]}',
+            '{IF[language=="da-DK"]}' . $prefix($da['subject_prefix']) . $message['subject_da'] . '{ELSE[language]}' . $prefix($en['subject_prefix']) . $message['subject_en'] . '{ENDIF[language]}',
             'sender_name' => $message['sender'], 'sender_email' => $this->config['sender_email'],
             'content' => ['type' => 'html/text', 'html' => Message::html($message),
-                'text' => "[DA]\n" . $message['body_da'] . "\n\n[EN]\n" . $message['body_en'] . "\n{UNSUBSCRIBE}"],
+                'text' => Message::text($message)],
             'receivers' => ['filter' => (string) $filterId],
             'settings' => ['editor' => 'advanced', 'unsubscribe_form_id' => (string) $this->config['unsubscribe_form_id'],
                 'category_id' => (string) $category]];
@@ -140,6 +149,12 @@ final class CleverReachGateway implements DeliveryGateway, FilterCreator
     public function preview(int $mailingId, string $email): void
     {
         $this->request('POST', '/mailings/' . $mailingId . '/sendpreview', ['receivers' => [$email], 'previewText' => ' - TEST']);
+    }
+
+    public function finished(int $mailingId): bool
+    {
+        $mailing = $this->request('GET', '/mailings/' . $mailingId);
+        return is_array($mailing) && !empty($mailing['finished']) && !empty($mailing['started']);
     }
 
     public function release(int $mailingId, int $timestamp): void

@@ -15,6 +15,9 @@ $t = static fn ($key) => Text::_('COM_INTERCOM_' . $key);
 Factory::getApplication()->getDocument()->getWebAssetManager()->useScript('core');
 ?>
 <p><?= $t('OPTIONS_HELP') ?></p>
+<?php if ($user->authorise('core.admin', 'com_intercom')) :
+    ?><p><a class="btn btn-primary" href="index.php?option=com_intercom&amp;view=settings"><?= $t('COMPONENT_SETTINGS') ?></a></p><?php
+endif; ?>
 <?php if ($user->authorise('intercom.audit', 'com_intercom')) : ?>
 <h2 class="mt-4"><?= $t('AUDIT') ?></h2><p><?= $t('AUDIT_HELP') ?></p>
 <form action="index.php?option=com_intercom" method="get" id="adminForm" name="adminForm"><input type="hidden" name="option" value="com_intercom"><input type="hidden" name="task" value=""><input type="hidden" name="limitstart" value="<?= (int) $this->pagination->limitstart ?>"><label for="audit-limit"><?= $t('PER_PAGE') ?></label><select id="audit-limit" name="limit" onchange="this.form.limitstart.value=0;this.form.submit()"><option value="10" <?= $this->pagination->limit === 10 ? 'selected' : '' ?>>10</option><option value="20" <?= $this->pagination->limit === 20 ? 'selected' : '' ?>>20</option><option value="50" <?= $this->pagination->limit === 50 ? 'selected' : '' ?>>50</option><option value="100" <?= $this->pagination->limit === 100 ? 'selected' : '' ?>>100</option></select><div class="table-responsive"><table class="table"><thead><tr><th><?= $t('DATE') ?> (UTC)</th><th><?= $t('ACTOR') ?></th><th><?= $t('EVENT') ?></th><th><?= $t('DRAFT') ?></th><th><?= $t('DETAILS') ?></th></tr></thead><tbody>

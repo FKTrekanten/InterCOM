@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0
+
+- Add administrator-managed communication groups with translated names, descriptions, subject prefixes, headings, suppression words, publication/order, categories and native record permissions.
+- Migrate existing categories and type grants, preserving explicit denials, drafts, reservations and encrypted credentials. Retain used group identities; reject stale edits.
+- Add list-specific recipient tag visibility and structured Joomla-group audience grants. Show one searchable team dropdown and one membership dropdown with server-side validation.
+- Restore Joomla rich-text editing, first-name insertion, the branded bilingual email template, safe HTML/plain-text rendering and a matching isolated browser preview.
+- Bind tests to current group/tag/template/settings revisions. Changes require review and a new test before release.
+- Add an optional separately audited board archive outbox through Joomla mail after provider completion. SMTP uncertainty never triggers automatic resend.
+- Extend unit, database, authenticated HTTP, install, upgrade and scheduler checks. Existing production acceptance issues remain open; no public release is published by this change.
+
 ## Unreleased
 
 - 0.1.6 development: retire unused manual filter IDs, remove their Options control, and reserve only Intercom-owned filters. Clarify CleverReach preview eligibility and the transition to list-bound forms.

@@ -13,3 +13,14 @@ check(!$r->store->row('SELECT filter_id FROM #__intercom_filters WHERE managed=0
 check((bool)$r->store->row("SELECT id FROM #__intercom_audit WHERE event='migration.filters_retired'"), 'Upgrade audits manual filter retirement');
 $params = json_decode($r->store->row("SELECT params FROM #__extensions WHERE element='com_intercom'")['params'], true, 64, JSON_THROW_ON_ERROR);
 check(!array_key_exists('filter_ids', $params), 'Upgrade removes obsolete manual filter setting');
+
+check(array_key_exists('tested_fingerprint', $r->store->row('SELECT * FROM #__intercom_drafts LIMIT 1')), 'Upgrade adds current-definition test fingerprint');
+check(count($r->catalog->types()) === 5, 'Upgrade seeds the five communication groups');
+check($r->catalog->types()['club']['category_id'] === 71, 'Upgrade preserves category mapping in communication record');
+foreach (['intercom.type.compose', 'intercom.type.send'] as $action) {
+    $class = $r->catalog->types()['class']['id'];
+    check(\Joomla\CMS\Access\Access::checkGroup(2, $action, 'com_intercom.communication.' . $class), 'Upgrade preserves delegated grant: ' . $action);
+    check(!\Joomla\CMS\Access\Access::checkGroup(3, $action, 'com_intercom.communication.' . $class), 'Upgrade preserves inherited explicit denial: ' . $action);
+    $club = $r->catalog->types()['club']['id'];
+    check(!\Joomla\CMS\Access\Access::checkGroup(2, $action, 'com_intercom.communication.' . $club), 'Global compose cannot override denied communication type: ' . $action);
+}

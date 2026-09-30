@@ -14,10 +14,23 @@ final class Message
             if (!is_string($value) || trim($value) === '' || strlen($value) > (str_starts_with($key, 'body') ? 100000 : 255)) {
                 throw new \RuntimeException('COM_INTERCOM_INVALID_MESSAGE', 422);
             }
+            if (!str_starts_with($key, 'body') && preg_match('/[\x00-\x1f{}]/', $value)) {
+                throw new \RuntimeException('COM_INTERCOM_INVALID_MESSAGE', 422);
+            }
             $result[$key] = trim($value);
         }
-        if (!in_array($result['type'], Policy::TYPES, true)) {
+        if (!preg_match('/^[a-z][a-z0-9_-]{0,63}$/D', $result['type'])) {
             throw new \RuntimeException('COM_INTERCOM_INVALID_MESSAGE', 422);
+        }
+        if (!in_array($input['format'] ?? 'plain', ['plain', 'html'], true)) {
+            throw new \RuntimeException('COM_INTERCOM_INVALID_MESSAGE', 422);
+        }
+        $result['format'] = ($input['format'] ?? 'plain') === 'html' ? 'html' : 'plain';
+        foreach (['body_da', 'body_en'] as $body) {
+            $result[$body] = $result['format'] === 'html' ? EmailContent::sanitise($result[$body]) : EmailContent::placeholders($result[$body]);
+            if (trim($result['format'] === 'html' ? EmailContent::text($result[$body]) : $result[$body]) === '') {
+                throw new \RuntimeException('COM_INTERCOM_INVALID_MESSAGE', 422);
+            }
         }
         foreach (['tags' => 'group.', 'memberships' => 'membership.'] as $key => $prefix) {
             $values = $input[$key] ?? [];
@@ -27,7 +40,7 @@ final class Message
             foreach ($values as $value) {
                 if (
                     !is_string($value) || !str_starts_with($value, $prefix) || strlen($value) > 200
-                    || preg_match('/[,\x00-\x1f]/', $value)
+                    || preg_match('/[{},\x00-\x1f]/', $value)
                 ) {
                     throw new \RuntimeException('COM_INTERCOM_INVALID_MESSAGE', 422);
                 }
@@ -51,16 +64,59 @@ final class Message
         return $result;
     }
 
-    public static function html(array $message): string
+    public static function templateVersion(): string
     {
-        $escape = static fn ($s) => htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $da = nl2br($escape($message['body_da']));
-        $en = nl2br($escape($message['body_en']));
-        return '<html><body style="font-family:Arial,sans-serif">'
-            . '<!--#loopitem if="{IF[LANGUAGE==da-DK]}"#--><h1>' . $escape($message['subject_da']) . '</h1>' . $da
-            . '<!--#/loopitem endif="{ENDIF[LANGUAGE]}"#-->'
-            . '<!--#loopitem if="{IF[LANGUAGE!=da-DK]}"#--><h1>' . $escape($message['subject_en']) . '</h1>' . $en
-            . '<!--#/loopitem endif="{ENDIF[LANGUAGE]}"#-->'
-            . '<hr><a href="{ONLINE_VERSION}">Online</a> · <a href="{UNSUBSCRIBE}">Afmeld / Unsubscribe</a></body></html>';
+        return hash_file('sha256', dirname(__DIR__, 2) . '/tmpl/email/newsletter.html');
+    }
+
+    public static function bodyHtml(array $message, string $lang): string
+    {
+        return ($message['format'] ?? 'plain') === 'html' ? EmailContent::sanitise($message['body_' . $lang])
+            : nl2br(htmlspecialchars($message['body_' . $lang], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
+    }
+
+    public static function translation(array $definition, string $language): array
+    {
+        $translations = $definition['translations'] ?? [];
+        $fallback = $translations[$definition['fallback'] ?? 'en-GB'] ?? $translations['en-GB'] ?? $translations['da-DK'] ?? [];
+        $selected = $translations[$language] ?? [];
+        foreach (['name', 'description', 'subject_prefix', 'heading'] as $field) {
+            if (($selected[$field] ?? '') === '') {
+                $selected[$field] = $fallback[$field] ?? '';
+            }
+        }
+        return $selected;
+    }
+
+    public static function html(array $message, ?string $locale = null): string
+    {
+        $escape = static fn ($s) => htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $definition = $message['definition'] ?? [];
+        $da = self::translation($definition, 'da-DK');
+        $en = self::translation($definition, 'en-GB');
+        $groups = $escape(implode(', ', array_map(static fn ($tag) => substr($tag, 6), $message['tags'] ?? [])));
+        $html = strtr(file_get_contents(dirname(__DIR__, 2) . '/tmpl/email/newsletter.html'), [
+            '{{BODY_DA}}' => self::bodyHtml($message, 'da'), '{{BODY_EN}}' => self::bodyHtml($message, 'en'),
+            '{{HEADER_DA}}' => $escape($da['heading'] ?: ($da['name'] ?: 'Trekanten informerer')),
+            '{{HEADER_EN}}' => $escape($en['heading'] ?: ($en['name'] ?: 'Trekanten informs')),
+            '{{FOOTER_REASON_DA}}' => $groups ? 'fordi du er tilknyttet: <strong>' . $groups . '</strong>' : 'som registreret medlem af Fægteklubben Trekanten',
+            '{{FOOTER_REASON_EN}}' => $groups ? 'because you belong to: <strong>' . $groups . '</strong>' : 'as a registered member of Trekanten Fencing',
+        ]);
+        if ($locale !== null) {
+            $html = preg_replace_callback(
+                '/<!--#loopitem if="\{IF\[LANGUAGE(!=|==)da-DK\]\}"#-->(.*?)<!--#\/loopitem endif="\{ENDIF\[LANGUAGE\]\}"#-->/s',
+                static fn ($match) => (($locale === 'da-DK') === ($match[1] === '==')) ? $match[2] : '',
+                $html
+            );
+            $html = strtr($html, ['{FIRSTNAME[std:Medlem]}' => 'Medlem', '{FIRSTNAME[std:Member]}' => 'Member',
+                '{ONLINE_VERSION}' => '#', '{UNSUBSCRIBE}' => '#', '{EMAIL}' => '[recipient]']);
+        }
+        return $html;
+    }
+
+    public static function text(array $message): string
+    {
+        return "[DA]\n" . EmailContent::text(self::bodyHtml($message, 'da')) . "\n\n[EN]\n"
+            . EmailContent::text(self::bodyHtml($message, 'en')) . "\n\n{ONLINE_VERSION}\n{UNSUBSCRIBE}";
     }
 }

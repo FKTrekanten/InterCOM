@@ -9,7 +9,8 @@ check((bool)$r->store->row("SELECT id FROM #__intercom_audit WHERE event='config
 check($r->connection->token()===getenv('INTERCOM_TEST_ACCESS_TOKEN'),'Access-only token usable without OAuth refresh');
 check(empty($r->connection->credentials()['refresh_token']),'No old refresh token retained');
 check(($r->config['mode']??'')==='fake','Token import preserves simulation mode');
-check((int)($r->config['categories']['club']??0)===71,'Native category fields map to provider configuration');
+check($r->catalog->types()['club']['category_id'] === 71, 'Options preserves migrated communication category');
+check(!isset($r->config['categories']), 'Categories are no longer stored in Options');
 $stored=$r->store->row("SELECT envelope FROM #__intercom_connections WHERE provider='cleverreach'")['envelope'];
 $params=$r->store->row("SELECT params FROM #__extensions WHERE element='com_intercom'")['params'];
 $audit=json_encode($r->store->rows('SELECT context FROM #__intercom_audit'));

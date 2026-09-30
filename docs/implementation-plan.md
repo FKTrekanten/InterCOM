@@ -1,11 +1,13 @@
 # Intercom — first frontend sketch
 
+Status note, 30 September 2026: the dated planning notes below include historical proposals. Development version 0.1.6 is built and installed in dev. The current proposed next milestone is [editable communication groups and remaining legacy features](legacy-feature-plan.md), including administrator-managed suppression words/translations, selected-tag dropdowns, rich-text email templates, and board copies. See README for implemented behavior and current limitations.
+
 ## Confirmed scope
 
 - Joomla 6 native component; PHP 8.3+.
 - Preserve current suppression and opt-out behaviour, including club information. The membership-use notice informs senders; it does not override member preferences. Revisit wording/behaviour in a future version.
 - Use Joomla identity, session, ACL and CSRF directly. No cmsAPI bridge.
-- Initial task remains analysis, planning and a visual sketch; no production component has been implemented.
+- Initial work covered analysis, planning and a visual sketch. A development component is now implemented; production acceptance remains incomplete.
 
 ## Design evidence
 

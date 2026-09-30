@@ -12,7 +12,7 @@ use FKT\Component\Intercom\Administrator\Infrastructure\Store;
 
 final class Workflow
 {
-    public function __construct(private Store $store, private DeliveryGateway $gateway, private Policy $policy, private int $actor)
+    public function __construct(private Store $store, private DeliveryGateway $gateway, private Policy $policy, private int $actor, private ?Catalog $catalog = null, private ?Archive $archive = null)
     {
     }
 
@@ -22,6 +22,11 @@ final class Workflow
         $mode = $this->store->q($this->gateway->mode());
         $this->policy->assertAllowed($message['type'], $message['tags'], 'compose');
         return $this->store->transaction(function () use ($message, $id, $revision, $mode): array {
+            $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
+            if ($this->catalog) {
+                $message['definition'] = $this->catalog->snapshot($message);
+                $this->store->execute('UPDATE #__intercom_types SET used=1 WHERE id=' . (int) $message['definition']['id']);
+            }
             $json = $this->store->q(json_encode($message, JSON_THROW_ON_ERROR));
             if ($id) {
                 $draft = $this->store->draft($id, $this->actor, true);
@@ -31,7 +36,7 @@ final class Workflow
                 if ((int) $draft['revision'] !== $revision || !in_array($draft['state'], ['draft', 'tested'], true)) {
                     throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
                 }
-                $this->store->execute("UPDATE #__intercom_drafts SET content=$json,revision=revision+1,tested_revision=NULL,state='draft',updated_at=UTC_TIMESTAMP() WHERE id=$id");
+                $this->store->execute("UPDATE #__intercom_drafts SET content=$json,revision=revision+1,tested_revision=NULL,tested_fingerprint=NULL,state='draft',updated_at=UTC_TIMESTAMP() WHERE id=$id");
             } else {
                 $this->store->execute("INSERT INTO #__intercom_drafts (owner_id,delivery_mode,content,revision,state,created_at,updated_at) VALUES ({$this->actor},$mode,$json,1,'draft',UTC_TIMESTAMP(),UTC_TIMESTAMP())");
                 $id = (int) $this->store->db->insertid();
@@ -58,6 +63,16 @@ final class Workflow
                 throw new \RuntimeException('COM_INTERCOM_MODE_CHANGED', 409);
             }
             $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
+            if ($this->catalog) {
+                if (($message['definition'] ?? null) !== $this->catalog->snapshot($message)) {
+                    throw new \RuntimeException('COM_INTERCOM_DEFINITION_CHANGED', 409);
+                }
+                $fingerprint = $this->catalog->fingerprint($message);
+                if ($operation === 'release' && ($draft['tested_fingerprint'] ?? '') !== $fingerprint) {
+                    throw new \RuntimeException('COM_INTERCOM_DEFINITION_CHANGED', 409);
+                }
+                $draft['current_fingerprint'] = $fingerprint;
+            }
             $this->policy->assertAllowed($message['type'], $message['tags'], $operation === 'release' ? 'send' : 'compose');
             if (
                 (int) $draft['revision'] !== $revision || !in_array($draft['state'], ['draft', 'tested'], true)
@@ -186,9 +201,10 @@ final class Workflow
             $mailing = $this->gateway->prepare($message, (int) $draft['filter_id'], (int) $draft['mailing_id']);
             $this->store->execute("UPDATE #__intercom_drafts SET mailing_id=$mailing WHERE id=$id AND state='testing'");
             $this->gateway->preview($mailing, $email);
-            $this->store->transaction(function () use ($id, $revision): void {
-                $this->store->execute("UPDATE #__intercom_drafts SET state='tested',tested_revision=$revision,updated_at=UTC_TIMESTAMP() WHERE id=$id AND state='testing'");
-                $this->store->audit($this->actor, 'preview.succeeded', $id, ['revision' => $revision]);
+            $this->store->transaction(function () use ($id, $revision, $draft): void {
+                $fingerprint = $this->store->q($draft['current_fingerprint'] ?? '');
+                $this->store->execute("UPDATE #__intercom_drafts SET tested_fingerprint=$fingerprint,state='tested',tested_revision=$revision,updated_at=UTC_TIMESTAMP() WHERE id=$id AND state='testing'");
+                $this->store->audit($this->actor, 'preview.accepted', $id, ['revision' => $revision]);
             });
         } catch (\Throwable $e) {
             $this->store->execute("UPDATE #__intercom_drafts SET state='draft',tested_revision=NULL WHERE id=$id AND state='testing'");
@@ -206,9 +222,10 @@ final class Workflow
         $draft = $this->begin($id, $revision, 'release');
         try {
             $this->gateway->release((int) $draft['mailing_id'], $timestamp);
-            $this->store->transaction(function () use ($id, $timestamp): void {
+            $this->store->transaction(function () use ($id, $timestamp, $draft): void {
                 $state = $timestamp ? 'scheduled' : 'submitted';
                 $this->store->execute("UPDATE #__intercom_drafts SET state='$state',send_at=$timestamp,updated_at=UTC_TIMESTAMP() WHERE id=$id AND state='releasing'");
+                $this->archive?->queue($draft, $timestamp, $this->actor);
                 $this->store->audit($this->actor, 'release.accepted', $id, ['send_at' => $timestamp]);
             });
         } catch (\Throwable) {
@@ -255,11 +272,13 @@ final class Workflow
                 $this->store->execute("UPDATE #__intercom_drafts SET state='uncertain' WHERE id=$id");
                 $this->store->audit(0, 'operation.interrupted', $id);
             }
+            $this->store->execute("DELETE FROM #__intercom_archives WHERE state IN ('submitted','uncertain') AND updated_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             $this->store->execute("DELETE FROM #__intercom_audit WHERE created_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             $this->store->execute("DELETE FROM #__intercom_revisions WHERE created_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             // Purge inactive terminal message content, retaining operational IDs/leases.
             $this->store->execute("UPDATE #__intercom_drafts SET content='{}' WHERE state IN ('submitted','cancelled') AND updated_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             $this->store->audit(0, 'maintenance.completed', 0, ['retention_days' => $days]);
         });
+        $this->archive?->maintain();
     }
 }

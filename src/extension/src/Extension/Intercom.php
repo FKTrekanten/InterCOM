@@ -27,6 +27,10 @@ final class Intercom extends CMSPlugin implements SubscriberInterface
             throw new \RuntimeException(Text::_('COM_INTERCOM_DENIED'));
         }
         $r = $app->bootComponent('com_intercom')->runtime;
+        // Joomla core persists component asset rules before this event. Record that
+        // snapshot even when validation subsequently rejects the ordinary settings.
+        $rules = $r->store->row("SELECT rules FROM #__assets WHERE name='com_intercom'");
+        $r->store->audit((int) $app->getIdentity()->id, 'component.permissions_saved', 0, ['rules' => json_decode($rules['rules'] ?? '{}', true)]);
         $r->store->begin();
         try {
             $config = (new Settings($r))->save(json_decode($table->params, true, 32, JSON_THROW_ON_ERROR), (int) $app->getIdentity()->id);

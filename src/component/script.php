@@ -11,7 +11,7 @@ return new class () implements InstallerScriptInterface {
             return true;
         }
         return version_compare(PHP_VERSION, '8.3', '>=') && version_compare(JVERSION, '6.1', '>=')
-            && version_compare(JVERSION, '7.0', '<') && extension_loaded('sodium') && extension_loaded('curl');
+            && version_compare(JVERSION, '7.0', '<') && extension_loaded('sodium') && extension_loaded('curl') && extension_loaded('dom') && extension_loaded('mbstring');
     }
     public function install(InstallerAdapter $adapter): bool
     {
@@ -27,6 +27,13 @@ return new class () implements InstallerScriptInterface {
     }
     public function postflight(string $type, InstallerAdapter $adapter): bool
     {
+        if ($type !== 'uninstall') {
+            foreach (['Infrastructure/Store', 'Table/TransactionalAssetTable', 'Table/CommunicationTable', 'Service/CatalogMigration'] as $file) {
+                require_once JPATH_ADMINISTRATOR . '/components/com_intercom/src/' . $file . '.php';
+            }
+            $db = \Joomla\CMS\Factory::getContainer()->get(\Joomla\Database\DatabaseInterface::class);
+            \FKT\Component\Intercom\Administrator\Service\CatalogMigration::run(new \FKT\Component\Intercom\Administrator\Infrastructure\Store($db));
+        }
         return true;
     }
 };

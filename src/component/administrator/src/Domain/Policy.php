@@ -8,7 +8,7 @@ final class Policy
 {
     public const TYPES = ['club', 'class', 'license', 'newsletter', 'offer'];
 
-    public function __construct(private array $grants, private array $scope)
+    public function __construct(private array $grants, private array $scope, private ?array $definitions = null)
     {
     }
 
@@ -28,12 +28,13 @@ final class Policy
     public function assertAllowed(string $type, array $tags, string $action): void
     {
         if (
-            !in_array($type, self::TYPES, true) || !($this->grants['access'] ?? false)
+            !array_key_exists($type, $this->definitions ?? array_fill_keys(self::TYPES, [])) || !($this->grants['access'] ?? false)
             || !($this->grants[$action] ?? false) || !($this->grants[$type] ?? false)
+            || ($action === 'send' && !($this->grants['send_' . $type] ?? $this->grants[$type] ?? false))
         ) {
             throw new \RuntimeException('COM_INTERCOM_DENIED', 403);
         }
-        if ($type === 'class' && $tags === []) {
+        if (($this->definitions[$type]['require_group'] ?? ($type === 'class')) && $tags === []) {
             throw new \RuntimeException('COM_INTERCOM_GROUP_REQUIRED', 422);
         }
         if (!($this->scope['all'] ?? false) && ($tags === [] || array_diff($tags, $this->scope['tags'] ?? []) !== [])) {
@@ -48,6 +49,6 @@ final class Policy
 
     public function types(): array
     {
-        return array_values(array_filter(self::TYPES, fn ($type) => $this->grants[$type] ?? false));
+        return array_values(array_filter(array_keys($this->definitions ?? array_fill_keys(self::TYPES, [])), fn ($type) => $this->grants[$type] ?? false));
     }
 }

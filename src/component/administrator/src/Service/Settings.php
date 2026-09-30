@@ -11,7 +11,7 @@ final class Settings
     {
         $r = $this->runtime;
         $input = new \Joomla\Input\Input($values);
-        $rules = json_decode($input->get('audience_rules', '[]', 'raw'), true, 32, JSON_THROW_ON_ERROR);
+        $rules = json_decode($r->config['audience_rules'] ?? '[]', true, 32, JSON_THROW_ON_ERROR);
         if (!is_array($rules) || !array_is_list($rules)) {
             throw new \RuntimeException('COM_INTERCOM_INVALID_RULES');
         }
@@ -32,7 +32,8 @@ final class Settings
             'retention_days' => max(1, min(3650, $input->getInt('retention_days', 30))),
             'group_id' => $input->getInt('group_id'), 'unsubscribe_form_id' => $input->getInt('unsubscribe_form_id'),
             'sender_email' => $input->getString('sender_email'), 'audience_rules' => json_encode($rules),
-            'release_verified' => $input->getBool('release_verified'), 'categories' => [],
+            'release_verified' => $input->getBool('release_verified'), 'board_archive_email' => trim($input->getString('board_archive_email')),
+            'communication_catalog_version' => (int) ($r->config['communication_catalog_version'] ?? 1),
             'max_filters' => max(1, min(20, $input->getInt('max_filters', 5)))];
         if (
             $config['mode'] === 'live' && (!$config['group_id'] || !$config['unsubscribe_form_id']
@@ -40,20 +41,25 @@ final class Settings
         ) {
             throw new \RuntimeException('COM_INTERCOM_INVALID_SETTINGS');
         }
-        foreach (\FKT\Component\Intercom\Administrator\Domain\Policy::TYPES as $type) {
-            $config['categories'][$type] = $input->getInt('category_' . $type, 0);
-            $config['category_' . $type] = $config['categories'][$type];
+        if ($config['board_archive_email'] && !filter_var($config['board_archive_email'], FILTER_VALIDATE_EMAIL)) {
+            throw new \RuntimeException('COM_INTERCOM_INVALID_SETTINGS');
         }
-        $r->store->transaction(function () use ($r, $config, $actor): void {
+        $r->store->transaction(function () use ($r, &$config, $actor): void {
             $r->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
+            $row = $r->store->row("SELECT params FROM #__extensions WHERE element='com_intercom' AND type='component' FOR UPDATE");
+            $current = json_decode($row['params'] ?? '{}', true, 64, JSON_THROW_ON_ERROR);
+            // These settings have their own editors. An Options save must not overwrite
+            // audience changes made after this request's Runtime was constructed.
+            $config['audience_rules'] = $current['audience_rules'] ?? '[]';
+            $config['communication_catalog_version'] = (int) ($current['communication_catalog_version'] ?? 1);
             // Do not switch accounts, modes or recipient lists while any filter is reserved.
             $reserved = $r->store->row('SELECT f.filter_id FROM #__intercom_filters f LEFT JOIN #__intercom_drafts d ON d.id=f.draft_id WHERE f.draft_id IS NOT NULL AND (d.delivery_mode IS NULL OR d.delivery_mode != \'fake\') LIMIT 1 FOR UPDATE');
             foreach (['mode', 'group_id'] as $key) {
-                if ($reserved && ($r->config[$key] ?? ($key === 'mode' ? 'fake' : 0)) != $config[$key]) {
+                if ($reserved && ($current[$key] ?? ($key === 'mode' ? 'fake' : 0)) != $config[$key]) {
                     throw new \RuntimeException('COM_INTERCOM_LIVE_RESERVATIONS');
                 }
             }
-            if (($r->config['mode'] ?? 'fake') !== $config['mode']) {
+            if (($current['mode'] ?? 'fake') !== $config['mode']) {
                 // Simulated mailings have no external recipient filter to protect.
                 $r->store->execute("UPDATE #__intercom_filters f JOIN #__intercom_drafts d ON d.id=f.draft_id SET f.draft_id=NULL WHERE d.delivery_mode='fake'");
                 $r->store->execute("UPDATE #__intercom_drafts SET filter_id=NULL,tested_revision=NULL,state='cancelled' WHERE delivery_mode='fake' AND state IN ('draft','tested','testing')");
@@ -67,7 +73,7 @@ final class Settings
                 $actor,
                 'configuration.saved',
                 0,
-                ['configuration' => $config]
+                ['before' => array_diff_key($current, array_flip(['client_id', 'client_secret', 'access_token', 'refresh_token'])), 'configuration' => $config]
             );
         });
         return $config;

@@ -17,25 +17,33 @@ final class Runtime
 {
     public readonly Connection $connection;
     public readonly array $config;
+    public readonly Catalog $catalog;
 
     public function __construct(public readonly Store $store, string $secret)
     {
         $this->connection = new Connection($store, new CredentialCipher($secret));
         $this->config = ComponentHelper::getParams('com_intercom')->toArray();
+        $this->catalog = new Catalog($store, $this->config);
     }
 
     public function policy(User $user): Policy
     {
         $grants = [];
-        foreach (array_merge(['access', 'compose', 'send'], Policy::TYPES) as $action) {
+        foreach (['access', 'compose', 'send'] as $action) {
             $grants[$action] = $user->authorise('intercom.' . $action, 'com_intercom');
+        }
+        $definitions = $this->catalog->types();
+        foreach ($definitions as $key => $definition) {
+            $asset = 'com_intercom.communication.' . $definition['id'];
+            $grants[$key] = $user->authorise('intercom.type.compose', $asset);
+            $grants['send_' . $key] = $user->authorise('intercom.type.send', $asset);
         }
         $rules = json_decode($this->config['audience_rules'] ?? '[]', true) ?: [];
         $scope = Policy::audienceScope(array_map('intval', $user->getAuthorisedGroups()), $rules);
         if ($user->authorise('core.admin', 'com_intercom')) {
             $scope = ['all' => true, 'tags' => []];
         }
-        return new Policy($grants, $scope);
+        return new Policy($grants, $scope, $definitions);
     }
 
     public function gateway(): DeliveryGateway
@@ -46,8 +54,29 @@ final class Runtime
         return new CleverReachGateway(fn () => $this->connection->token(), $this->config);
     }
 
+    public function archive(): Archive
+    {
+        $gateway = $this->gateway();
+        return new Archive(
+            $this->store,
+            (string) ($this->config['board_archive_email'] ?? ''),
+            fn (int $id): bool => $gateway instanceof CleverReachGateway ? $gateway->finished($id) : false,
+            static function (string $address, array $payload): bool {
+                $app = \Joomla\CMS\Factory::getApplication();
+                $mail = \Joomla\CMS\Factory::getContainer()->get(\Joomla\CMS\Mail\MailerFactoryInterface::class)->createMailer();
+                $mail->setSender([$app->get('mailfrom'), $app->get('fromname')]);
+                $mail->addRecipient($address);
+                $mail->setSubject($payload['subject']);
+                $mail->isHtml(true);
+                $mail->setBody($payload['html']);
+                $mail->AltBody = $payload['text'];
+                return $mail->send() === true;
+            }
+        );
+    }
+
     public function workflow(User $user): Workflow
     {
-        return new Workflow($this->store, $this->gateway(), $this->policy($user), (int) $user->id);
+        return new Workflow($this->store, $this->gateway(), $this->policy($user), (int) $user->id, $this->catalog, $this->archive());
     }
 }

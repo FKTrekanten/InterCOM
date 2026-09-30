@@ -34,4 +34,19 @@ final class MessageTest extends TestCase
         $this->expectException(\RuntimeException::class);
         Message::validate($message);
     }
+    public function testTagCannotInjectProviderDirectivesIntoFooter(): void
+    {
+        $message = $this->message();
+        $message['tags'] = ['group.{IF[language]}'];
+        $this->expectException(\RuntimeException::class);
+        Message::validate($message);
+    }
+
+    public function testSubjectCannotInjectProviderDirectives(): void
+    {
+        $message = $this->message();
+        $message['subject_en'] = '{IF[language]}unexpected';
+        $this->expectException(\RuntimeException::class);
+        Message::validate($message);
+    }
 }
