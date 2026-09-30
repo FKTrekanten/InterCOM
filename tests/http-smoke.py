@@ -88,15 +88,14 @@ status, admin = request('/administrator/index.php?option=com_config', {
     'jform[retention_days]':'99','jform[audience_rules]':'[]'})
 assert status == 200 and 'Check the recipient list' in admin, ('Invalid native Options rejected', status, re.findall(r'<joomla-alert[^>]*>(.*?)</joomla-alert>', admin, re.S))
 assert request('/administrator/index.php?option=com_intercom&task=connection.importtokens', {'expires_in':'3600'})[0] == 403, 'Token import requires CSRF'
+assert request('/administrator/index.php?option=com_intercom&task=connection.verifyaccount', {})[0] == 403, 'Identity pin requires CSRF'
+assert request('/administrator/index.php?option=com_intercom&task=connection.verifyaccount')[0] == 403, 'Identity pin requires POST'
 
 status, admin = request('/administrator/index.php?option=com_intercom&task=connection.savecredentials', {
     token(admin):'1','client_id':os.environ['INTERCOM_TEST_CLIENT_ID'],
     'client_secret':os.environ['INTERCOM_TEST_CLIENT_SECRET']})
 assert status == 200 and 'Saved' in admin, 'Credentials saved despite simulated reservations'
 access = os.environ['INTERCOM_TEST_ACCESS_TOKEN']
-status, admin = request('/administrator/index.php?option=com_intercom&task=connection.importtokens', {
-    token(admin):'1','access_token':access,'refresh_token':'','expires_in':'3600'})
-assert status == 200 and 'Tokens stored securely' in admin, 'Manual token import succeeds'
 for value in (access, os.environ['INTERCOM_TEST_CLIENT_ID'], os.environ['INTERCOM_TEST_CLIENT_SECRET']):
     assert value not in admin, 'Secrets never echoed into page'
 status, admin = request('/administrator/index.php?option=com_intercom&task=connection.importtokens', {

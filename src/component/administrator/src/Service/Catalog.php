@@ -289,6 +289,7 @@ final class Catalog
         $current = json_decode($settings['params'] ?? '{}', true) ?: [];
         $meta = $this->store->row('SELECT revision FROM #__intercom_catalogues WHERE list_id=' . $this->context());
         return hash('sha256', json_encode([$this->snapshot($message), $meta['revision'] ?? 0,
+            $this->store->row("SELECT account_id FROM #__intercom_connections WHERE provider='cleverreach'")['account_id'] ?? '',
             array_intersect_key($current, array_flip(['mode', 'group_id', 'sender_name', 'sender_email', 'unsubscribe_form_id', 'board_archive_email'])),
             \FKT\Component\Intercom\Administrator\Domain\Footer::validate($current),
             Message::templateVersion(), (new Design($this->store))->snapshot()], JSON_THROW_ON_ERROR));

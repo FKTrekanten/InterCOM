@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.5
+
+Verify CleverReach customer identity before token replacement; allow safe same-account renewal with live reservations. Add legacy identity verification, account-switch cache invalidation and native Joomla regression coverage.
+
 ## 0.3.4
 
 - Use translated, readable and capitalized automatic group labels in email previews and HTML/text mailings, preserving raw audience tags.

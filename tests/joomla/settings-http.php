@@ -6,6 +6,10 @@ check(($r->connection->credentials()['client_secret']??'')===getenv('INTERCOM_TE
 check((int)($r->config['retention_days']??0)===45,'Successful native settings preserved after rejected save');
 check((bool)$r->store->row("SELECT id FROM #__intercom_audit WHERE event='configuration.saved'"),'HTTP configuration change audited');
 
+// Identity/network behavior is injected explicitly in native service tests; HTTP
+// smoke uses invalid-input checks so automatic CI never contacts CleverReach.
+$connection=new \FKT\Component\Intercom\Administrator\Service\Connection($r->store,new \FKT\Component\Intercom\Administrator\Domain\CredentialCipher($app->get('secret')),new \FKT\Component\Intercom\Administrator\Infrastructure\CleverReachIdentity(static fn($token)=>['id'=>'231113']));
+$connection->importTokens(getenv('INTERCOM_TEST_ACCESS_TOKEN'),'',3600,42);
 check($r->connection->token()===getenv('INTERCOM_TEST_ACCESS_TOKEN'),'Access-only token usable without OAuth refresh');
 check(empty($r->connection->credentials()['refresh_token']),'No old refresh token retained');
 check(($r->config['mode']??'')==='fake','Token import preserves simulation mode');

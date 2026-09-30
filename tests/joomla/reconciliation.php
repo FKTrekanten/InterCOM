@@ -76,8 +76,10 @@ try {
     $errorGateway=new CleverReachGateway(fn()=>'stub', $config, static function() { throw new RuntimeException('COM_INTERCOM_PROVIDER_ERROR'); });
     (new Reconciliation($store,$errorGateway,$config))->run(42);
     check($store->row("SELECT reconciliation_status FROM #__intercom_filter_creations WHERE remote_name='Intercom-missing'")['reconciliation_status']==='provider_error','Creation provider errors retain cap slot');
-    try { $r->connection->importTokens('new-stub-token','',3600,42); throw new Exception('Expected reservation guard'); }
-    catch (RuntimeException $e) { check($e->getMessage()==='COM_INTERCOM_LIVE_RESERVATIONS','Unresolved leases/creations prevent account changes'); }
+    $store->execute("UPDATE #__intercom_connections SET account_id='231113' WHERE provider='cleverreach'");
+    $otherConnection=new \FKT\Component\Intercom\Administrator\Service\Connection($store,new \FKT\Component\Intercom\Administrator\Domain\CredentialCipher($app->get('secret')),new \FKT\Component\Intercom\Administrator\Infrastructure\CleverReachIdentity(static fn($token)=>['id'=>'999']));
+    try { $otherConnection->importTokens('new-stub-token','',3600,42); throw new Exception('Expected reservation guard'); }
+    catch (RuntimeException $e) { check($e->getMessage()==='COM_INTERCOM_ACCOUNT_MISMATCH','Unresolved leases/creations prevent account changes'); }
     $liveStub=new class implements DeliveryGateway {
         public function mode(): string { return 'live'; }
         public function tags(string $origin): array { return $origin==='group'?['group.Youth']:[]; }

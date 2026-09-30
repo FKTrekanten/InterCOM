@@ -62,6 +62,20 @@ final class ConnectionController extends BaseController
         $this->setRedirect(self::OPTIONS);
     }
 
+    public function verifyaccount(): void
+    {
+        $r = $this->runtime();
+        $app = Factory::getApplication();
+        try {
+            $r->connection->pin((int) $app->getIdentity()->id);
+            $app->enqueueMessage(Text::_('COM_INTERCOM_ACCOUNT_VERIFIED'));
+        } catch (\Throwable $e) {
+            $r->store->audit((int) $app->getIdentity()->id, 'connection.identity_failed');
+            $app->enqueueMessage(Text::_(str_starts_with($e->getMessage(), 'COM_INTERCOM_') ? $e->getMessage() : 'COM_INTERCOM_ERROR'), 'error');
+        }
+        $this->setRedirect(self::OPTIONS);
+    }
+
     public function importtokens(): void
     {
         $r = $this->runtime();
@@ -115,9 +129,9 @@ final class ConnectionController extends BaseController
             }
             $r->connection->authorize($app->input->getString('code'), $pending['redirect'], (int) $app->getIdentity()->id);
             $app->enqueueMessage(Text::_('COM_INTERCOM_CONNECTED'));
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             $r->store->audit((int) $app->getIdentity()->id, 'connection.failed');
-            $app->enqueueMessage(Text::_('COM_INTERCOM_PROVIDER_ERROR'), 'error');
+            $app->enqueueMessage(Text::_(str_starts_with($e->getMessage(), 'COM_INTERCOM_') ? $e->getMessage() : 'COM_INTERCOM_PROVIDER_ERROR'), 'error');
         }
         $this->setRedirect(self::OPTIONS);
     }
