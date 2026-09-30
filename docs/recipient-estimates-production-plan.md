@@ -114,7 +114,7 @@ one-recipient dev list. The real provider send completed and human receipt/form
 confirmation is recorded; the current dev configuration passes the acceptance gate. Joomla tests go to local Mailpit, not the
 recipient's external inbox. See [acceptance procedure](release-acceptance.md).
 
-Before production installation/release, obtain and verify:
+Before production installation and enabling live member delivery, obtain and verify:
 
 - A backup and demonstrated restore, preserving Joomla's encryption secret.
 - Production PHP 8.3+, Sodium/cURL and the agreed MariaDB/InnoDB database;
@@ -134,3 +134,14 @@ Before production installation/release, obtain and verify:
 CI proves isolated install/upgrade, migrations, native sessions/ACL/CSRF, provider
 fixtures, unit/style and SMTP capture. It cannot prove the production environment
 or receipt in a real client. No production deployment or public release is claimed.
+
+
+## Package publication and deployment acceptance
+
+The 0.3.11 package can be published after clean-main local and exact-commit GitHub
+CI, controlled dev delivery acceptance, and package/update-feed checksum verification.
+New installations default to simulation; live member delivery requires acceptance
+bound to that installation's account and configuration. Publication does not certify
+the production environment, SMTP, scheduler trigger, backups, role/language workflows
+or received-client rendering. Complete the production handoff above during staging
+and production setup before enabling live delivery.
