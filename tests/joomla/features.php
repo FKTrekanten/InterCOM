@@ -42,7 +42,7 @@ try {
     $cleanup = $cleanupWorkflow->save($cleanupMessage);
     $cleanupId = (int)$cleanup['id'];
     $store->execute("INSERT INTO #__intercom_filters(filter_id,draft_id,group_id,managed) VALUES (3999999001,$cleanupId,987654,1)");
-    $store->execute("UPDATE #__intercom_drafts SET delivery_mode='live',filter_id=3999999001,mailing_id=123456 WHERE id=$cleanupId");
+    $store->execute("UPDATE #__intercom_drafts SET delivery_mode='live',mailing_attempted=1,filter_id=3999999001,mailing_id=123456 WHERE id=$cleanupId");
     try { (new Workflow($store,new FakeGateway(),$cleanupPolicy,99))->delete($cleanupId,1); throw new Exception('Expected owner guard'); }
     catch (RuntimeException $e) { check($e->getCode()===404,'Another owner cannot delete a draft'); }
     foreach (['testing','releasing','submitted','scheduled','uncertain'] as $protectedState) {

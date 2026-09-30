@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.6
+
+Save and estimate recipient audiences when entering Content, with safe mailing-free lease expiry and fresh pre-send count confirmation. Add frozen bilingual sent-mail history with a dedicated permission, pagination and five latest confirmed sends on the dashboard. Preserve older reservations and label reconstructed/expired history. Correct inclusive maximum-age boundaries.
+
 ## 0.3.5
 
 Verify CleverReach customer identity before token replacement; allow safe same-account renewal with live reservations. Add legacy identity verification, account-switch cache invalidation and native Joomla regression coverage.

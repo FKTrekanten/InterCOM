@@ -6,7 +6,7 @@ namespace FKT\Component\Intercom\Administrator\Infrastructure;
 
 use FKT\Component\Intercom\Administrator\Domain\DeliveryGateway;
 
-final class FakeGateway implements DeliveryGateway
+final class FakeGateway implements DeliveryGateway, \FKT\Component\Intercom\Administrator\Domain\AudienceGateway
 {
     public function mode(): string
     {
@@ -16,6 +16,19 @@ final class FakeGateway implements DeliveryGateway
     public function tags(string $origin): array
     {
         return $origin === 'group' ? ['group.Youth', 'group.Senior'] : ['membership.Active', 'membership.Passive'];
+    }
+
+    public function updateAudience(int $filterId, array $rules): void
+    {
+    }
+
+    public function assertAudience(int $filterId, array $rules): void
+    {
+    }
+
+    public function statistics(int $filterId): int
+    {
+        return 1; // Explicit simulation fixture, never a provider count.
     }
 
     public function prepare(array $message, int $filterId, int $mailingId): int

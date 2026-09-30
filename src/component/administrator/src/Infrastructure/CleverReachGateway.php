@@ -9,7 +9,7 @@ use FKT\Component\Intercom\Administrator\Domain\FilterCreator;
 use FKT\Component\Intercom\Administrator\Domain\Message;
 use FKT\Component\Intercom\Administrator\Domain\UnsubscribeForm;
 
-final class CleverReachGateway implements DeliveryGateway, FilterCreator, \FKT\Component\Intercom\Administrator\Domain\ReconciliationGateway
+final class CleverReachGateway implements DeliveryGateway, FilterCreator, \FKT\Component\Intercom\Administrator\Domain\AudienceGateway, \FKT\Component\Intercom\Administrator\Domain\ReconciliationGateway
 {
     public function __construct(private \Closure $token, private array $config, private ?\Closure $transport = null)
     {
@@ -153,7 +153,7 @@ final class CleverReachGateway implements DeliveryGateway, FilterCreator, \FKT\C
             $add('birthdate', 'SM', $today->modify('-' . $message['age_from'] . ' years +1 day')->format('Y-m-d'));
         }
         if ($message['age_to']) {
-            $add('birthdate', 'BG', $today->modify('-' . $message['age_to'] . ' years -1 day')->format('Y-m-d'));
+            $add('birthdate', 'BG', $today->modify('-' . ($message['age_to'] + 1) . ' years')->format('Y-m-d'));
         }
         if ($message['gender']) {
             $add('gender', 'EQ', $message['gender']);
@@ -162,10 +162,44 @@ final class CleverReachGateway implements DeliveryGateway, FilterCreator, \FKT\C
         return $rules;
     }
 
+    public function updateAudience(int $filterId, array $rules): void
+    {
+        $this->request('PUT', '/groups/' . (int) $this->config['group_id'] . '/filters/' . $filterId, ['rules' => $rules]);
+    }
+
+    public function assertAudience(int $filterId, array $rules): void
+    {
+        $filter = $this->filter((int) $this->config['group_id'], $filterId);
+        $aliases = [];
+        if (array_filter($filter['rules'] ?? [], static fn ($r) => preg_match('/^a[0-9]+\.value$/D', $r['field'] ?? ''))) {
+            foreach ([$this->request('GET', '/attributes'), $this->request('GET', '/groups/' . (int) $this->config['group_id'] . '/attributes')] as $attributes) {
+                if (!is_array($attributes) || !array_is_list($attributes)) {
+                    throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
+                }
+                foreach ($attributes as $attribute) {
+                    if (ctype_digit((string) ($attribute['id'] ?? '')) && is_string($attribute['name'] ?? null)) {
+                        $aliases['a' . $attribute['id'] . '.value'] = $attribute['name'];
+                    }
+                }
+            }
+        }
+        $normalise = static function (array $rules) use ($aliases): array {
+            return array_map(static fn (array $r): array => ['operator' => strtoupper((string) ($r['operator'] ?? '')) ?: 'AND', 'field' => (string) ($aliases[$r['field'] ?? ''] ?? $r['field'] ?? ''), 'logic' => strtoupper((string) ($r['logic'] ?? '')), 'condition' => (string) ($r['condition'] ?? '')], $rules);
+        };
+        if ((string) ($filter['id'] ?? '') !== (string) $filterId || !is_array($filter['rules'] ?? null) || $normalise($filter['rules']) !== $normalise($rules)) {
+            throw new \RuntimeException('COM_INTERCOM_AUDIENCE_CHANGED', 409);
+        }
+    }
+
+    public function statistics(int $filterId): int
+    {
+        return \FKT\Component\Intercom\Administrator\Domain\RecipientCount::active($this->request('GET', '/groups/' . (int) $this->config['group_id'] . '/filters/' . $filterId . '/stats'));
+    }
+
     public function prepare(array $message, int $filterId, int $mailingId): int
     {
         $this->assertUnsubscribeForm((string) ($this->config['unsubscribe_form_id'] ?? ''), (int) ($this->config['group_id'] ?? 0));
-        $rules = self::filterRules($message);
+        $rules = $message['audience_rules'] ?? self::filterRules($message);
         $this->request(
             'PUT',
             '/groups/' . (int) $this->config['group_id'] . '/filters/' . $filterId,
@@ -178,8 +212,8 @@ final class CleverReachGateway implements DeliveryGateway, FilterCreator, \FKT\C
         $body = ['name' => 'Intercom ' . gmdate('Y-m-d H:i'), 'subject' =>
             '{IF[language=="da-DK"]}' . $prefix($da['subject_prefix']) . $message['subject_da'] . '{ELSE[language]}' . $prefix($en['subject_prefix']) . $message['subject_en'] . '{ENDIF[language]}',
             'sender_name' => $message['sender'], 'sender_email' => $this->config['sender_email'],
-            'content' => ['type' => 'html/text', 'html' => Message::html($message),
-                'text' => Message::text($message)],
+            'content' => ['type' => 'html/text', 'html' => $message['prepared_html'] ?? Message::html($message),
+                'text' => $message['prepared_text'] ?? Message::text($message)],
             'receivers' => ['filter' => (string) $filterId],
             'settings' => ['editor' => 'advanced', 'unsubscribe_form_id' => (string) $this->config['unsubscribe_form_id'],
                 'category_id' => (string) $category]];

@@ -11,7 +11,7 @@ test('Subject typing updates the envelope without requesting or replacing email 
   fields['tags[]'] = fields['memberships[]'] = {selectedOptions:[]};
   const elements = new Map(), buttons = new Map(), events = new Map(), tasks = new Map(), calls = [];
   const element = id => {
-    if (!elements.has(id)) elements.set(id,{textContent:'',checked:false,value:'',srcdoc:'',setAttribute(){},removeAttribute(){}});
+    if (!elements.has(id)) elements.set(id,{textContent:'',checked:false,value:'',srcdoc:'',setAttribute(){},removeAttribute(){},addEventListener(){}});
     return elements.get(id);
   };
   let time = 0, timer = 0, paints = 0, html = '';

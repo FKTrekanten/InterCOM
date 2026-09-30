@@ -39,6 +39,8 @@ final class Settings
             'sender_email' => $input->getString('sender_email'), 'audience_rules' => json_encode($rules),
             'release_verified' => $input->getBool('release_verified'), 'board_archive_email' => trim($input->getString('board_archive_email')),
             'communication_catalog_version' => (int) ($r->config['communication_catalog_version'] ?? 1),
+            'estimate_cache_minutes' => max(1, min(60, $input->getInt('estimate_cache_minutes', (int) ($r->config['estimate_cache_minutes'] ?? 5)))),
+            'audience_lease_minutes' => max(5, min(240, $input->getInt('audience_lease_minutes', (int) ($r->config['audience_lease_minutes'] ?? 30)))),
             'max_filters' => max(1, min(20, $input->getInt('max_filters', 5)))];
         if ($config['sender_name'] === '' || strlen($config['sender_name']) > 255 || preg_match('/[\x00-\x1f{}<>]/', $config['sender_name'])) {
             throw new \RuntimeException('COM_INTERCOM_INVALID_SETTINGS');

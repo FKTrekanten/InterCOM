@@ -83,6 +83,7 @@ final class Reconciliation
                     $state = in_array($draft['state'], ['deleted', 'cancelled'], true) ? $draft['state'] : 'completed';
                     $this->store->execute("UPDATE #__intercom_drafts SET state='$state',tested_revision=NULL,tested_fingerprint=NULL,updated_at=UTC_TIMESTAMP() WHERE id=$draftId");
                     $this->store->execute("UPDATE #__intercom_filters SET draft_id=NULL WHERE filter_id=$id AND draft_id=$draftId");
+                    (new History($this->store))->completed($draftId, $remote);
                     $this->store->audit($actor, 'mailing.completed', $draftId, ['mailing_id' => (int) $draft['mailing_id'], 'filter_id' => $id, 'previous_state' => $draft['state']]);
                 }
                 $this->record('filters', 'filter_id', $id, $filter, $status, $actor, $draftId);

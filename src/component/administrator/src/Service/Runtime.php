@@ -85,6 +85,6 @@ final class Runtime
 
     public function workflow(User $user): Workflow
     {
-        return new Workflow($this->store, $this->gateway(), $this->policy($user), (int) $user->id, $this->catalog, $this->archive(), $this->reconciliation());
+        return new Workflow($this->store, $this->gateway(), $this->policy($user), (int) $user->id, $this->catalog, $this->archive(), $this->reconciliation(), $this->config);
     }
 }

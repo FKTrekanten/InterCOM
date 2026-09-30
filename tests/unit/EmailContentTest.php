@@ -60,7 +60,7 @@ final class EmailContentTest extends TestCase
         self::assertSame(['operator' => '', 'field' => 'tags', 'logic' => 'CONTAINS', 'condition' => 'group.Youth,group.Senior'], $rules[0]);
         self::assertSame(['operator' => 'AND', 'field' => 'tags', 'logic' => 'CONTAINS', 'condition' => 'membership.A,membership.B'], $rules[1]);
         self::assertSame('2016-10-01', $rules[2]['condition']);
-        self::assertSame('1996-09-29', $rules[3]['condition']);
+        self::assertSame('1995-09-30', $rules[3]['condition']);
         self::assertSame(['operator' => 'AND', 'field' => 'suppression', 'logic' => 'NOCONTAINS', 'condition' => 'club-updates'], $rules[5]);
     }
 

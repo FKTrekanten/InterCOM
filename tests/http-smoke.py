@@ -33,6 +33,10 @@ def call(action, fields, expected=200):
     result = json.loads(raw)
     assert status == expected, (action, status, result)
     return result.get('data')
+audience = call('audience', {'message':json.dumps({'type':'class','sender':'Smoke','tags':['group.Youth']})})
+assert int(audience['mailing_id']) == 0 and int(audience['estimate_count']) == 1 and json.loads(audience['content'])['body_en'] == '', 'Native step transition saves an incomplete draft and estimates without mailing'
+call('delete', {'id':audience['id'],'revision':audience['revision']})
+assert request(api, {'task':'api.audience','message':'{}'})[0] == 403, 'Audience estimate requires native CSRF'
 preview = call('render', {'message': json.dumps({**message, 'format':'html', 'body_da':'<p>Dansk <strong>Ægte</strong></p>', 'body_en':'<p>English</p>'})})
 assert '<strong>Ægte</strong>' in preview['da'] and 'English</p>' not in preview['da'], 'Server preview uses sanitised single-language branded template'
 assert 'Unge, onsdag 17:30' in preview['da'] and 'Youth, Wednesday 17:30' in preview['en'], 'Native composer renderer uses trusted language labels in email footer'
@@ -62,7 +66,7 @@ _, admin_login = request('/administrator/index.php?option=com_intercom')
 status, admin = request('/administrator/index.php', {
     'option':'com_login','task':'login','username':'intercom','passwd':os.environ['INTERCOM_ADMIN_PASSWORD'],
     token(admin_login):'1','return':base64.b64encode(b'index.php?option=com_intercom').decode()})
-assert status == 200 and 'Latest audit entries' in admin, 'Administrator audit dashboard available'
+assert status == 200 and 'Latest sent emails' in admin, 'Administrator audit dashboard available'
 options = '/administrator/index.php?option=com_config&view=component&component=com_intercom'
 _, admin = request(options)
 assert 'jform[sender_name]' in admin and 'jform[sender_email]' in admin, 'Single sender name and email render in Options'
@@ -105,7 +109,9 @@ _, page1 = request('/administrator/index.php?option=com_intercom&view=audit&limi
 _, page2 = request('/administrator/index.php?option=com_intercom&view=audit&limit=10&limitstart=10')
 rows = lambda html: re.findall(r'data-audit-id="(\d+)"', html)
 assert len(rows(page1)) == 10 and rows(page2) and not set(rows(page1)) & set(rows(page2)), 'Audit pages are bounded and distinct'
-print('PASS: Native Options, encrypted credentials/token import, invalid import and audit pagination')
+_, history = request('/administrator/index.php?option=com_intercom&view=history')
+assert 'history-limit' in history and 'Latest audit entries' not in history, 'Native paginated sent-mail history renders'
+print('PASS: Native Options, encrypted credentials/token import, invalid import and audit/history pagination')
 
 management = '/administrator/index.php?option=com_intercom'
 settings = management + '&view=settings'
@@ -162,7 +168,9 @@ _, login = request(management)
 status, overview = request('/administrator/index.php', {'option':'com_login','task':'login','username':'ci-manager',
     'passwd':os.environ['INTERCOM_ADMIN_PASSWORD'],token(login):'1',
     'return':base64.b64encode(b'index.php?option=com_intercom').decode()})
-assert status == 200 and 'Intercom dashboard' in overview and 'Latest audit entries' not in overview and 'ic-admin-stats' not in overview, 'Dashboard hides audit-derived data without permission'
+assert status == 200 and 'Intercom dashboard' in overview and 'Latest sent emails' not in overview and 'ic-admin-stats' not in overview, 'Dashboard hides audit-derived data without permission'
+assert request(management + '&view=history')[0] == 403, 'Sent-mail history requires its dedicated permission'
+assert request(management + '&view=history&id=1')[0] == 403, 'Message detail deep link requires content permission'
 assert request(management + '&view=audit')[0] == 403, 'Audit deep link requires audit permission'
 assert request(management + '&view=filters')[0] == 403, 'Filter deep link requires audit permission'
 assert request(management + '&task=reconciliation.run', {})[0] == 403, 'Manager cannot run reconciliation'

@@ -14,3 +14,5 @@
 .ic-draft-controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:20px 0}.ic-draft-controls .ic-help{flex-basis:100%;margin:0}
 
 .intercom dialog{width:min(480px,calc(100% - 32px));padding:28px;border:1px solid #cfd5d9;border-radius:4px;color:#14181b;font:inherit}.intercom dialog::backdrop{background:#17253488}.intercom dialog p{line-height:1.6}
+
+.intercom .ic-estimate-inline{border-left:3px solid var(--navy);padding:10px 16px;margin:12px 0 22px;background:var(--chalk)}.intercom .ic-estimate-inline p{margin:0 0 8px;font-size:13px;font-weight:600}.intercom .ic-estimate-inline button{padding:7px 12px;font-size:12px}

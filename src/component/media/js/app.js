@@ -8,7 +8,10 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   const initial = Joomla.getOptions('com_intercom', {});
   let draft = initial.draft || null, dirty = !draft, busy = false;
   let step = 0, editLanguage = initial.language || 'da', previewLanguage = editLanguage, previewTheme = 'light';
-  let rendered = null;
+  let rendered = null, audienceDirty = false, estimating = false, activeAt = Date.now();
+  const audienceFields = ['type','tags','memberships','age_from','age_to','gender'];
+  const audienceKey = value => JSON.stringify(Object.fromEntries(audienceFields.map(k => [k, Array.isArray(value[k]) ? [...value[k]].sort() : value[k]])));
+  let savedAudience = initial.message ? audienceKey(initial.message) : '';
   const status = document.getElementById('ic-status');
   const confirm = document.getElementById('ic-confirm');
   const frame = document.getElementById('ic-preview-frame');
@@ -84,6 +87,18 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     document.getElementById('ic-preview-subject').textContent = subjectLabel(initial.types?.[form.elements.type.value]?.prefixes?.[previewLanguage], form.elements['subject_' + previewLanguage].value);
     document.getElementById('ic-preview-sender').textContent = form.elements.sender.value;
     document.querySelectorAll('.intercom [data-preview-lang]').forEach(el => el.setAttribute('aria-pressed', el.dataset.previewLang === previewLanguage));
+    const estimate = document.getElementById('ic-estimate');
+    if (estimate) {
+      const checked = draft?.estimate_checked ? new Date(draft.estimate_checked.replace(' ', 'T') + 'Z') : null;
+      const stale = audienceDirty || !checked || Date.now() - checked.getTime() > (initial.estimateMinutes || 5) * 60000;
+      estimate.textContent = estimating ? text('ESTIMATE_LOADING') : draft?.estimate_error ? text('ESTIMATE_UNAVAILABLE') : draft?.estimate_count != null ? text(initial.simulation ? 'ESTIMATE_SIMULATED' : 'ESTIMATE') + ': ' + draft.estimate_count + (stale ? ' · ' + text('ESTIMATE_STALE') : '') + (checked ? ' · ' + text('ESTIMATE_CHECKED') + ' ' + checked.toLocaleString() : '') : text('ESTIMATE_UNAVAILABLE');
+      estimate.setAttribute('aria-busy', String(estimating));
+      form.querySelectorAll('[data-estimate-line]').forEach(el => {el.textContent = estimate.textContent; el.setAttribute('aria-busy',String(estimating));});
+    }
+    const refresh = document.getElementById('ic-estimate-refresh');
+    form.querySelectorAll('[data-refresh-estimate]').forEach(el => {el.disabled = busy || !editable() || needsTeam();});
+    if (refresh) refresh.disabled = busy || !editable() || needsTeam();
+    if (draft?.estimate_count === 0 || audienceDirty) {confirm.disabled = true; form.querySelector('[data-action=release]').disabled = true;}
     const groups = Array.from(form.elements['tags[]'].selectedOptions).map(el => el.textContent.trim());
     const memberships = Array.from(form.elements['memberships[]'].selectedOptions).map(el => el.textContent.trim());
     document.getElementById('ic-audience-summary').textContent = [...groups, ...memberships].join(', ') || text(initial.allAudience ? 'ALL_AUDIENCE' : 'NO_GROUPS');
@@ -113,6 +128,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   });
   function scheduleRender(immediate = false) { scheduler.schedule(immediate); }
   function changed(render = true) {
+    activeAt = Date.now(); audienceDirty = audienceKey(message()) !== savedAudience;
     dirty = true; confirm.checked = false; status.textContent = text('DIRTY');
     sync(); if (render) scheduleRender();
   }
@@ -133,7 +149,44 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
       closeOnClick = false;
     }, true);
   });
-  form.querySelectorAll('[data-step],[data-go]').forEach(button => button.addEventListener('click', () => showStep(button.dataset.step ?? button.dataset.go)));
+  async function estimateAudience(force = false) {
+    if (busy || !editable() || needsTeam()) return;
+    const snapshot = message(), key = audienceKey(snapshot);
+    const payload = new FormData(form);
+    payload.set('task', 'api.audience'); payload.set('message', JSON.stringify(snapshot));
+    payload.set('id', draft?.id || 0); payload.set('revision', draft?.revision || 0);
+    confirm.checked = false; busy = estimating = true; sync();
+    try {
+      const response = await fetch(form.action, {method:'POST', body:payload, headers:{Accept:'application/json'}});
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || text('ERROR'));
+      draft = result.data; savedAudience = key; audienceDirty = audienceKey(message()) !== key;
+      if (force && !draft.estimate_error) {
+        payload.set('task', 'api.estimate'); payload.set('id', draft.id); payload.set('revision', draft.revision);
+        const refreshed = await fetch(form.action, {method:'POST',body:payload,headers:{Accept:'application/json'}});
+        const count = await refreshed.json();
+        if (!refreshed.ok || !count.success) throw new Error(count.error || text('ERROR'));
+        draft = count.data;
+      }
+      status.textContent = draft.estimate_error ? text('ESTIMATE_UNAVAILABLE') : text('SAVED');
+    } catch (error) {
+      status.textContent = error.message || text('ESTIMATE_UNAVAILABLE');
+      if (draft) draft.estimate_error = true;
+    } finally {busy = estimating = false; sync();}
+  }
+  form.querySelectorAll('[data-step],[data-go]').forEach(button => button.addEventListener('click', async () => {
+    const value = Number(button.dataset.step ?? button.dataset.go), wasRecipients = step === 0;
+    if (busy || showStep(value) === false) return;
+    if (value > 0 && (wasRecipients || audienceDirty) && editable()) await estimateAudience();
+  }));
+  form.querySelectorAll('[data-refresh-estimate]').forEach(button => button.addEventListener('click', () => estimateAudience(true)));
+  document.getElementById('ic-estimate-refresh')?.addEventListener('click', () => estimateAudience(true));
+  setInterval(() => {
+    if (document.hidden || busy || !draft || Date.now() - activeAt > 300000 || Number(draft.mailing_attempted) !== 0) return;
+    const body = new FormData(form); body.set('task','api.keepalive'); body.set('id',draft.id); body.set('revision',draft.revision);
+    fetch(form.action,{method:'POST',body,headers:{Accept:'application/json'}}).catch(() => {});
+    sync();
+  }, 60000);
   form.querySelectorAll('[data-edit-lang]').forEach(button => button.addEventListener('click', () => {showLanguage(button.dataset.editLang); previewLanguage = editLanguage; sync();}));
   document.querySelectorAll('.intercom [data-preview-lang]').forEach(button => button.addEventListener('click', () => {previewLanguage = button.dataset.previewLang; sync();}));
   form.querySelectorAll('[data-firstname]').forEach(button => button.addEventListener('click', () => {
@@ -201,6 +254,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     body.set('id',draft?.id || 0); body.set('revision',draft?.revision || 0);
     const submittedMessage = JSON.stringify(message());
     if (action === 'save') body.set('message',submittedMessage);
+    body.set('approved_count', draft?.estimate_count ?? -1);
     body.set('confirm',confirm.checked ? '1' : '0');
     body.set('send_at',form.elements.send_at.value ? Math.floor(new Date(form.elements.send_at.value).getTime()/1000) : 0);
     if (action === 'save') for (const lang of ['da','en']) previous.set(lang,bodyValue(lang));
@@ -208,15 +262,18 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     try {
       const response = await fetch(form.action,{method:'POST',body,headers:{Accept:'application/json'}});
       const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.error || text('ERROR'));
+      if (!response.ok || !result.success) {
+        if (result.data) draft = result.data; confirm.checked = false;
+        throw new Error(result.error || text('ERROR'));
+      }
       if (action === 'delete') {dirty = false; window.location.assign(initial.composerUrl); return;}
       if (result.data) draft = result.data;
       if (action === 'restore') {dirty = false; window.location.reload(); return;}
       if (action === 'cancel') draft.state = 'cancelled';
       dirty = submittedMessage !== JSON.stringify(message()); confirm.checked = false;
-      if (action === 'save') { if (!dirty) showStep(2); scheduleRender(); }
+      if (action === 'save') {savedAudience = audienceKey(message()); audienceDirty = false; if (!dirty) showStep(2); scheduleRender(); }
       status.textContent = dirty ? text('DIRTY') : text(action === 'preview' ? (initial.simulation ? 'FAKE_TESTED' : 'TESTED') : action === 'release' ? (initial.simulation ? 'FAKE_SUBMITTED' : 'SUBMITTED') : 'SAVED');
-    } catch (e) {status.textContent = e.message || text('ERROR'); if (action === 'release' && draft) draft.state = 'uncertain';}
+    } catch (e) {status.textContent = e.message || text('ERROR'); confirm.checked = false;}
     finally {busy = false; sync();}
   }));
   sync(); scheduleRender(true);

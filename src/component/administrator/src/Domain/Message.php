@@ -6,12 +6,12 @@ namespace FKT\Component\Intercom\Administrator\Domain;
 
 final class Message
 {
-    public static function validate(array $input): array
+    public static function validate(array $input, bool $complete = true): array
     {
         $result = [];
         foreach (['type', 'sender', 'subject_da', 'subject_en', 'body_da', 'body_en'] as $key) {
-            $value = $input[$key] ?? null;
-            if (!is_string($value) || trim($value) === '' || strlen($value) > (str_starts_with($key, 'body') ? 100000 : 255)) {
+            $value = $input[$key] ?? ($complete || $key === 'type' ? null : '');
+            if (!is_string($value) || (($complete || $key === 'type') && trim($value) === '') || strlen($value) > (str_starts_with($key, 'body') ? 100000 : 255)) {
                 throw new \RuntimeException('COM_INTERCOM_INVALID_MESSAGE', 422);
             }
             if (!str_starts_with($key, 'body') && preg_match('/[\x00-\x1f{}]/', $value)) {
@@ -28,39 +28,11 @@ final class Message
         $result['format'] = ($input['format'] ?? 'plain') === 'html' ? 'html' : 'plain';
         foreach (['body_da', 'body_en'] as $body) {
             $result[$body] = $result['format'] === 'html' ? EmailContent::sanitise($result[$body]) : EmailContent::placeholders($result[$body]);
-            if (trim($result['format'] === 'html' ? EmailContent::text($result[$body]) : $result[$body]) === '') {
+            if ($complete && trim($result['format'] === 'html' ? EmailContent::text($result[$body]) : $result[$body]) === '') {
                 throw new \RuntimeException('COM_INTERCOM_INVALID_MESSAGE', 422);
             }
         }
-        foreach (['tags' => 'group.', 'memberships' => 'membership.'] as $key => $prefix) {
-            $values = $input[$key] ?? [];
-            if (!is_array($values) || count($values) > 100) {
-                throw new \RuntimeException('COM_INTERCOM_INVALID_MESSAGE', 422);
-            }
-            foreach ($values as $value) {
-                if (
-                    !is_string($value) || !str_starts_with($value, $prefix) || strlen($value) > 200
-                    || preg_match('/[{},\x00-\x1f]/', $value)
-                ) {
-                    throw new \RuntimeException('COM_INTERCOM_INVALID_MESSAGE', 422);
-                }
-            }
-            $result[$key] = array_values(array_unique($values));
-        }
-        foreach (['age_from', 'age_to'] as $key) {
-            $value = filter_var($input[$key] ?? 0, FILTER_VALIDATE_INT);
-            if ($value === false || $value < 0 || $value > 120) {
-                throw new \RuntimeException('COM_INTERCOM_INVALID_AGE', 422);
-            }
-            $result[$key] = $value;
-        }
-        if ($result['age_from'] && $result['age_to'] && $result['age_from'] >= $result['age_to']) {
-            throw new \RuntimeException('COM_INTERCOM_INVALID_AGE', 422);
-        }
-        $result['gender'] = $input['gender'] ?? '';
-        if (!in_array($result['gender'], ['', 'male', 'female'], true)) {
-            throw new \RuntimeException('COM_INTERCOM_INVALID_MESSAGE', 422);
-        }
+        $result = array_merge($result, Audience::validate($input));
         return $result;
     }
 

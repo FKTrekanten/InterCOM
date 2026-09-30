@@ -8,6 +8,9 @@ use Joomla\CMS\Language\Text;
 $app = Factory::getApplication();
 $user = $app->getIdentity();
 $links = ['dashboard' => ['DASHBOARD', 'dashboard']];
+if ($user->authorise('intercom.history', 'com_intercom')) {
+    $links += ['history' => ['HISTORY', 'history']];
+}
 if ($user->authorise('intercom.audit', 'com_intercom')) {
     $links += ['audit' => ['AUDIT', 'audit'], 'filters' => ['RESERVATIONS', 'filters']];
 }

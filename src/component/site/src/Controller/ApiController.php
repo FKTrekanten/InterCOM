@@ -29,9 +29,12 @@ final class ApiController extends BaseController
             $result = match ($task) {
                 'render' => $this->renderMessage($runtime, $user, json_decode($app->input->post->get('message', '{}', 'raw'), true, 64, JSON_THROW_ON_ERROR)),
                 'save' => $workflow->save(json_decode($app->input->post->get('message', '{}', 'raw'), true, 64, JSON_THROW_ON_ERROR), $id, $revision),
+                'audience' => $this->estimateAudience($workflow, json_decode($app->input->post->get('message', '{}', 'raw'), true, 64, JSON_THROW_ON_ERROR), $id, $revision),
+                'estimate' => $workflow->estimate($id, $revision, true),
+                'keepalive' => $workflow->keepalive($id, $revision),
                 'preview' => $workflow->preview($id, $revision, $user->email),
                 'release' => $app->input->post->getBool('confirm')
-                    ? $workflow->release($id, $revision, $app->input->post->getInt('send_at', 0))
+                    ? $workflow->release($id, $revision, $app->input->post->getInt('send_at', 0), $app->input->post->getInt('approved_count', -1))
                     : throw new \RuntimeException('COM_INTERCOM_DENIED', 403),
                 'cancel' => $workflow->cancel($id, $revision),
                 'delete' => $workflow->delete($id, $revision), 'restore' => $workflow->restore($id, $revision),
@@ -43,10 +46,20 @@ final class ApiController extends BaseController
             http_response_code($status);
             $runtime->store->audit((int) $user->id, 'request.failed', 0, ['status' => $status]);
             $key = str_starts_with($e->getMessage(), 'COM_INTERCOM_') ? $e->getMessage() : 'COM_INTERCOM_ERROR';
-            echo json_encode(['success' => false, 'error' => Text::_($key)]);
+            $result = ['success' => false, 'error' => Text::_($key)];
+            if ($key === 'COM_INTERCOM_COUNT_CHANGED' || $key === 'COM_INTERCOM_NO_RECIPIENTS') {
+                $result['data'] = $runtime->store->draft($app->input->post->getInt('id'), (int) $user->id);
+            }
+            echo json_encode($result);
         }
         $app->close();
     }
+    private function estimateAudience($workflow, array $input, int $id, int $revision): array
+    {
+        $draft = $workflow->saveAudience($input, $id, $revision);
+        return $workflow->estimate((int) $draft['id'], (int) $draft['revision']);
+    }
+
     private function renderMessage($runtime, $user, array $input): array
     {
         // Empty draft content gets preview-only guidance, never persisted as message text.

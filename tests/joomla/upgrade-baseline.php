@@ -3,10 +3,12 @@ require __DIR__ . '/bootstrap.php';
 // Before the first public release, use an explicitly synthetic prior schema.
 // Existing rows from integration.php must survive Joomla's migration runner.
 $id = (int) $db->setQuery("SELECT extension_id FROM #__extensions WHERE element='com_intercom'")->loadResult();
+$db->setQuery('ALTER TABLE #__intercom_drafts DROP COLUMN audience_fingerprint, DROP COLUMN audience_rules, DROP COLUMN estimate_count, DROP COLUMN estimate_checked, DROP COLUMN tested_audience, DROP COLUMN tested_count, DROP COLUMN mailing_attempted, DROP COLUMN lease_until, DROP COLUMN lease_generation')->execute();
 $db->setQuery('ALTER TABLE #__intercom_connections DROP COLUMN account_id')->execute();
 $db->setQuery('ALTER TABLE #__intercom_drafts DROP COLUMN tested_fingerprint, DROP COLUMN tested_revision, DROP COLUMN delivery_mode')->execute();
 $db->setQuery('ALTER TABLE #__intercom_filters DROP COLUMN group_id, DROP COLUMN managed, DROP COLUMN reconciliation_status, DROP COLUMN checked_at')->execute();
 $db->setQuery('DROP TABLE #__intercom_filter_creations')->execute();
+$db->setQuery('DROP TABLE #__intercom_history')->execute();
 foreach (['types', 'type_translations', 'tags', 'catalogues', 'archives', 'design'] as $table) {
     $db->setQuery('DROP TABLE #__intercom_' . $table)->execute();
 }

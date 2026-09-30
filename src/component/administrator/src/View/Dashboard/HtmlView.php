@@ -8,7 +8,7 @@ use Joomla\CMS\MVC\View\HtmlView as BaseView;
 final class HtmlView extends BaseView
 {
     public $runtime;
-    public array $events = [];
+    public array $messages = [];
     public array $statistics = [];
     public array $filters = [];
     public function display($tpl = null)
@@ -21,8 +21,10 @@ final class HtmlView extends BaseView
         if ($app->getIdentity()->authorise('intercom.audit', 'com_intercom')) {
             $activity = new \FKT\Component\Intercom\Administrator\Service\Activity($this->runtime->store, $this->runtime->config);
             $this->statistics = $activity->overview();
-            $this->events = $activity->page('audit', [], 10, 0)['rows'];
             $this->filters = $activity->page('filters', [], 5, 0)['rows'];
+        }
+        if ($app->getIdentity()->authorise('intercom.history', 'com_intercom')) {
+            $this->messages = (new \FKT\Component\Intercom\Administrator\Service\History($this->runtime->store))->page([], 5, 0, true)['rows'];
         }
         parent::display($tpl);
     }

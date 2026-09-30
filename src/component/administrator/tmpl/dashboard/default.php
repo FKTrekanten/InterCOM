@@ -40,12 +40,15 @@ require dirname(__DIR__) . '/navigation.php';
         ?><p><?= $t('ARCHIVE_QUEUE') ?> · <?= $esc($t('ARCHIVE_' . strtoupper($row['state']))) ?>: <?= (int) $row['total'] ?></p><?php
     endforeach; ?>
 </section></div>
-<h2><?= $t('LATEST_AUDIT') ?></h2>
-    <?php $events = $this->events;
-    require dirname(__DIR__) . '/audit-table.php'; ?>
-<p><a href="index.php?option=com_intercom&amp;view=audit"><?= $t('VIEW_ALL_AUDIT') ?> →</a></p>
 <h2><?= $t('RECENT_FILTERS') ?></h2>
     <?php $filterRows = $this->filters;
     require dirname(__DIR__) . '/filter-table.php'; ?>
 <p><a href="index.php?option=com_intercom&amp;view=filters"><?= $t('VIEW_ALL_FILTERS') ?> →</a></p>
+<?php endif; ?>
+
+<?php if ($user->authorise('intercom.history', 'com_intercom')) : ?>
+<h2><?= $t('LATEST_SENT') ?></h2>
+    <?php $messages = $this->messages;
+    require dirname(__DIR__) . '/history-table.php'; ?>
+<p><a href="index.php?option=com_intercom&amp;view=history"><?= $t('VIEW_ALL_HISTORY') ?> →</a></p>
 <?php endif; ?>
