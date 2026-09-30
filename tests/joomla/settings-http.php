@@ -24,3 +24,7 @@ check(!$r->store->row('SELECT filter_id FROM #__intercom_filters WHERE filter_id
 check(!array_key_exists('filter_ids', json_decode($params, true, 64, JSON_THROW_ON_ERROR)), 'Options no longer persists manual filter IDs');
 
 check(($r->config['sender_name'] ?? '')==='CI shared sender', 'Options persists the single sender name');
+
+check(($r->config['unsubscribe_form_id'] ?? '') === '432342', 'Native Options stores legacy unsubscribe ID as a lossless string');
+
+check(($r->config['footer_address'] ?? '') === "HTTP Club address\nSecond address line", 'Native Options normalises browser textarea CRLF');

@@ -6,7 +6,7 @@
 <field name="sender_name" type="text" label="COM_INTERCOM_SENDER" description="COM_INTERCOM_SENDER_NAME_HELP" default="Trekanten Fencing" maxlength="255" required="true" filter="raw" />
 <field name="sender_email" type="email" label="COM_INTERCOM_SENDER_EMAIL" filter="string" />
 <field name="group_id" type="IntercomGroup" label="COM_INTERCOM_GROUP_ID" filter="integer" />
-<field name="unsubscribe_form_id" type="number" label="COM_INTERCOM_UNSUBSCRIBE_FORM_ID" min="0" filter="integer" />
+<field name="unsubscribe_form_id" type="IntercomUnsubscribe" label="COM_INTERCOM_UNSUBSCRIBE_FORM_ID" description="COM_INTERCOM_UNSUBSCRIBE_HELP" filter="raw" />
 <field name="max_filters" type="number" label="COM_INTERCOM_MAX_FILTERS" description="COM_INTERCOM_MAX_FILTERS_HELP" min="1" max="20" default="5" filter="integer" />
 <field name="retention_days" type="number" label="COM_INTERCOM_RETENTION_DAYS" min="1" max="3650" default="30" filter="integer" />
 <field name="release_verified" type="radio" layout="joomla.form.field.radio.switcher" label="COM_INTERCOM_RELEASE_VERIFIED" default="0" filter="integer"><option value="0">JNO</option><option value="1">JYES</option></field>

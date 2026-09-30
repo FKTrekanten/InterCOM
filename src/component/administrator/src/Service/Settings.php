@@ -34,7 +34,7 @@ final class Settings
         }
         $config = ['mode' => $input->getCmd('mode') === 'live' ? 'live' : 'fake',
             'retention_days' => max(1, min(3650, $input->getInt('retention_days', 30))),
-            'group_id' => $input->getInt('group_id'), 'unsubscribe_form_id' => $input->getInt('unsubscribe_form_id'),
+            'group_id' => $input->getInt('group_id'), 'unsubscribe_form_id' => \FKT\Component\Intercom\Administrator\Domain\UnsubscribeForm::identifier($input->get('unsubscribe_form_id', '', 'raw')),
             'sender_name' => trim($sender),
             'sender_email' => $input->getString('sender_email'), 'audience_rules' => json_encode($rules),
             'release_verified' => $input->getBool('release_verified'), 'board_archive_email' => trim($input->getString('board_archive_email')),
@@ -67,6 +67,16 @@ final class Settings
                 if ($reserved && ($current[$key] ?? ($key === 'mode' ? 'fake' : 0)) != $config[$key]) {
                     throw new \RuntimeException('COM_INTERCOM_LIVE_RESERVATIONS');
                 }
+            }
+            if (
+                $config['mode'] === 'live' && (($current['mode'] ?? 'fake') !== 'live'
+                || (string) ($current['unsubscribe_form_id'] ?? '') !== $config['unsubscribe_form_id']
+                || (int) ($current['group_id'] ?? 0) !== $config['group_id'])
+            ) {
+                // Verify changed selections before persisting; unrelated edits can still
+                // preserve an existing selection when the provider is temporarily offline.
+                (new \FKT\Component\Intercom\Administrator\Infrastructure\CleverReachGateway(fn () => $r->connection->token(), $config))
+                    ->assertUnsubscribeForm($config['unsubscribe_form_id'], $config['group_id']);
             }
             if (($current['mode'] ?? 'fake') !== $config['mode']) {
                 // Simulated mailings have no external recipient filter to protect.

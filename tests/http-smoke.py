@@ -67,6 +67,8 @@ _, admin = request(options)
 assert 'jform[sender_name]' in admin and 'jform[sender_email]' in admin, 'Single sender name and email render in Options'
 assert 'id="client_id"' in admin and 'id="access_token"' in admin, 'Secret controls render in native Options'
 assert 'jform_category_club' not in admin and 'jform_audience_rules' not in admin, 'Communication settings moved out of Options'
+assert '<select id="jform_unsubscribe_form_id"' in admin and 'Existing legacy form (432342)' in admin, 'Native Options preserves a legacy selection in the new form dropdown'
+assert request('/administrator/index.php?option=com_intercom&task=connection.forms&format=json&group_id=0')[0] == 422, 'Form listing rejects an invalid list before any provider call'
 assert 'jform_filter_ids' not in admin, 'Obsolete manual filter IDs are absent from Options'
 class HiddenInputs(HTMLParser):
     def __init__(self): super().__init__(); self.values = {}
@@ -76,12 +78,12 @@ class HiddenInputs(HTMLParser):
             self.values[attrs.get('name','')] = attrs.get('value','')
 inputs = HiddenInputs(); inputs.feed(admin)
 status, admin = request('/administrator/index.php?option=com_config', {
-    **inputs.values, 'task':'component.apply', 'jform[footer_profile_da]':'https://example.org/da/profile', 'jform[footer_profile_en]':'https://example.org/en/profile', 'jform[footer_address]':'HTTP Club address', 'jform[sender_name]':'CI shared sender', 'jform[mode]':'fake',
-    'jform[retention_days]':'45'})
+    **inputs.values, 'task':'component.apply', 'jform[footer_profile_da]':'https://example.org/da/profile', 'jform[footer_profile_en]':'https://example.org/en/profile', 'jform[footer_address]':'HTTP Club address\r\nSecond address line', 'jform[sender_name]':'CI shared sender', 'jform[mode]':'fake',
+    'jform[retention_days]':'45','jform[unsubscribe_form_id]':'432342'})
 assert status == 200 and 'Configuration saved' in admin, 'Native Options saves successfully'
 inputs = HiddenInputs(); inputs.feed(admin)
 status, admin = request('/administrator/index.php?option=com_config', {
-    **inputs.values, 'task':'component.apply', 'jform[footer_profile_da]':'https://example.org/da/profile', 'jform[footer_profile_en]':'https://example.org/en/profile', 'jform[footer_address]':'HTTP Club address', 'jform[sender_name]':'CI shared sender', 'jform[mode]':'live',
+    **inputs.values, 'task':'component.apply', 'jform[footer_profile_da]':'https://example.org/da/profile', 'jform[footer_profile_en]':'https://example.org/en/profile', 'jform[footer_address]':'HTTP Club address\r\nSecond address line', 'jform[sender_name]':'CI shared sender', 'jform[mode]':'live',
     'jform[retention_days]':'99','jform[audience_rules]':'[]'})
 assert status == 200 and 'Check the recipient list' in admin, ('Invalid native Options rejected', status, re.findall(r'<joomla-alert[^>]*>(.*?)</joomla-alert>', admin, re.S))
 assert request('/administrator/index.php?option=com_intercom&task=connection.importtokens', {'expires_in':'3600'})[0] == 403, 'Token import requires CSRF'
@@ -161,5 +163,6 @@ assert status == 200 and 'Intercom dashboard' in overview and 'Latest audit entr
 assert request(management + '&view=audit')[0] == 403, 'Audit deep link requires audit permission'
 assert request(management + '&view=filters')[0] == 403, 'Filter deep link requires audit permission'
 assert request(settings + '&section=design')[0] == 403, 'Email design deep link requires admin permission'
+assert request(management + '&task=connection.forms&format=json&group_id=0')[0] == 403, 'Form catalogue requires component admin permission'
 client = admin_client
 print('PASS: Native backend permission boundaries for dashboard, audit, filters and email design')

@@ -28,3 +28,5 @@ foreach (['intercom.type.compose', 'intercom.type.send'] as $action) {
 check(($r->config['sender_name'] ?? '') === 'Trekanten Fencing', 'Native upgrade initializes single sender in Options');
 check(!isset($r->design->snapshot()['settings']['sender_en']), 'Email design excludes sender configuration');
 check((bool)$r->store->row("SHOW COLUMNS FROM #__intercom_tags LIKE 'labels'"), 'Native upgrade installs tag labels');
+
+check((int) ($r->config['unsubscribe_form_id'] ?? 0) === 432342, 'Upgrade preserves legacy unsubscribe selection');

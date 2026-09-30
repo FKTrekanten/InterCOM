@@ -125,7 +125,7 @@ try {
     $newRules = json_encode([['group'=>2, 'all'=>false, 'tags'=>['group.Youth']]]);
     $params['audience_rules'] = $newRules;
     $store->execute('UPDATE #__extensions SET params='.$store->q(json_encode($params))." WHERE element='com_intercom'");
-    $saved = (new \FKT\Component\Intercom\Administrator\Service\Settings($r))->save(['mode'=>'fake','retention_days'=>30,'max_filters'=>2],42);
+    $saved = (new \FKT\Component\Intercom\Administrator\Service\Settings($r))->save(['mode'=>'fake','retention_days'=>30,'max_filters'=>2,'unsubscribe_form_id'=>432342],42);
     check($saved['audience_rules'] === $newRules, 'Options preserves audience grants changed after Runtime was constructed');
 
     $clubPolicy = new Policy(['access'=>true,'compose'=>true,'send'=>true,'club'=>true,'send_club'=>true], ['all'=>true], $catalog->types());
@@ -192,3 +192,15 @@ check($managerTable->bind($managerRecord) && $managerTable->check() && $managerT
 $manager = new \Joomla\CMS\User\User((int)$managerTable->id);
 check($manager->authorise('core.manage','com_intercom') && !$manager->authorise('intercom.audit','com_intercom') && !$manager->authorise('core.admin','com_intercom'),'Manager fixture has component access without audit/admin grants');
 echo "FEATURES OK\n";
+
+// Form UUIDs remain lossless in native settings and invalidate prior approval.
+$store->begin();
+try {
+    $formMessage=\FKT\Component\Intercom\Administrator\Domain\Message::validate(['type'=>'club','sender'=>'Club','subject_da'=>'DA','subject_en'=>'EN','body_da'=>'Dansk','body_en'=>'English','tags'=>[]]);
+    $beforeFormFingerprint=$r->catalog->fingerprint($formMessage);
+    $currentFormSettings=json_decode($store->row("SELECT params FROM #__extensions WHERE element='com_intercom'")['params'],true);
+    $savedFormSettings=(new \FKT\Component\Intercom\Administrator\Service\Settings($r))->save(array_merge($currentFormSettings,['unsubscribe_form_id'=>'06b3cdcb-acd5-4987-8d4f-47673cd418ab']),42);
+    check($savedFormSettings['unsubscribe_form_id']==='06b3cdcb-acd5-4987-8d4f-47673cd418ab','Native settings preserve complete flow UUID');
+    check($beforeFormFingerprint!==$r->catalog->fingerprint($formMessage),'Changing unsubscribe form invalidates previous test fingerprint');
+    $store->rollback();
+} catch (Throwable $e) { $store->rollback(); throw $e; }

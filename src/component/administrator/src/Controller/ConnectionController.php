@@ -24,6 +24,27 @@ final class ConnectionController extends BaseController
 
     private const OPTIONS = 'index.php?option=com_config&view=component&component=com_intercom';
 
+    public function forms(): void
+    {
+        $app = Factory::getApplication();
+        try {
+            $r = $this->runtime(false);
+            $groupId = $app->input->getInt('group_id');
+            if ($groupId < 1) {
+                throw new \RuntimeException('COM_INTERCOM_INVALID_UNSUBSCRIBE', 422);
+            }
+            $gateway = new \FKT\Component\Intercom\Administrator\Infrastructure\CleverReachGateway(fn () => $r->connection->token(), $r->config);
+            $forms = array_map(static fn (array $form): array => ['id' => $form['id'], 'name' => $form['name']], $gateway->unsubscribeForms($groupId));
+            $result = ['success' => true, 'data' => $forms];
+        } catch (\Throwable $e) {
+            http_response_code(in_array($e->getCode(), [403, 422], true) ? $e->getCode() : 502);
+            $result = ['success' => false, 'error' => Text::_('COM_INTERCOM_UNSUBSCRIBE_LOAD_ERROR')];
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($result, JSON_THROW_ON_ERROR);
+        $app->close();
+    }
+
     public function savecredentials(): void
     {
         $r = $this->runtime();

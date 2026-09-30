@@ -18,6 +18,7 @@ foreach ($store->rows("SELECT id FROM #__assets WHERE name LIKE 'com_intercom.co
 $params = json_decode($store->row("SELECT params FROM #__extensions WHERE element='com_intercom'")['params'], true);
 unset($params['communication_catalog_version']);
 $params['categories'] = ['club' => 71];
+$params['unsubscribe_form_id'] = 432342;
 $store->execute('UPDATE #__extensions SET params=' . $store->q(json_encode($params)) . " WHERE element='com_intercom'");
 $asset = new \Joomla\CMS\Table\Asset($db);
 $asset->loadByName('com_intercom');

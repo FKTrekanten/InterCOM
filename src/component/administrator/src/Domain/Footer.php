@@ -20,10 +20,15 @@ final class Footer
         $clean = [];
         foreach (self::defaults() as $key => $default) {
             $value = $input[$key] ?? $default;
-            if (!is_string($value) || strlen($value) > 1000 || preg_match('/[\x00-\x08\x0b-\x1f{}<>]/', $value)) {
+            if (!is_string($value) || strlen($value) > 1000) {
                 throw new \RuntimeException('COM_INTERCOM_INVALID_FOOTER', 422);
             }
-            $value = trim(str_replace("\r\n", "\n", $value));
+            // Native browser forms submit textarea line breaks as CRLF.
+            $value = str_replace("\r\n", "\n", $value);
+            if (preg_match('/[\x00-\x08\x0b-\x1f{}<>]/', $value)) {
+                throw new \RuntimeException('COM_INTERCOM_INVALID_FOOTER', 422);
+            }
+            $value = trim($value);
             if ($key !== 'footer_address' && preg_match('/[\r\n]/', $value)) {
                 throw new \RuntimeException('COM_INTERCOM_INVALID_FOOTER', 422);
             }
