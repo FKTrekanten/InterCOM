@@ -48,6 +48,7 @@ assert status == 200 and 'audit-limit' in admin, 'Administrator audit dashboard 
 options = '/administrator/index.php?option=com_config&view=component&component=com_intercom'
 _, admin = request(options)
 assert 'id="client_id"' in admin and 'id="access_token"' in admin, 'Secret controls render in native Options'
+assert 'jform_filter_ids' not in admin, 'Obsolete manual filter IDs are absent from Options'
 class HiddenInputs(HTMLParser):
     def __init__(self): super().__init__(); self.values = {}
     def handle_starttag(self, tag, attrs):
@@ -58,13 +59,13 @@ inputs = HiddenInputs(); inputs.feed(admin)
 status, admin = request('/administrator/index.php?option=com_config', {
     **inputs.values, 'task':'component.apply', 'jform[mode]':'fake',
     'jform[retention_days]':'45','jform[audience_rules]':'[]',
-    'jform[filter_ids]':'9001,9002,9003,9004', 'jform[category_club]':'71'})
+    'jform[category_club]':'71'})
 assert status == 200 and 'Configuration saved' in admin, 'Native Options saves successfully'
 inputs = HiddenInputs(); inputs.feed(admin)
 status, admin = request('/administrator/index.php?option=com_config', {
     **inputs.values, 'task':'component.apply', 'jform[mode]':'live',
-    'jform[retention_days]':'99','jform[audience_rules]':'[]','jform[filter_ids]':''})
-assert status == 200 and 'Check the list ID' in admin, ('Invalid native Options rejected', status, re.findall(r'<joomla-alert[^>]*>(.*?)</joomla-alert>', admin, re.S))
+    'jform[retention_days]':'99','jform[audience_rules]':'[]'})
+assert status == 200 and 'Check the recipient list' in admin, ('Invalid native Options rejected', status, re.findall(r'<joomla-alert[^>]*>(.*?)</joomla-alert>', admin, re.S))
 assert request('/administrator/index.php?option=com_intercom&task=connection.importtokens', {'expires_in':'3600'})[0] == 403, 'Token import requires CSRF'
 
 status, admin = request('/administrator/index.php?option=com_intercom&task=connection.savecredentials', {

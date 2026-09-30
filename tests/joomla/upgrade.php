@@ -9,3 +9,7 @@ echo "UPGRADE OK\n";
 
 check(array_key_exists("tested_revision", $r->store->row("SELECT * FROM #__intercom_drafts LIMIT 1")), "Native SQL migration restored tested_revision column");
 check(array_key_exists('managed', $r->store->row('SELECT * FROM #__intercom_filters LIMIT 1')), 'Native migration adds filter ownership');
+check(!$r->store->row('SELECT filter_id FROM #__intercom_filters WHERE managed=0 AND draft_id IS NULL'), 'Upgrade retires unreserved manual filters');
+check((bool)$r->store->row("SELECT id FROM #__intercom_audit WHERE event='migration.filters_retired'"), 'Upgrade audits manual filter retirement');
+$params = json_decode($r->store->row("SELECT params FROM #__extensions WHERE element='com_intercom'")['params'], true, 64, JSON_THROW_ON_ERROR);
+check(!array_key_exists('filter_ids', $params), 'Upgrade removes obsolete manual filter setting');

@@ -28,12 +28,11 @@ final class Settings
                 }
             }
         }
-        $filters = array_values(array_unique(array_filter(array_map('intval', explode(',', $input->getString('filter_ids'))), fn ($v) => $v > 0)));
         $config = ['mode' => $input->getCmd('mode') === 'live' ? 'live' : 'fake',
             'retention_days' => max(1, min(3650, $input->getInt('retention_days', 30))),
             'group_id' => $input->getInt('group_id'), 'unsubscribe_form_id' => $input->getInt('unsubscribe_form_id'),
             'sender_email' => $input->getString('sender_email'), 'audience_rules' => json_encode($rules),
-            'release_verified' => $input->getBool('release_verified'), 'categories' => [], 'filter_ids' => implode(',', $filters),
+            'release_verified' => $input->getBool('release_verified'), 'categories' => [],
             'max_filters' => max(1, min(20, $input->getInt('max_filters', 5)))];
         if (
             $config['mode'] === 'live' && (!$config['group_id'] || !$config['unsubscribe_form_id']
@@ -45,7 +44,7 @@ final class Settings
             $config['categories'][$type] = $input->getInt('category_' . $type, 0);
             $config['category_' . $type] = $config['categories'][$type];
         }
-        $r->store->transaction(function () use ($r, $config, $filters, $actor): void {
+        $r->store->transaction(function () use ($r, $config, $actor): void {
             $r->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
             // Do not switch accounts, modes or recipient lists while any filter is reserved.
             $reserved = $r->store->row('SELECT f.filter_id FROM #__intercom_filters f LEFT JOIN #__intercom_drafts d ON d.id=f.draft_id WHERE f.draft_id IS NOT NULL AND (d.delivery_mode IS NULL OR d.delivery_mode != \'fake\') LIMIT 1 FOR UPDATE');
@@ -59,22 +58,16 @@ final class Settings
                 $r->store->execute("UPDATE #__intercom_filters f JOIN #__intercom_drafts d ON d.id=f.draft_id SET f.draft_id=NULL WHERE d.delivery_mode='fake'");
                 $r->store->execute("UPDATE #__intercom_drafts SET filter_id=NULL,tested_revision=NULL,state='cancelled' WHERE delivery_mode='fake' AND state IN ('draft','tested','testing')");
                 $r->store->audit($actor, 'simulation.reservations_cleared');
-                // A new provider configuration must supply its own filter IDs.
-                $r->store->execute('DELETE FROM #__intercom_filters WHERE draft_id IS NULL AND managed=0');
             }
             $json = $r->store->q(json_encode($config, JSON_THROW_ON_ERROR));
             $r->store->execute("UPDATE #__extensions SET params=$json WHERE element='com_intercom' AND type='component'");
-            foreach ($filters as $id) {
-                $r->store->execute("INSERT IGNORE INTO #__intercom_filters (filter_id,group_id,managed) VALUES ($id,0,0)");
-            }
-            // Keep historical reservations for audit, but retire unused IDs removed from Options.
-            $condition = $filters ? ' AND filter_id NOT IN (' . implode(',', $filters) . ')' : '';
-            $r->store->execute('DELETE FROM #__intercom_filters WHERE draft_id IS NULL AND managed=0' . $condition);
+            // Historical reservations remain auditable; unused manual filters are obsolete.
+            $r->store->execute('DELETE FROM #__intercom_filters WHERE draft_id IS NULL AND managed=0');
             $r->store->audit(
                 $actor,
                 'configuration.saved',
                 0,
-                ['configuration' => $config, 'filter_ids' => $filters]
+                ['configuration' => $config]
             );
         });
         return $config;

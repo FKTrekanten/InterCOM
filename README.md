@@ -10,12 +10,12 @@ Requires PHP 8.3+, Composer, Python 3, Node.js (syntax checks), and Docker Compo
 composer install
 python3 scripts/build.py
 bash scripts/stack.sh up
-docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.1.5.zip
+docker compose exec -T joomla php /workspace/tests/joomla/install.php /workspace/dist/pkg_intercom-0.1.6.zip
 ```
 
 Local site: http://localhost:8088. Administrator: `/administrator`. Synthetic local login: `intercom` / `Intercom-local-2026!`. These credentials are only for the localhost-only development stack. Do not deploy this Compose file to production.
 
-Create an Intercom frontend menu item. Configure native Joomla group/type permissions in Intercom → Options. Configure allowed recipient tags and delivery settings in the same Options page. Super Users have all-audience access; other groups start without access. Default delivery is an in-process fake gateway: **no emails leave the system**. Seed fake filter IDs through settings (e.g. 9001,9002) for manual testing. `legacy_base/` is ignored and excluded from packages.
+Create an Intercom frontend menu item. Configure native Joomla group/type permissions in Intercom → Options. Configure allowed recipient tags and delivery settings in the same Options page. Super Users have all-audience access; other groups start without access. Default delivery is an in-process fake gateway: **no emails leave the system**. Simulation creates local filters on demand within the same configured cap. `legacy_base/` is ignored and excluded from packages.
 
 ## Tests
 
@@ -45,7 +45,7 @@ Live delivery requires a controlled one-recipient CR test list (CR has no sandbo
 
 ## Current limitations
 
-First development version uses plain-text composition converted to safe HTML; rich text and the exact branded email template are follow-up work. Native locale resources are included; installing Joomla's Danish language pack and full multilingual menu-switch/browser coverage remain setup/validation work. The admin audience-rule editor is JSON in this initial version. Live release, recipient evaluation timing and scheduled cancellation need one-recipient acceptance testing before production. Permission changes made through Joomla core Options/user administration still need dedicated Intercom audit integration; core action logs are separate. Audit history is paginated, with 20 events by default and choices of 10, 20, 50 or 100. No automatic remote filter reconciliation yet; maintenance flags interrupted operations for review. The system must not be represented as production-ready.
+First development version uses plain-text composition converted to safe HTML; rich text and the exact branded email template are follow-up work. Native locale resources are included; installing Joomla's Danish language pack and full multilingual menu-switch/browser coverage remain setup/validation work. The admin audience-rule editor is JSON in this initial version. One one-recipient release was delivered and confirmed through the CleverReach report; automated one-recipient preflight, preview delivery for delegated users, recipient evaluation timing and scheduled cancellation still need verification before production. Permission changes made through Joomla core Options/user administration still need dedicated Intercom audit integration; core action logs are separate. Audit history is paginated, with 20 events by default and choices of 10, 20, 50 or 100. No automatic remote filter reconciliation yet; maintenance flags interrupted operations for review. The system must not be represented as production-ready.
 
 See [implementation plan](docs/implementation-plan.md) and [design sketch](docs/intercom-sketch.html).
 
@@ -55,7 +55,7 @@ The script never force-pushes, replaces a tag, rolls back commits, or discards s
 
 ## First development milestone
 
-Local verification: Joomla 6.1.3, PHP 8.3.35, MariaDB 10.6; unit tests also pass on host PHP 8.5.7. The component boots with compatibility plugins disabled. Browser checks cover saving/testing/submitting through the fake provider, the administrator configuration screen, and a 390px mobile layout without horizontal overflow. No live credentials or member data were used, and no emails were sent. Joomla's full Danish language pack and multilingual menu setup are still needed for end-to-end locale-switch testing. No public release has been made.
+Local verification: Joomla 6.1.3, PHP 8.3.35, MariaDB 10.6; unit tests also pass on host PHP 8.5.7. The component boots with compatibility plugins disabled. Browser checks cover saving/testing/submitting through the fake provider, the administrator configuration screen, and a 390px mobile layout without horizontal overflow. The initial local milestone used no live credentials or member data. Later acceptance testing used a dedicated one-recipient CleverReach list. Joomla's full Danish language pack and multilingual menu setup are still needed for end-to-end locale-switch testing. No public release has been made.
 
 
 ## Simulation and CleverReach credentials
@@ -70,8 +70,14 @@ In Intercom → Options → CleverReach connection, paste a freshly issued acces
 
 Use the Options toolbar for ordinary settings and permissions; use the separate buttons for credentials/token import. Secret fields always render blank, stay outside native configuration parameters and are never included in audit metadata. The bundled Extension - Intercom plugin validates and audits configuration saves and must remain enabled. Existing credentials and settings survive installation/update. Audit history and filter reservations remain on the component dashboard.
 
-The old numeric filter IDs remain visible in Options for migration only. New live drafts use filters created by Intercom. Historical reservations remain visible on the dashboard for audit but cannot be acquired by new drafts.
+Manual filter IDs are retired on upgrade. New drafts use only filters created by Intercom. Reserved historical rows remain visible on the dashboard for audit and cannot be acquired by new drafts.
 
 ## Managed CleverReach filter pool
 
-Choose the recipient list from CleverReach in Options and set **Maximum Intercom filters per list** (default 5, range 1–20). Existing manual IDs remain visible as read-only legacy data. New live previews reserve an Intercom-owned filter or create one with an initially empty audience when no owned filter is free. The created filter is then updated with the draft's audience rules. The cap includes filters tied to submitted/uncertain mailings and creation requests whose remote outcome is uncertain. Those slots are not recycled without reconciliation; this release does not yet automate reconciliation, so the cap can remain full after sending. The component never overwrites unrelated CleverReach filters. Simulation uses local filters and makes no remote creation request. Changing the selected list is blocked while a live mailing holds a reservation.
+Choose the recipient list from CleverReach in Options and set **Maximum Intercom filters per list** (default 5, range 1–20). New live previews reserve an Intercom-owned filter or create one with an initially empty audience when no owned filter is free. The created filter is then updated with the draft's audience rules. The cap includes filters tied to submitted/uncertain mailings and creation requests whose remote outcome is uncertain. Those slots are not recycled without reconciliation; this release does not yet automate reconciliation, so the cap can remain full after sending. The component never overwrites unrelated CleverReach filters. Simulation uses local filters and makes no remote creation request. Changing the selected list is blocked while a live mailing holds a reservation.
+
+## Preview and unsubscribe forms
+
+CleverReach accepts preview requests only for users of the CleverReach account. An accepted API response does not prove inbox delivery. The composer shows this limitation; operators must inspect the actual test message before release. A provider-independent preview route for delegated Joomla users is tracked separately.
+
+CleverReach has deprecated the v3 forms endpoints. New unsubscribe forms are configured in the CleverReach UI for a recipient list. Intercom still passes a legacy unsubscribe form ID when creating a mailing because the current mailing API exposes that setting and the one-recipient release was verified with it. Do not remove the existing dev form until a list-bound replacement has been verified end to end.

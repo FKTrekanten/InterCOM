@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 0.1.6 development: retire unused manual filter IDs, remove their Options control, and reserve only Intercom-owned filters. Clarify CleverReach preview eligibility and the transition to list-bound forms.
+
 - 0.1.5 development: select the recipient list from CleverReach and create Intercom-owned filters on demand within a configurable cap.
 
 - 0.1.4 development: restrict draft reservations to filter IDs approved in Options and retire unused, unlisted pool IDs when settings are saved. Preserve historical reservations for audit.
@@ -22,4 +24,4 @@
 - Site-secret-derived authenticated encryption for CleverReach credentials.
 - Local MariaDB/Joomla stack, CI and gated release tooling.
 
-This is a development build. Live CleverReach acceptance testing is outstanding.
+This remains a development build. One isolated CleverReach mailing was delivered, but delegated-user previews and automated release preflight remain open.

@@ -68,19 +68,8 @@ final class Workflow
             // New live mailings use only filters created by Intercom for this list.
             $params = json_decode($settings['params'] ?? '{}', true) ?: [];
             $groupId = (int) ($params['group_id'] ?? 0);
-            $legacy = array_values(array_unique(array_filter(
-                array_map('intval', explode(',', (string) ($params['filter_ids'] ?? ''))),
-                static fn ($value) => $value > 0
-            )));
             if (empty($draft['filter_id'])) {
-                if ($configuredMode === 'live') {
-                    $where = "managed=1 AND group_id=$groupId";
-                } else {
-                    $where = 'managed=1 AND group_id=0';
-                    if ($legacy) {
-                        $where = '(' . $where . ' OR (managed=0 AND filter_id IN (' . implode(',', $legacy) . ')))';
-                    }
-                }
+                $where = 'managed=1 AND group_id=' . ($configuredMode === 'live' ? $groupId : 0);
                 $filter = $this->store->row("SELECT filter_id FROM #__intercom_filters WHERE draft_id IS NULL AND $where ORDER BY filter_id LIMIT 1 FOR UPDATE");
                 if (!$filter) {
                     throw new \RuntimeException('COM_INTERCOM_POOL_BUSY', 409);
@@ -93,12 +82,7 @@ final class Workflow
                 throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
             }
             $ownership = $this->store->row("SELECT group_id,managed FROM #__intercom_filters WHERE filter_id={$draft['filter_id']}");
-            if (
-                $configuredMode === 'live' && !(
-                ((int) ($ownership['managed'] ?? 0) === 1 && (int) ($ownership['group_id'] ?? 0) === $groupId)
-                || ((int) ($ownership['managed'] ?? 0) === 0 && in_array((int) $draft['filter_id'], $legacy, true))
-                )
-            ) {
+            if ((int) ($ownership['managed'] ?? 0) !== 1 || (int) ($ownership['group_id'] ?? -1) !== ($configuredMode === 'live' ? $groupId : 0)) {
                 throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
             }
             $state = $operation === 'release' ? 'releasing' : 'testing';
@@ -124,15 +108,16 @@ final class Workflow
                 if ($free) {
                     return null;
                 }
-                $legacy = array_values(array_filter(array_map('intval', explode(',', (string) ($params['filter_ids'] ?? ''))), static fn ($value) => $value > 0));
-                if ($legacy && $this->store->row('SELECT filter_id FROM #__intercom_filters WHERE managed=0 AND draft_id IS NULL AND filter_id IN (' . implode(',', $legacy) . ') LIMIT 1')) {
-                    return null;
-                }
                 $count = (int) ($this->store->row('SELECT COUNT(*) AS n FROM #__intercom_filters WHERE group_id=0 AND managed=1')['n'] ?? 0);
                 if ($count >= $cap) {
                     throw new \RuntimeException('COM_INTERCOM_POOL_BUSY', 409);
                 }
-                $filterId = 4000000001 + $count;
+                // Older simulations can retain IDs after an upgrade; never collide with them.
+                $last = (int) ($this->store->row('SELECT MAX(filter_id) AS id FROM #__intercom_filters WHERE filter_id >= 4000000001')['id'] ?? 4000000000);
+                $filterId = max(4000000000, $last) + 1;
+                if ($filterId > 4294967295) {
+                    throw new \RuntimeException('COM_INTERCOM_POOL_BUSY', 409);
+                }
                 $this->store->execute("INSERT INTO #__intercom_filters (filter_id,group_id,managed) VALUES ($filterId,0,1)");
                 $this->store->audit($this->actor, 'filter.simulated_created', 0, ['filter_id' => $filterId]);
                 return null;

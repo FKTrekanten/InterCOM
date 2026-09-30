@@ -11,8 +11,8 @@ $store->execute('DELETE FROM #__intercom_filters');
 $store->execute('DELETE FROM #__intercom_drafts');
 $store->execute('DELETE FROM #__intercom_revisions');
 $store->execute('DELETE FROM #__intercom_audit');
-$store->execute('INSERT INTO #__intercom_filters (filter_id) VALUES (100),(9001),(9002),(9003)');
-$store->execute("UPDATE #__extensions SET params='{" . '"mode":"fake","filter_ids":"9001,9002,9003"' . "}' WHERE element='com_intercom' AND type='component'");
+$store->execute('INSERT INTO #__intercom_filters (filter_id) VALUES (100),(9001)');
+$store->execute("UPDATE #__extensions SET params='{" . '"mode":"fake","filter_ids":"9001","max_filters":2' . "}' WHERE element='com_intercom' AND type='component'");
 $policy=new Policy(['access'=>true,'compose'=>true,'send'=>true,'class'=>true],['all'=>false,'tags'=>['group.Youth']]);
 $workflow=new Workflow($store,new FakeGateway(),$policy,42);
 $message=['type'=>'class','sender'=>'Club','subject_da'=>'Hej','subject_en'=>'Hello','body_da'=>'Dansk','body_en'=>'English','tags'=>['group.Youth']];
@@ -22,9 +22,12 @@ $draft=$workflow->save($message);$id=(int)$draft['id'];
 try {$workflow->release($id,1,0);throw new Exception('Expected rejection');} catch(RuntimeException $e){check($e->getMessage()==='COM_INTERCOM_CONFLICT','Release requires successful current test');}
 $tested=$workflow->preview($id,1,'one@example.invalid');
 check($tested['state']==='tested','Preview accepted');
-check((int)$tested['filter_id']===9001,'Unlisted old pool ID cannot be reserved');
+check((int)$tested['filter_id']===4000000001,'Legacy manual filters cannot be reserved');
 $second=$workflow->save($message);$second=$workflow->preview((int)$second['id'],1,'one@example.invalid');
 check($tested['filter_id']!==$second['filter_id'],'Separate drafts reserve distinct filters');
+$third=$workflow->save($message);
+try {$workflow->preview((int)$third['id'],1,'one@example.invalid');throw new Exception('Expected cap');}
+catch(RuntimeException $e){check($e->getMessage()==='COM_INTERCOM_POOL_BUSY','Simulated filter cap blocks a third reservation');}
 try {$workflow->save($message,$id,0);throw new Exception('Expected conflict');} catch(RuntimeException $e){check($e->getMessage()==='COM_INTERCOM_CONFLICT','Stale editor revision rejected');}
 $changed=$workflow->save($message,$id,1);check($changed['tested_revision']===null,'Editing invalidates test');
 try {$store->draft($id,99);throw new Exception('Expected denial');} catch(RuntimeException $e){check($e->getCode()===404,'Another owner cannot access draft');}
@@ -65,7 +68,7 @@ echo "INTEGRATION OK\n";
 // Exercise managed live capacity with a local gateway stub; never call CleverReach in CI.
 $store->begin();
 try {
-    $store->execute('UPDATE #__extensions SET params=' . $store->q(json_encode(['mode'=>'live','group_id'=>98765,'filter_ids'=>'','max_filters'=>1])) . " WHERE element='com_intercom'");
+    $store->execute('UPDATE #__extensions SET params=' . $store->q(json_encode(['mode'=>'live','group_id'=>98765,'max_filters'=>1])) . " WHERE element='com_intercom'");
     $managedGateway=new class implements \FKT\Component\Intercom\Administrator\Domain\DeliveryGateway, \FKT\Component\Intercom\Administrator\Domain\FilterCreator {
         public int $created=0;
         public function mode(): string { return 'live'; }

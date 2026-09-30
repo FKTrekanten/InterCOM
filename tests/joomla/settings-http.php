@@ -19,4 +19,5 @@ foreach ([getenv('INTERCOM_TEST_ACCESS_TOKEN'),getenv('INTERCOM_TEST_CLIENT_SECR
 check((bool)$r->store->row("SELECT id FROM #__intercom_audit WHERE event='connection.tokens_imported'"),'Token import audited');
 check((bool)$r->store->row("SELECT id FROM #__intercom_audit WHERE event='configuration.failed'"),'Rejected configuration save audited');
 
-check(!$r->store->row('SELECT filter_id FROM #__intercom_filters WHERE filter_id=100'),'Saving Options retires unlisted unreserved filter');
+check(!$r->store->row('SELECT filter_id FROM #__intercom_filters WHERE filter_id=100'),'Saving Options retires unused legacy filter');
+check(!array_key_exists('filter_ids', json_decode($params, true, 64, JSON_THROW_ON_ERROR)), 'Options no longer persists manual filter IDs');

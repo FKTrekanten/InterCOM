@@ -16,4 +16,4 @@ $db->setQuery("UPDATE #__extensions SET enabled=0 WHERE type='plugin' AND elemen
 check(is_object($app->bootComponent('com_intercom')->runtime),'Native component boots with compatibility plugins disabled');
 echo "INSTALL OK\n";
 check((int)$db->setQuery("SELECT enabled FROM #__extensions WHERE element='intercom' AND folder='extension'")->loadResult()===1,'Options validation plugin enabled');
-check((int)$db->setQuery('SELECT COUNT(*) FROM #__intercom_filter_creations')->loadResult()===0,'Managed filter intent table installed');
+check(is_numeric($db->setQuery('SELECT COUNT(*) FROM #__intercom_filter_creations')->loadResult()),'Managed filter intent table installed');
