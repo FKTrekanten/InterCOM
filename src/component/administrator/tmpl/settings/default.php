@@ -99,13 +99,15 @@ elseif ($this->section === 'types' && $this->record) :
     $rules = json_decode($r->config['audience_rules'] ?? '[]', true) ?: [];
     $scope = array_column($rules, null, 'group'); ?>
 <h2><?= $t('AUDIENCE_ACCESS') ?></h2><p><?= $t('AUDIENCE_ACCESS_HELP') ?></p>
+<p id="ic-all-audience-help"><?= $t('ALL_AUDIENCE_HELP') ?></p>
+<p id="ic-audience-grants-help"><?= $t('AUDIENCE_GRANTS_HELP') ?></p>
 <form action="index.php?option=com_intercom&amp;task=management.savescopes" method="post"><?= HTMLHelper::_('form.token') ?><input type="hidden" name="jform[revision]" value="<?= $esc(hash('sha256', json_encode($rules))) ?>">
 <div class="table-responsive"><table class="table"><thead><tr><th><?= $t('JOOMLA_GROUP') ?></th><th><?= $t('ALL_AUDIENCE') ?></th><th><?= $t('ALLOWED_TAGS') ?></th></tr></thead><tbody>
     <?php foreach ($r->store->rows('SELECT id,title FROM #__usergroups ORDER BY lft') as $group) :
         $id = (int) $group['id'];
         $selected = $scope[$id]['tags'] ?? [];
         $tags = array_values(array_unique(array_merge(array_column($r->catalog->tags(), 'tag'), $selected))); ?>
-<tr><td><?= $esc($group['title']) ?></td><td><input type="checkbox" name="jform[scopes][<?= $id ?>][all]" value="1" aria-label="<?= $esc($group['title']) ?> <?= $t('ALL_AUDIENCE') ?>" <?= !empty($scope[$id]['all']) ? 'checked' : '' ?>></td><td><joomla-field-fancy-select><select multiple name="jform[scopes][<?= $id ?>][tags][]" aria-label="<?= $esc($group['title']) ?> <?= $t('ALLOWED_TAGS') ?>">
+<tr><td><?= $esc($group['title']) ?></td><td><input type="checkbox" name="jform[scopes][<?= $id ?>][all]" value="1" aria-describedby="ic-all-audience-help ic-audience-grants-help" aria-label="<?= $esc($group['title']) ?> <?= $t('ALL_AUDIENCE') ?>" <?= !empty($scope[$id]['all']) ? 'checked' : '' ?>></td><td><joomla-field-fancy-select><select multiple name="jform[scopes][<?= $id ?>][tags][]" aria-label="<?= $esc($group['title']) ?> <?= $t('ALLOWED_TAGS') ?>">
         <?php foreach ($tags as $tag) :
             if (!str_starts_with($tag, 'group.')) {
                 continue;

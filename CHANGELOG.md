@@ -2,6 +2,8 @@
 
 ## 0.3.10 — 2026-09-30
 
+- Explain all-member audience access, combined/inherited grants and the remaining permission and delivery restrictions in Danish and English.
+
 - Clear the native TinyMCE unsaved-content warning only after the current content is saved successfully, so New communication works after saving or testing. Failed saves and later edits retain navigation protection.
 
 ## 0.3.9 — 2026-09-30
