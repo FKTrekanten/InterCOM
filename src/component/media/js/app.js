@@ -91,7 +91,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     if (estimate) {
       const checked = draft?.estimate_checked ? new Date(draft.estimate_checked.replace(' ', 'T') + 'Z') : null;
       const stale = audienceDirty || !checked || Date.now() - checked.getTime() > (initial.estimateMinutes || 5) * 60000;
-      estimate.textContent = estimating ? text('ESTIMATE_LOADING') : draft?.estimate_error ? text('ESTIMATE_UNAVAILABLE') : draft?.estimate_count != null ? text(initial.simulation ? 'ESTIMATE_SIMULATED' : 'ESTIMATE') + ': ' + draft.estimate_count + (stale ? ' · ' + text('ESTIMATE_STALE') : '') + (checked ? ' · ' + text('ESTIMATE_CHECKED') + ' ' + checked.toLocaleString() : '') : text('ESTIMATE_UNAVAILABLE');
+      estimate.textContent = estimating ? text('ESTIMATE_LOADING') : draft?.estimate_error ? text('ESTIMATE_UNAVAILABLE') : draft?.estimate_count != null ? text(initial.simulation ? 'ESTIMATE_SIMULATED' : 'ESTIMATE') + ': ' + draft.estimate_count + (stale ? ' · ' + text('ESTIMATE_STALE') : '') + (checked ? ' · ' + text('ESTIMATE_CHECKED') + ' ' + checked.toLocaleString(initial.locale, {timeZone:initial.timezone || 'UTC'}) : '') : text('ESTIMATE_UNAVAILABLE');
       estimate.setAttribute('aria-busy', String(estimating));
       form.querySelectorAll('[data-estimate-line]').forEach(el => {el.textContent = estimate.textContent; el.setAttribute('aria-busy',String(estimating));});
     }

@@ -53,6 +53,8 @@ foreach ($r->catalog->tags() as $row) {
 }
 $initial['editorBodies'] = ['da' => !empty($content['body_da']) ? Message::bodyHtml($content, 'da') : '', 'en' => !empty($content['body_en']) ? Message::bodyHtml($content, 'en') : ''];
 $initial['availableTeams'] = $tags;
+$initial['locale'] = $app->getLanguage()->getTag();
+$initial['timezone'] = $user->getParam('timezone', $app->get('offset', 'UTC'));
 $initial['estimateMinutes'] = (int) ($r->config['estimate_cache_minutes'] ?? 5);
 $app->getDocument()->addScriptOptions('com_intercom', $initial);
 ?>

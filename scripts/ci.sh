@@ -21,6 +21,7 @@ export INTERCOM_TEST_CLIENT_SECRET="$(python3 -c 'import secrets; print(secrets.
 export INTERCOM_TEST_ACCESS_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
 # Isolated named project and volumes; never resets the developer database.
 export COMPOSE_PROJECT_NAME="intercom-ci-${GITHUB_RUN_ID:-$$}"
+export INTERCOM_MAIL_PORT="${INTERCOM_TEST_MAIL_PORT:-18025}"
 export INTERCOM_PORT="${INTERCOM_TEST_PORT:-18088}"
 cleanup() { docker compose down --volumes --remove-orphans > /dev/null 2>&1; }
 trap cleanup EXIT
@@ -38,6 +39,7 @@ docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/te
 docker compose exec -T --user www-data joomla php /workspace/tests/joomla/scheduler.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/connection.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/estimates.php
+docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/test-delivery.php
 python3 tests/http-smoke.py
 docker compose exec -T --user www-data -e INTERCOM_CI=1 -e INTERCOM_TEST_CLIENT_SECRET -e INTERCOM_TEST_ACCESS_TOKEN joomla php /workspace/tests/joomla/settings-http.php
 echo 'LOCAL CI PASSED'

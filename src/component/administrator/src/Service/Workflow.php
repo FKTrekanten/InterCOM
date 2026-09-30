@@ -12,7 +12,7 @@ use FKT\Component\Intercom\Administrator\Infrastructure\Store;
 
 final class Workflow
 {
-    public function __construct(private Store $store, private DeliveryGateway $gateway, private Policy $policy, private int $actor, private ?Catalog $catalog = null, private ?Archive $archive = null, private ?Reconciliation $reconciliation = null, private ?array $providerConfig = null)
+    public function __construct(private Store $store, private DeliveryGateway $gateway, private Policy $policy, private int $actor, private ?Catalog $catalog = null, private ?Archive $archive = null, private ?Reconciliation $reconciliation = null, private ?array $providerConfig = null, private ?TestDelivery $testDelivery = null)
     {
     }
 
@@ -403,13 +403,17 @@ final class Workflow
             $mailing = $this->gateway->prepare($message, (int) $draft['filter_id'], (int) $draft['mailing_id']);
             $this->store->execute("UPDATE #__intercom_history SET mailing_id=$mailing WHERE draft_id=$id AND state='prepared'");
             $this->store->execute("UPDATE #__intercom_drafts SET mailing_id=$mailing WHERE id=$id AND state='testing'");
-            $this->gateway->preview($mailing, $email);
+            if ($this->testDelivery && $this->gateway->mode() === 'live') {
+                $this->testDelivery->deliver($snapshot, $email);
+            } else {
+                $this->gateway->preview($mailing, $email);
+            }
             $this->store->transaction(function () use ($id, $revision, $draft): void {
                 $fingerprint = $this->store->q($draft['current_fingerprint'] ?? '');
                 $testedAudience = $this->store->q($draft['audience_fingerprint'] ?? '');
                 $testedCount = $draft['estimate_count'] === null ? 'NULL' : (int) $draft['estimate_count'];
                 $this->store->execute("UPDATE #__intercom_drafts SET tested_audience=$testedAudience,tested_count=$testedCount,tested_fingerprint=$fingerprint,state='tested',tested_revision=$revision,updated_at=UTC_TIMESTAMP() WHERE id=$id AND state='testing'");
-                $this->store->audit($this->actor, 'preview.accepted', $id, ['revision' => $revision]);
+                $this->store->audit($this->actor, 'preview.accepted', $id, ['revision' => $revision, 'transport' => $this->testDelivery && $this->gateway->mode() === 'live' ? 'joomla' : $this->gateway->mode(), 'inbox_confirmed' => false]);
             });
         } catch (\Throwable $e) {
             $state = isset($mailing) ? 'draft' : 'uncertain';

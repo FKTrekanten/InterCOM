@@ -83,8 +83,23 @@ final class Runtime
         return $gateway instanceof \FKT\Component\Intercom\Administrator\Domain\ReconciliationGateway ? new Reconciliation($this->store, $gateway, $this->config) : null;
     }
 
+    public function testDelivery(): TestDelivery
+    {
+        return new TestDelivery(static function (string $address, array $payload): bool {
+            $app = \Joomla\CMS\Factory::getApplication();
+            $mail = \Joomla\CMS\Factory::getContainer()->get(\Joomla\CMS\Mail\MailerFactoryInterface::class)->createMailer();
+            $mail->setSender([$app->get('mailfrom'), $app->get('fromname')]);
+            $mail->addRecipient($address);
+            $mail->setSubject($payload['subject']);
+            $mail->isHtml(true);
+            $mail->setBody($payload['html']);
+            $mail->AltBody = $payload['text'];
+            return $mail->send() === true;
+        });
+    }
+
     public function workflow(User $user): Workflow
     {
-        return new Workflow($this->store, $this->gateway(), $this->policy($user), (int) $user->id, $this->catalog, $this->archive(), $this->reconciliation(), $this->config);
+        return new Workflow($this->store, $this->gateway(), $this->policy($user), (int) $user->id, $this->catalog, $this->archive(), $this->reconciliation(), $this->config, $this->testDelivery());
     }
 }

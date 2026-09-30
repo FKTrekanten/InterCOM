@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.7
+
+Deliver bilingual composer tests through Joomla's native mail service so delegated users do not need CleverReach account access. Add a pinned local Mailpit inbox and real SMTP regression coverage. Keep provider unsubscribe acceptance separate from sample test links, and use native timezone settings for recipient estimate timestamps.
+
 ## 0.3.6
 
 Save and estimate recipient audiences when entering Content, with safe mailing-free lease expiry and fresh pre-send count confirmation. Add frozen bilingual sent-mail history with a dedicated permission, pagination and five latest confirmed sends on the dashboard. Preserve older reservations and label reconstructed/expired history. Correct inclusive maximum-age boundaries.
