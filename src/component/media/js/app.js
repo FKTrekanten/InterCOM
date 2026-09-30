@@ -1,4 +1,5 @@
 import { JoomlaEditor } from 'editor-api';
+import { DraftCache, composerControls } from './draft-cache.mjs';
 import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
 
 (() => {
@@ -12,6 +13,22 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   const audienceFields = ['type','tags','memberships','age_from','age_to','gender'];
   const audienceKey = value => JSON.stringify(Object.fromEntries(audienceFields.map(k => [k, Array.isArray(value[k]) ? [...value[k]].sort() : value[k]])));
   let savedAudience = initial.message ? audienceKey(initial.message) : '';
+  let storage; try {storage = window.localStorage;} catch {}
+  const cache = new DraftCache(storage, initial.cacheContext, initial.retentionDays);
+  let cacheId = draft?.id || 0, cacheTimer, estimatePromise = null, restoredBodies = null;
+  const localStatus = document.getElementById('ic-local-status');
+  const persistLocal = () => {
+    if (!editable() || !dirty) return;
+    const ok = cache.save(cacheId, Number(draft?.revision || 0), message(), editLanguage, step);
+    localStatus.textContent = text(ok ? 'LOCAL_SAVED' : 'LOCAL_UNAVAILABLE');
+  };
+  const rememberDraft = () => {
+    if (!draft) return;
+    document.getElementById('ic-new-message').hidden = false;
+    if (cacheId !== draft.id) {cache.clear(cacheId); cacheId = draft.id;}
+    const url = new URL(window.location.href); url.searchParams.delete('new'); url.searchParams.set('id',draft.id); window.history.replaceState(null,'',url);
+    persistLocal();
+  };
   const status = document.getElementById('ic-status');
   const confirm = document.getElementById('ic-confirm');
   const frame = document.getElementById('ic-preview-frame');
@@ -75,11 +92,12 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     return true;
   }
   function sync() {
-    form.querySelector('[data-action=save]').disabled = busy || !editable();
-    form.querySelector('[data-action=preview]').disabled = busy || !draft || dirty || !editable();
-    confirm.disabled = busy || !draft || dirty || draft.state !== 'tested';
+    const controls = composerControls(draft, {busy,dirty,audienceDirty,approved:initial.releaseApproved});
+    form.querySelector('[data-action=save]').disabled = !controls.save;
+    form.querySelector('[data-action=preview]').disabled = !controls.preview;
+    confirm.disabled = !controls.confirm;
     form.querySelector('[data-action=release]').disabled = confirm.disabled || !confirm.checked;
-    form.querySelector('[data-action=delete]').disabled = busy || !draft || !['draft','tested','cancelled'].includes(draft.state);
+    form.querySelector('[data-action=delete]').disabled = !controls.delete;
     const restore = form.querySelector('[data-action=restore]');
     restore.hidden = draft?.state !== 'deleted'; restore.disabled = busy;
     form.querySelector('[data-action=cancel]').disabled = busy || !draft || dirty || !editable();
@@ -98,6 +116,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     const refresh = document.getElementById('ic-estimate-refresh');
     form.querySelectorAll('[data-refresh-estimate]').forEach(el => {el.disabled = busy || !editable() || needsTeam();});
     if (refresh) refresh.disabled = busy || !editable() || needsTeam();
+    document.getElementById('ic-send-help').textContent = !initial.releaseApproved ? text('RELEASE_NOT_VERIFIED') : !draft || dirty || draft.state !== 'tested' ? text('TEST_REQUIRED') : '';
     if (draft?.estimate_count === 0 || audienceDirty) {confirm.disabled = true; form.querySelector('[data-action=release]').disabled = true;}
     const groups = Array.from(form.elements['tags[]'].selectedOptions).map(el => el.textContent.trim());
     const memberships = Array.from(form.elements['memberships[]'].selectedOptions).map(el => el.textContent.trim());
@@ -130,6 +149,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   function changed(render = true) {
     activeAt = Date.now(); audienceDirty = audienceKey(message()) !== savedAudience;
     dirty = true; confirm.checked = false; status.textContent = text('DIRTY');
+    clearTimeout(cacheTimer); cacheTimer = setTimeout(persistLocal,500);
     sync(); if (render) scheduleRender();
   }
   // Joomla's multi-select does not toggle closed when its existing trigger is clicked.
@@ -149,30 +169,35 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
       closeOnClick = false;
     }, true);
   });
-  async function estimateAudience(force = false) {
+  function estimateAudience(force = false) {
+    if (estimatePromise) return estimatePromise;
+    estimatePromise = runEstimate(force).finally(() => {estimatePromise = null;});
+    return estimatePromise;
+  }
+  async function runEstimate(force) {
     if (busy || !editable() || needsTeam()) return;
     const snapshot = message(), key = audienceKey(snapshot);
     const payload = new FormData(form);
-    payload.set('task', 'api.audience'); payload.set('message', JSON.stringify(snapshot));
+    payload.set('task', 'api.saveaudience'); payload.set('message', JSON.stringify(snapshot));
     payload.set('id', draft?.id || 0); payload.set('revision', draft?.revision || 0);
-    confirm.checked = false; busy = estimating = true; sync();
+    confirm.checked = false; estimating = true; sync();
     try {
       const response = await fetch(form.action, {method:'POST', body:payload, headers:{Accept:'application/json'}});
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || text('ERROR'));
       draft = result.data; savedAudience = key; audienceDirty = audienceKey(message()) !== key;
-      if (force && !draft.estimate_error) {
-        payload.set('task', 'api.estimate'); payload.set('id', draft.id); payload.set('revision', draft.revision);
-        const refreshed = await fetch(form.action, {method:'POST',body:payload,headers:{Accept:'application/json'}});
-        const count = await refreshed.json();
-        if (!refreshed.ok || !count.success) throw new Error(count.error || text('ERROR'));
-        draft = count.data;
-      }
+      rememberDraft();
+      payload.set('force',force ? '1' : '0'); payload.set('task', 'api.estimate'); payload.set('id', draft.id); payload.set('revision', draft.revision);
+      // Exactly one count request. Persist the local/server draft identity before slow provider work.
+      const refreshed = await fetch(form.action, {method:'POST',body:payload,headers:{Accept:'application/json'}});
+      const count = await refreshed.json();
+      if (!refreshed.ok || !count.success) throw new Error(count.error || text('ERROR'));
+      draft = count.data; rememberDraft();
       status.textContent = draft.estimate_error ? text('ESTIMATE_UNAVAILABLE') : text('SAVED');
     } catch (error) {
       status.textContent = error.message || text('ESTIMATE_UNAVAILABLE');
       if (draft) draft.estimate_error = true;
-    } finally {busy = estimating = false; sync();}
+    } finally {estimating = false; sync();}
   }
   form.querySelectorAll('[data-step],[data-go]').forEach(button => button.addEventListener('click', async () => {
     const value = Number(button.dataset.step ?? button.dataset.go), wasRecipients = step === 0;
@@ -182,7 +207,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   form.querySelectorAll('[data-refresh-estimate]').forEach(button => button.addEventListener('click', () => estimateAudience(true)));
   document.getElementById('ic-estimate-refresh')?.addEventListener('click', () => estimateAudience(true));
   setInterval(() => {
-    if (document.hidden || busy || !draft || Date.now() - activeAt > 300000 || Number(draft.mailing_attempted) !== 0) return;
+    if (document.hidden || busy || estimating || !draft || Date.now() - activeAt > 300000 || Number(draft.mailing_attempted) !== 0) return;
     const body = new FormData(form); body.set('task','api.keepalive'); body.set('id',draft.id); body.set('revision',draft.revision);
     fetch(form.action,{method:'POST',body,headers:{Accept:'application/json'}}).catch(() => {});
     sync();
@@ -201,7 +226,33 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     changed();
   }));
   document.querySelectorAll('.intercom [data-preview-theme]').forEach(button => button.addEventListener('click', () => {previewTheme = button.dataset.previewTheme; sync();}));
-  showStep(0); showLanguage(editLanguage);
+  let recoveredStep = 0;
+  const recovery = editable() && !initial.fresh ? cache.load(cacheId, Number(draft?.revision || 0)) : null;
+  if (!editable()) cache.clear(cacheId);
+  if (recovery) {
+    const recovered = recovery.message;
+    const allowed = ['tags','memberships'].every(k => recovered[k].every(v => Array.from(form.elements[k + '[]'].options).some(o => o.value === v)))
+      && Array.from(form.querySelectorAll('input[name=type]')).some(r => r.value === recovered.type);
+    if (allowed) {
+      for (const [key,value] of Object.entries(recovered)) {
+        if (Array.isArray(value)) {
+          const select = form.elements[key + '[]'];
+          Array.from(select.options).forEach(o => {o.selected = value.includes(o.value);});
+          const choices = select.closest('joomla-field-fancy-select')?.choicesInstance;
+          if (choices) {choices.removeActiveItems(); choices.setChoiceByValue(value);}
+        }
+        else if (form.elements.namedItem(key)) form.elements.namedItem(key).value = value;
+      }
+      recoveredStep = recovery.step;
+      restoredBodies = {da:recovered.body_da,en:recovered.body_en};
+      for (const lang of ['da','en']) {const editor = JoomlaEditor.get('body_' + lang); if (editor) {editor.setValue(restoredBodies[lang]); delete restoredBodies[lang];}}
+      dirty = JSON.stringify(recovered) !== JSON.stringify(initial.message || {});
+      audienceDirty = audienceKey(recovered) !== savedAudience;
+      editLanguage = recovery.language === 'da' ? 'da' : 'en'; previewLanguage = editLanguage;
+      localStatus.textContent = text('LOCAL_RECOVERED');
+    }
+  }
+  showStep(recoveredStep); showLanguage(editLanguage);
   form.addEventListener('submit', e => e.preventDefault());
   form.addEventListener('input', e => {
     if (e.target.classList.contains('choices__input')) return;
@@ -219,6 +270,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     for (const lang of ['da','en']) {
       const editor = JoomlaEditor.get('body_' + lang);
       if (!editor) continue;
+      if (restoredBodies && Object.hasOwn(restoredBodies,lang)) {editor.setValue(restoredBodies[lang]); delete restoredBodies[lang]; previous.set(lang,editor.getValue());}
       const value = editor.getValue();
       if (!previous.has(lang) && value.trim()) firstProvider = true;
       if (previous.has(lang) && value !== previous.get(lang)) changed();
@@ -227,7 +279,9 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     // Providers may initialise after the first request; refresh their baseline without dirtying a saved draft.
     if (firstProvider) scheduleRender(true);
   }, 300);
-  window.addEventListener('beforeunload', e => {if (dirty && form.elements.subject_da.value) {e.preventDefault(); e.returnValue = '';}});
+  document.addEventListener('visibilitychange', () => {if (document.hidden) persistLocal();});
+  window.addEventListener('pagehide',persistLocal);
+  window.addEventListener('beforeunload', e => {persistLocal(); if (dirty && ['subject_da','subject_en','body_da','body_en'].some(k => message()[k].trim())) {e.preventDefault(); e.returnValue = '';}});
   function confirmDelete() {
     const dialog = document.getElementById('ic-delete-dialog');
     dialog.returnValue = 'cancel';
@@ -239,15 +293,19 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   form.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', async () => {
     const action = button.dataset.action;
     if (busy) return;
+    if (estimatePromise) {status.textContent = text('ESTIMATE_LOADING'); await estimatePromise;}
+    if (busy || (!editable() && !['delete','restore'].includes(action))) return;
     // Catch an iframe editor change even when this click precedes the polling tick.
     for (const lang of ['da','en']) {
       const loaded = initial.editorBodies?.[lang];
       const baseline = previous.has(lang) ? previous.get(lang) : loaded;
       if (baseline !== undefined && bodyValue(lang) !== baseline) changed();
     }
-    if (!['save','delete','restore'].includes(action) && dirty) return;
+    if (!['save','preview','delete','restore'].includes(action) && dirty) return;
     if (action === 'delete' && !await confirmDelete()) return;
-    if (action === 'save' && !validForm()) return;
+    if (action === 'save' && needsTeam()) {showStep(0); showStep(1); return;}
+    if (action === 'preview' && !validForm()) return;
+    if (action === 'delete' && !draft) {cache.clear(cacheId); dirty = false; window.location.assign(initial.composerUrl); return;}
     if (action === 'release' && !window.confirm(text('CONFIRM_SEND'))) return;
     const body = new FormData(form);
     body.set('task','api.' + action);
@@ -260,18 +318,30 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     if (action === 'save') for (const lang of ['da','en']) previous.set(lang,bodyValue(lang));
     busy = true; sync();
     try {
+      if (action === 'preview' && (dirty || !draft)) {
+        const save = new FormData(form); save.set('task','api.save'); save.set('message',submittedMessage);
+        save.set('id',draft?.id || 0); save.set('revision',draft?.revision || 0);
+        const savedResponse = await fetch(form.action,{method:'POST',body:save,headers:{Accept:'application/json'}});
+        const savedResult = await savedResponse.json();
+        if (!savedResponse.ok || !savedResult.success) throw new Error(savedResult.error || text('ERROR'));
+        draft = savedResult.data; savedAudience = audienceKey(JSON.parse(submittedMessage)); audienceDirty = audienceKey(message()) !== savedAudience; dirty = submittedMessage !== JSON.stringify(message()); rememberDraft();
+        if (dirty) throw new Error(text('DIRTY'));
+        body.set('id',draft.id); body.set('revision',draft.revision);
+      }
       const response = await fetch(form.action,{method:'POST',body,headers:{Accept:'application/json'}});
       const result = await response.json();
       if (!response.ok || !result.success) {
         if (result.data) draft = result.data; confirm.checked = false;
         throw new Error(result.error || text('ERROR'));
       }
-      if (action === 'delete') {dirty = false; window.location.assign(initial.composerUrl); return;}
+      if (action === 'delete') {cache.clear(cacheId); dirty = false; window.location.assign(initial.composerUrl); return;}
       if (result.data) draft = result.data;
-      if (action === 'restore') {dirty = false; window.location.reload(); return;}
+      if (action === 'restore') {cache.clear(cacheId); dirty = false; window.location.reload(); return;}
       if (action === 'cancel') draft.state = 'cancelled';
       dirty = submittedMessage !== JSON.stringify(message()); confirm.checked = false;
-      if (action === 'save') {savedAudience = audienceKey(message()); audienceDirty = false; if (!dirty) showStep(2); scheduleRender(); }
+      rememberDraft();
+      if (!dirty) {cache.clear(cacheId); localStatus.textContent = '';}
+      if (action === 'save') {savedAudience = audienceKey(JSON.parse(submittedMessage)); audienceDirty = audienceKey(message()) !== savedAudience; scheduleRender(); }
       status.textContent = dirty ? text('DIRTY') : text(action === 'preview' ? (initial.simulation ? 'FAKE_TESTED' : 'TESTED') : action === 'release' ? (initial.simulation ? 'FAKE_SUBMITTED' : 'SUBMITTED') : 'SAVED');
     } catch (e) {status.textContent = e.message || text('ERROR'); confirm.checked = false;}
     finally {busy = false; sync();}

@@ -24,7 +24,7 @@ $editors = Factory::getContainer()->get(EditorsRegistry::class);
 $editors->initRegistry();
 $editorName = (string) $user->getParam('editor', $app->get('editor', 'tinymce'));
 $editor = $editors->get($editors->has($editorName) ? $editorName : 'none');
-foreach (['SAVED','TESTED','SUBMITTED','DIRTY','ERROR','CONFIRM_SEND','INVALID_MESSAGE','FAKE_TESTED','FAKE_SUBMITTED','ALL_AUDIENCE','NO_GROUPS','GROUP_REQUIRED','PREVIEW_UPDATING','PREVIEW_UPDATED','PREVIEW_OUTDATED','CONFIRM_DELETE','DELETED','RESTORED','ESTIMATE','ESTIMATE_CHECKED','ESTIMATE_STALE','ESTIMATE_UNAVAILABLE','ESTIMATE_LOADING','ESTIMATE_SIMULATED','COUNT_CHANGED','NO_RECIPIENTS'] as $key) {
+foreach (['SAVED','TESTED','SUBMITTED','DIRTY','ERROR','CONFIRM_SEND','INVALID_MESSAGE','FAKE_TESTED','FAKE_SUBMITTED','ALL_AUDIENCE','NO_GROUPS','GROUP_REQUIRED','PREVIEW_UPDATING','PREVIEW_UPDATED','PREVIEW_OUTDATED','CONFIRM_DELETE','DELETED','RESTORED','ESTIMATE','ESTIMATE_CHECKED','ESTIMATE_STALE','ESTIMATE_UNAVAILABLE','ESTIMATE_LOADING','ESTIMATE_SIMULATED','COUNT_CHANGED','NO_RECIPIENTS','LOCAL_RECOVERED','LOCAL_SAVED','LOCAL_UNAVAILABLE','DRAFT_READONLY','TEST_REQUIRED','RELEASE_NOT_VERIFIED'] as $key) {
     Text::script('COM_INTERCOM_' . $key);
 }
 $id = $app->input->getInt('id');
@@ -38,7 +38,7 @@ $typeOptions = [];
 foreach ($definitions as $key => $definition) {
     $typeOptions[$key] = ['requireGroup' => $definition['require_group'], 'prefixes' => ['da' => Message::translation($definition, 'da-DK')['subject_prefix'], 'en' => Message::translation($definition, 'en-GB')['subject_prefix']]];
 }
-$initial = ['composerUrl' => Route::_('index.php?option=com_intercom&view=composer', false), 'types' => $typeOptions, 'language' => str_starts_with($app->getLanguage()->getTag(), 'da') ? 'da' : 'en', 'allAudience' => $policy->scope()['all'], 'draft' => $draft, 'message' => $content, 'simulation' => ($r->config['mode'] ?? 'fake') === 'fake'];
+$initial = ['composerUrl' => Route::_('index.php?option=com_intercom&view=composer&Itemid=' . $app->input->getInt('Itemid'), false), 'types' => $typeOptions, 'language' => str_starts_with($app->getLanguage()->getTag(), 'da') ? 'da' : 'en', 'allAudience' => $policy->scope()['all'], 'draft' => $draft, 'message' => $content, 'simulation' => ($r->config['mode'] ?? 'fake') === 'fake'];
 
 $tags = $memberships = $tagLabels = [];
 foreach ($r->catalog->tags() as $row) {
@@ -51,15 +51,23 @@ foreach ($r->catalog->tags() as $row) {
         $memberships[] = $row['tag'];
     }
 }
+$initial['newUrl'] = Route::_('index.php?option=com_intercom&view=composer&new=1&Itemid=' . $app->input->getInt('Itemid'), false);
+$initial['fresh'] = !$id && $app->input->getBool('new');
 $initial['editorBodies'] = ['da' => !empty($content['body_da']) ? Message::bodyHtml($content, 'da') : '', 'en' => !empty($content['body_en']) ? Message::bodyHtml($content, 'en') : ''];
 $initial['availableTeams'] = $tags;
 $initial['locale'] = $app->getLanguage()->getTag();
 $initial['timezone'] = $user->getParam('timezone', $app->get('offset', 'UTC'));
+$initial['cacheContext'] = (int) $user->id . '.' . hash('sha256', ($r->config['mode'] ?? 'fake') . ':' . ($r->config['group_id'] ?? 0) . ':' . ($r->connection->accountId()));
+$initial['retentionDays'] = (int) ($r->config['retention_days'] ?? 30);
+$initial['releaseApproved'] = $initial['simulation'] || (new \FKT\Component\Intercom\Administrator\Service\ReleaseApproval($r->store))->valid();
 $initial['estimateMinutes'] = (int) ($r->config['estimate_cache_minutes'] ?? 5);
 $app->getDocument()->addScriptOptions('com_intercom', $initial);
 ?>
 <div class="intercom">
-<header><p class="ic-eyebrow">INTERCOM</p><h1><?= $t('NEW') ?></h1><p><?= $t('INTRO') ?></p></header>
+<header><p class="ic-eyebrow">INTERCOM</p><a class="ic-quiet" id="ic-new-message" href="<?= $esc($initial['newUrl']) ?>" <?= $draft ? '' : 'hidden' ?>><?= $t('NEW') ?> →</a><h1><?= $t('NEW') ?></h1><p><?= $t('INTRO') ?></p></header>
+<?php if ($draft && !in_array($draft['state'], ['draft', 'tested'], true)) :
+    ?><p class="ic-notice"><?= $t('DRAFT_READONLY') ?> <a href="<?= $esc($initial['newUrl']) ?>"><?= $t('NEW') ?></a></p><?php
+endif; ?>
 <p class="ic-notice"><?= $t('NOTICE') ?></p><p class="ic-mode"><?= $t(($r->config['mode'] ?? 'fake') === 'fake' ? 'FAKE' : 'LIVE') ?></p>
 <div class="ic-layout"><form id="ic-form" action="<?= $esc(Route::_('index.php?option=com_intercom&format=json', false)) ?>" method="post">
 <?= HTMLHelper::_('form.token') ?>
@@ -96,7 +104,7 @@ $app->getDocument()->addScriptOptions('com_intercom', $initial);
 <button type="button" class="ic-quiet ic-firstname" data-firstname="<?= $lang ?>"><?= $t('INSERT_FIRSTNAME') ?></button>
 </div>
 <?php endforeach; ?><p class="ic-help"><?= $t('TEXT_HELP') ?></p><div class="ic-actions"><button class="ic-quiet" type="button" data-go="0">← <?= $t('RECIPIENTS') ?></button><button type="button" data-action="save"><?= $t('SAVE') ?></button><button type="button" data-go="2"><?= $t('TO_TEST') ?> →</button></div></fieldset>
-<fieldset data-panel="2"><legend><?= $t('TEST_SEND') ?></legend><div class="ic-estimate-inline"><p data-estimate-line role="status" aria-live="polite"></p><button type="button" class="ic-quiet" data-refresh-estimate><?= $t('REFRESH_ESTIMATE') ?></button></div><p class="ic-help"><?= $t('TEST_HELP') ?></p><div class="ic-test-box"><p><?= $esc($user->email) ?></p><button type="button" data-action="preview" disabled><?= $t('PREVIEW') ?></button></div><label class="ic-check"><input id="ic-confirm" type="checkbox" disabled> <?= $t('CONFIRM') ?></label><label><?= $t('SEND_AT') ?><input name="send_at" type="datetime-local"></label><div class="ic-actions"><button class="ic-quiet" type="button" data-go="1">← <?= $t('CONTENT') ?></button><button type="button" data-action="release" disabled><?= $t('RELEASE') ?></button><button type="button" data-action="cancel" disabled><?= $t('CANCEL') ?></button></div></fieldset><p id="ic-status" role="status" aria-live="polite"></p>
+<fieldset data-panel="2"><legend><?= $t('TEST_SEND') ?></legend><div class="ic-estimate-inline"><p data-estimate-line role="status" aria-live="polite"></p><button type="button" class="ic-quiet" data-refresh-estimate><?= $t('REFRESH_ESTIMATE') ?></button></div><p class="ic-help"><?= $t('TEST_HELP') ?></p><div class="ic-test-box"><p><?= $esc($user->email) ?></p><button type="button" data-action="preview" disabled><?= $t('PREVIEW') ?></button></div><label class="ic-check"><input id="ic-confirm" type="checkbox" disabled> <?= $t('CONFIRM') ?></label><label><?= $t('SEND_AT') ?><input name="send_at" type="datetime-local"></label><div class="ic-actions"><button class="ic-quiet" type="button" data-go="1">← <?= $t('CONTENT') ?></button><button type="button" data-action="release" disabled><?= $t('RELEASE') ?></button><button type="button" data-action="cancel" disabled><?= $t('CANCEL') ?></button></div></fieldset><p id="ic-send-help" class="ic-help" role="status"></p><p id="ic-status" role="status" aria-live="polite"></p><p id="ic-local-status" class="ic-help" role="status" aria-live="polite"></p>
 </form><aside>
 <div class="ic-preview-top"><span class="ic-eyebrow"><?= $t('YOUR_MESSAGE') ?></span><div class="ic-preview-langs"><button type="button" data-preview-lang="da" aria-pressed="true">DA</button><button type="button" data-preview-lang="en" aria-pressed="false">EN</button></div></div>
 <dl class="ic-envelope"><dt><?= $t('SENDER') ?></dt><dd id="ic-preview-sender"></dd><dt><?= $t('SUBJECT') ?></dt><dd id="ic-preview-subject"></dd></dl>

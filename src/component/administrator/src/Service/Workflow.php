@@ -21,6 +21,11 @@ final class Workflow
         return $this->saveMessage(Message::validate($input), $id, $revision);
     }
 
+    public function saveDraft(array $input, int $id = 0, int $revision = 0): array
+    {
+        return $this->saveMessage(Message::validate($input, false), $id, $revision);
+    }
+
     public function saveAcceptance(array $input, string $recipient, int $id = 0, int $revision = 0): array
     {
         if (!filter_var($recipient, FILTER_VALIDATE_EMAIL)) {

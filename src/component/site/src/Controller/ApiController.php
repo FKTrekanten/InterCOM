@@ -28,9 +28,10 @@ final class ApiController extends BaseController
             $revision = $app->input->post->getInt('revision', 0);
             $result = match ($task) {
                 'render' => $this->renderMessage($runtime, $user, json_decode($app->input->post->get('message', '{}', 'raw'), true, 64, JSON_THROW_ON_ERROR)),
-                'save' => $workflow->save(json_decode($app->input->post->get('message', '{}', 'raw'), true, 64, JSON_THROW_ON_ERROR), $id, $revision),
+                'save' => $workflow->saveDraft(json_decode($app->input->post->get('message', '{}', 'raw'), true, 64, JSON_THROW_ON_ERROR), $id, $revision),
+                'saveaudience' => $workflow->saveAudience(json_decode($app->input->post->get('message', '{}', 'raw'), true, 64, JSON_THROW_ON_ERROR), $id, $revision),
                 'audience' => $this->estimateAudience($workflow, json_decode($app->input->post->get('message', '{}', 'raw'), true, 64, JSON_THROW_ON_ERROR), $id, $revision),
-                'estimate' => $workflow->estimate($id, $revision, true),
+                'estimate' => $workflow->estimate($id, $revision, $app->input->post->getBool('force', true)),
                 'keepalive' => $workflow->keepalive($id, $revision),
                 'preview' => $workflow->preview($id, $revision, $user->email),
                 'release' => $app->input->post->getBool('confirm')

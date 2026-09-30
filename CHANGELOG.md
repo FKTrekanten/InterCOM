@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.9 — 2026-09-30
+
+- Add a visible New communication link when viewing any saved draft, preserving the existing draft.
+- Keep writing available during recipient checks and persist the server draft identity before provider requests. Avoid duplicate count refresh requests.
+- Recover unsaved bilingual content from a user/account/list-specific browser cache; clear recovery after saving, deletion or terminal message states.
+- Save incomplete drafts and let Send test save and validate current content automatically. Explain read-only messages and required test/acceptance checks.
+
+
 ## 0.3.8 — 2026-09-30
 
 - Enforce administrator one-recipient CleverReach delivery acceptance instead of an editable release checkbox. Recheck eligibility, blacklists, list, sender and unsubscribe form before sending.

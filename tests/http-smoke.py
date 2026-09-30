@@ -33,6 +33,20 @@ def call(action, fields, expected=200):
     result = json.loads(raw)
     assert status == expected, (action, status, result)
     return result.get('data')
+partial = call('save', {'message':json.dumps({'type':'class','sender':'Smoke','tags':['group.Youth'],'subject_da':'Incomplete'})})
+partial_id = {'id':partial['id'],'revision':partial['revision']}
+assert json.loads(partial['content'])['subject_da'] == 'Incomplete' and json.loads(partial['content'])['body_en'] == '', 'Partial content is saved without requiring both languages'
+call('preview', partial_id, 422)
+assert int(partial['mailing_attempted']) == 0, 'An incomplete draft cannot prepare a test mailing'
+_, partial_page = request('/index.php?option=com_intercom&view=composer&id=' + str(partial['id']))
+new_link = re.search(r'<a[^>]+id="ic-new-message"[^>]+href="([^"]+)"[^>]*>',partial_page)
+assert new_link and not re.search(r'[?&]id=', new_link[1]) and 'hidden' not in new_link[0] and 'new=1' in new_link[1], 'Saved drafts have a visible New communication link without the current ID'
+_, new_page = request(new_link[1].replace('&amp;', '&'))
+assert 'id="ic-form"' in new_page and json.loads(partial['content'])['subject_da'] == 'Incomplete', 'New communication opens the composer without deleting the saved draft'
+local = call('saveaudience', {'message':json.dumps({'type':'class','sender':'Smoke','tags':['group.Youth']})})
+assert local['estimate_count'] is None and int(local['mailing_attempted']) == 0, 'Local audience save persists identity before contacting the provider'
+call('delete', {'id':local['id'],'revision':local['revision']})
+call('delete', partial_id)
 audience = call('audience', {'message':json.dumps({'type':'class','sender':'Smoke','tags':['group.Youth']})})
 assert int(audience['mailing_id']) == 0 and int(audience['estimate_count']) == 1 and json.loads(audience['content'])['body_en'] == '', 'Native step transition saves an incomplete draft and estimates without mailing'
 call('delete', {'id':audience['id'],'revision':audience['revision']})
