@@ -1,6 +1,6 @@
 # Recipient estimates and production readiness
 
-Proposed plan, 30 September 2026. Baseline: Intercom 0.3.4 on main. Progress: #5 is completed in 0.3.5; estimates/history in 0.3.6; delegated Joomla test delivery (#3) in 0.3.7. All three passed local and GitHub CI and dev checks. One-recipient acceptance (#1) is implemented in 0.3.8 and passed local/GitHub CI. Its controlled send positively completed in CleverReach; human receipt/form confirmation and production checks remain pending.
+Proposed plan, 30 September 2026. Baseline: Intercom 0.3.4 on main. Progress: #5 is completed in 0.3.5; estimates/history in 0.3.6; delegated Joomla test delivery (#3) in 0.3.7. All three passed local and GitHub CI and dev checks. One-recipient acceptance (#1) is implemented in 0.3.8 and passed local/GitHub CI. Its controlled send positively completed in CleverReach and human receipt/form confirmation is now recorded. Production-specific checks remain pending.
 
 ## Intended behaviour
 
@@ -88,7 +88,7 @@ Installing a reviewed package with live sending disabled is possible once the pr
 | --- | --- |
 | #5 — verified same-account token renewal | Renew expired/expanded-scope tokens without dropping reservations. Pin account identity and reject different-account credentials. **Completed and closed:** verified same-account renewal in dev and native CI. |
 | #3 — reliable tests for delegated Joomla users | A SoMe manager or coach must receive and inspect a real test through a supported route. **Completed and closed:** Joomla multipart tests for both languages reached local SMTP for delegated users. Real production SMTP/inbox acceptance remains required. |
-| #1 — enforced one-recipient acceptance preflight | Enforce an approved isolated test audience with exactly one eligible, approved recipient and valid sender/list/unsubscribe setup. Evidence must not be an unchecked operator checkbox. The restriction applies to acceptance testing. **Implemented and CI/dev-verified:** one real send completed; awaiting human inbox/form confirmation before approval. |
+| #1 — enforced one-recipient acceptance preflight | Enforce an approved isolated test audience with exactly one eligible, approved recipient and valid sender/list/unsubscribe setup. Evidence must not be an unchecked operator checkbox. The restriction applies to acceptance testing. **Implemented and CI/dev-verified:** one real send completed and human inbox/form confirmation is recorded; the current dev configuration passes the acceptance gate. |
 | Count semantics and age boundaries | Confirm exclusions and boolean tag matching. **Implemented:** inclusive maximum-age boundary corrected and birthday boundaries tested; active-match counts are estimates. Tested rules must match remote rules before release. |
 | Crash/race/lease handling | Prove an abandoned audience-only draft is reclaimable while any uncertain provider write or potentially created mailing stays protected. **Implemented and CI-verified:** existing reservations remain conservatively protected; safe audience-only leases can be reclaimed. |
 | Production environment and scheduler | Confirm actual Joomla/PHP/database versions, required PHP extensions and an install/update on a staging copy. Configure reliable scheduled execution, preferably a server cron invocation, and verify maintenance/cleanup/reconciliation in that environment. |
@@ -109,9 +109,9 @@ References:
 
 ## Current production handoff
 
-The dev stack is upgraded to 0.3.8. The controlled acceptance uses the authorized
-one-recipient dev list; ordinary sends are disabled until actual receipt is
-confirmed in Delivery acceptance. Joomla tests go to local Mailpit, not the
+The dev stack is upgraded to 0.3.10. The controlled acceptance uses the authorized
+one-recipient dev list. The real provider send completed and human receipt/form
+confirmation is recorded; the current dev configuration passes the acceptance gate. Joomla tests go to local Mailpit, not the
 recipient's external inbox. See [acceptance procedure](release-acceptance.md).
 
 Before production installation/release, obtain and verify:
