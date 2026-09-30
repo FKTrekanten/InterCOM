@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.10 — 2026-09-30
+
+- Clear the native TinyMCE unsaved-content warning only after the current content is saved successfully, so New communication works after saving or testing. Failed saves and later edits retain navigation protection.
+
 ## 0.3.9 — 2026-09-30
 
 - Add a visible New communication link when viewing any saved draft, preserving the existing draft.

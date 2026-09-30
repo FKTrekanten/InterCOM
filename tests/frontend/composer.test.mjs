@@ -58,7 +58,7 @@ test('Subject typing updates the envelope without requesting or replacing email 
   assert.equal(calls.at(-1).subject_en,'New subject');
 });
 
-function composerHarness(initial, api) {
+function composerHarness(initial, api, editor = null) {
   const fields=Object.fromEntries(Object.entries({type:'club',sender:'Club',subject_da:'DA',subject_en:'EN',body_da:'Dansk',body_en:'English',gender:'',age_from:0,age_to:0,send_at:''}).map(([name,value])=>[name,{name,value,classList:{contains:()=>false},checkValidity:()=>true}]));
   fields['tags[]']=fields['memberships[]']={selectedOptions:[]};
   const elements=new Map(),events=new Map(),actions=new Map(),steps=new Map();
@@ -73,7 +73,7 @@ function composerHarness(initial, api) {
   }
   let url='http://example.test/intercom';
   const sandbox={DraftCache,composerControls,PreviewScheduler,requiresTeam,subjectLabel,FormData,Map,URL,
-    JoomlaEditor:{get:()=>null},Joomla:{getOptions:()=>({language:'en',types:{club:{prefixes:{}}},...initial}),Text:{_:key=>key}},
+    JoomlaEditor:{get:()=>editor},Joomla:{getOptions:()=>({language:'en',types:{club:{prefixes:{}}},...initial}),Text:{_:key=>key}},
     document:{getElementById:id=>id==='ic-form'?form:element(id),querySelectorAll:()=>[],addEventListener(){}},window:{location:{href:url},history:{replaceState:(_,__,value)=>url=String(value)},addEventListener(){}},
     setTimeout(){},clearTimeout(){},setInterval(){},fetch:async (_,request)=>({ok:true,json:async()=>({success:true,data:request.body.get('task')==='api.render'?{da:'Preview',en:'Preview'}:await api(request.body)})})};
   runInNewContext(readFileSync(new URL('../../src/component/media/js/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,''),sandbox);
@@ -117,4 +117,13 @@ test('Send test saves dirty current content first, then tests that exact server 
   assert.equal(h.element('ic-confirm').disabled,false);
   h.fields.subject_en.value='Changed after test'; h.events.get('input')({target:h.fields.subject_en});
   assert.equal(h.element('ic-confirm').disabled,true);
+});
+
+
+test('A confirmed save clears TinyMCE navigation warnings; a failed save preserves them', async () => {
+  const states=[]; const editor={getValue:()=>'<p>Body</p>',instance:{setDirty:value=>states.push(value)}};
+  const h=composerHarness({},async()=>({id:13,revision:1,state:'draft',estimate_count:1}),editor);
+  await h.action('save').click(); assert.deepEqual(states,[false,false]);
+  const failed=composerHarness({},async()=>{throw new Error('Network unavailable');},editor);
+  await failed.action('save').click(); assert.deepEqual(states,[false,false]);
 });

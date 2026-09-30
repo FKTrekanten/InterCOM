@@ -54,6 +54,11 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     for (const k of ['age_from','age_to']) result[k] = Number(data.get(k) || 0);
     return result;
   }
+  function markEditorsSaved() {
+    // Joomla's TinyMCE decorator exposes the provider. Keep its navigation warning
+    // in sync only after these exact editor values have been saved successfully.
+    for (const lang of ['da','en']) JoomlaEditor.get('body_' + lang)?.instance?.setDirty?.(false);
+  }
   function needsTeam() {
     return requiresTeam(initial.types?.[form.elements.type.value], Array.from(form.elements['tags[]'].selectedOptions).map(el => el.value), initial.availableTeams || []);
   }
@@ -326,6 +331,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
         if (!savedResponse.ok || !savedResult.success) throw new Error(savedResult.error || text('ERROR'));
         draft = savedResult.data; savedAudience = audienceKey(JSON.parse(submittedMessage)); audienceDirty = audienceKey(message()) !== savedAudience; dirty = submittedMessage !== JSON.stringify(message()); rememberDraft();
         if (dirty) throw new Error(text('DIRTY'));
+        markEditorsSaved();
         body.set('id',draft.id); body.set('revision',draft.revision);
       }
       const response = await fetch(form.action,{method:'POST',body,headers:{Accept:'application/json'}});
@@ -340,7 +346,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
       if (action === 'cancel') draft.state = 'cancelled';
       dirty = submittedMessage !== JSON.stringify(message()); confirm.checked = false;
       rememberDraft();
-      if (!dirty) {cache.clear(cacheId); localStatus.textContent = '';}
+      if (!dirty) {cache.clear(cacheId); localStatus.textContent = ''; if (['save','preview'].includes(action)) markEditorsSaved();}
       if (action === 'save') {savedAudience = audienceKey(JSON.parse(submittedMessage)); audienceDirty = audienceKey(message()) !== savedAudience; scheduleRender(); }
       status.textContent = dirty ? text('DIRTY') : text(action === 'preview' ? (initial.simulation ? 'FAKE_TESTED' : 'TESTED') : action === 'release' ? (initial.simulation ? 'FAKE_SUBMITTED' : 'SUBMITTED') : 'SAVED');
     } catch (e) {status.textContent = e.message || text('ERROR'); confirm.checked = false;}
