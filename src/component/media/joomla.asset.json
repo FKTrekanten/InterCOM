@@ -37,6 +37,17 @@
       }
     },
     {
+      "name": "com_intercom.permissions",
+      "type": "script",
+      "uri": "com_intercom/permissions.js",
+      "dependencies": [
+        "core"
+      ],
+      "attributes": {
+        "type": "module"
+      }
+    },
+    {
       "name": "com_intercom.tags",
       "type": "script",
       "uri": "com_intercom/tags.js",

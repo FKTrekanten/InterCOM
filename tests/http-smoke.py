@@ -9,7 +9,7 @@ def request(path, data=None):
         with client.open(base + path, encoded, timeout=20) as r: return r.status, r.read().decode()
     except urllib.error.HTTPError as e: return e.code, e.read().decode()
 def token(html):
-    match = re.search(r'name="([a-f0-9]{32})"[^>]*value="1"', html)
+    match = re.search(r'name="([a-f0-9]{32})"[^>]*value="1"', html) or re.search(r'task=logout[^"<>]*?([a-f0-9]{32})=1', html)
     assert match, 'Native Joomla CSRF token rendered'
     return match[1]
 status, guest = request('/index.php?option=com_intercom&view=composer')
@@ -143,10 +143,32 @@ assert status == 200 and 'Communication groups' in groups, 'Component communicat
 assert request(management + '&task=management.savetype', {'jform[type_key]':'forged'})[0] == 403, 'Management requires CSRF'
 status, editor = request(settings + '&section=types&edit=1')
 assert status == 200 and 'jform[translations][da-DK][name]' in editor and 'jform[rules][intercom.type.compose]' in editor, 'Language tabs and native record permissions render'
+assert '/media/com_intercom/js/permissions.js?' in editor and 'ic-permissions-status' in editor, 'Communication editor loads its read-only permission calculator'
+rule_fields = {name:'' for name in re.findall(r'name="(jform\[rules\]\[[^\]]+\]\[\d+\])"',editor)}
+rule_fields['jform[rules][intercom.type.compose][2]'] = '1'
+permission_preview = management + '&task=management.previewpermissions&format=json'
+assert request(permission_preview, {})[0] == 403 and request(permission_preview)[0] == 403, 'Permission preview requires POST and CSRF'
+status, raw = request(permission_preview, {token(editor):'1', **rule_fields})
+calculation = json.loads(raw)
+assert status == 200 and calculation['data']['jform_rules_intercom.type.compose_2']['text'] == 'Allowed', 'New-record preview calculates the staged allow'
+assert calculation['data']['jform_rules_intercom.type.compose_3']['text'] == 'Allowed (Inherited)', 'Permission preview recalculates descendants'
 status, groups = request(management + '&task=management.savetype', {
-    token(editor):'1', 'jform[type_key]':'http_group', 'jform[suppression]':'http-optout', 'jform[state]':'1',
+    token(editor):'1', **rule_fields, 'jform[type_key]':'http_group', 'jform[suppression]':'http-optout', 'jform[state]':'1',
     'jform[translations][en-GB][name]':'HTTP group', 'jform[translations][da-DK][name]':'HTTP gruppe'})
 assert status == 200 and 'HTTP group' in groups and 'http-optout' in groups, 'Native management form saves translated communication'
+edit_link = re.search(r'href="([^"]+)">HTTP group</a>',groups)
+assert edit_link, 'Saved communication provides an edit link'
+_, editor = request('/administrator/' + edit_link[1].replace('&amp;', '&'))
+inputs = HiddenInputs(); inputs.feed(editor)
+registered_row = re.search(r'<select[^>]+id="jform_rules_intercom.type.compose_2"[^>]*>.*?</tr>',editor,re.S).group()
+assert re.search(r'<option value="1"\s+selected="selected"',registered_row) and '>Allowed</span>' in registered_row, 'Full browser form preserves Inherited ancestors and saved Registered allowance'
+status, raw = request(permission_preview, {**inputs.values, **rule_fields, 'jform[rules][intercom.type.compose][1]':'0'})
+assert status == 200 and json.loads(raw)['data']['jform_rules_intercom.type.compose_2']['text'] == 'Not Allowed (Locked)', 'Existing-record preview shows staged parent denial without saving'
+_, unchanged = request('/administrator/' + edit_link[1].replace('&amp;', '&'))
+registered_row = re.search(r'<select[^>]+id="jform_rules_intercom.type.compose_2"[^>]*>.*?</tr>',unchanged,re.S).group()
+assert '>Allowed</span>' in registered_row and 'Not Allowed (Locked)' not in registered_row, 'Reopening after a preview retains the saved permission'
+assert request(permission_preview, {**inputs.values, **rule_fields, 'jform[revision]':'0'})[0] == 409, 'Permission preview rejects stale revisions'
+assert request(permission_preview, {**inputs.values, 'jform[rules][core.admin][2]':'1'})[0] == 422, 'Permission preview rejects arbitrary ACL actions'
 _, tagpage = request(settings + '&section=tags')
 assert 'group.Youth' in tagpage and 'Refresh tags' in tagpage, 'Recipient visibility catalogue renders separately'
 assert '/media/com_intercom/js/tags.js?' in tagpage, 'Joomla resolves the registered bulk-selection script'
@@ -201,5 +223,6 @@ assert request(management + '&view=acceptance')[0] == 403, 'Manager cannot inspe
 assert request(management + '&task=acceptance.prepare', {})[0] == 403, 'Manager cannot initiate acceptance'
 assert request(settings + '&section=design')[0] == 403, 'Email design deep link requires admin permission'
 assert request(management + '&task=connection.forms&format=json&group_id=0')[0] == 403, 'Form catalogue requires component admin permission'
+assert request(permission_preview, {token(overview):'1', **rule_fields})[0] == 403, 'Manager with a valid CSRF token cannot calculate record permissions'
 client = admin_client
 print('PASS: Native backend permission boundaries for dashboard, audit, filters and email design')

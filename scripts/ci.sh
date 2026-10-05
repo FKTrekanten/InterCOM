@@ -10,6 +10,7 @@ python3 -m unittest discover -s tests/tooling
 node --check src/component/media/js/app.js
 node --check src/component/media/js/options.js
 node --check src/component/media/js/design.js
+node --check src/component/media/js/permissions.js
 node --check src/component/media/js/tags.mjs
 node --check src/component/media/js/tags.js
 node --test tests/frontend/*.test.mjs
@@ -35,6 +36,7 @@ docker compose exec -T --user www-data joomla php /workspace/tests/joomla/upgrad
 docker compose exec -T --user www-data joomla php /workspace/tests/joomla/install.php "/workspace/dist/pkg_intercom-$version.zip"
 docker compose exec -T --user www-data joomla php /workspace/tests/joomla/upgrade.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 -e INTERCOM_ADMIN_PASSWORD joomla php /workspace/tests/joomla/features.php
+docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/permissions.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/reconciliation.php
 docker compose exec -T --user www-data joomla php /workspace/tests/joomla/scheduler.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/connection.php

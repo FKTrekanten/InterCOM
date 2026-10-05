@@ -6,6 +6,7 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\Controller\BaseController;
 use Joomla\CMS\Session\Session;
+use FKT\Component\Intercom\Administrator\Service\CommunicationPermissions;
 
 final class ManagementController extends BaseController
 {
@@ -45,6 +46,13 @@ final class ManagementController extends BaseController
                 $this->renderDesign($r, $data);
                 return;
             }
+            if ($task === 'previewpermissions') {
+                $result = (new CommunicationPermissions($r->store))->preview($data);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => true, 'data' => $result], JSON_THROW_ON_ERROR);
+                $app->close();
+                return;
+            }
             match ($task) {
                 'savetype' => $r->catalog->saveType($data, (int) $user->id),
                 'deletetype' => $r->catalog->deleteType((int) ($data['id'] ?? 0), (int) ($data['revision'] ?? 0), (int) $user->id),
@@ -56,7 +64,7 @@ final class ManagementController extends BaseController
             };
             $app->enqueueMessage(Text::_('COM_INTERCOM_SAVED'));
         } catch (\Throwable $e) {
-            if ($task === 'renderdesign') {
+            if (in_array($task, ['renderdesign', 'previewpermissions'], true)) {
                 http_response_code(in_array($e->getCode(), [403, 409, 422], true) ? $e->getCode() : 500);
                 header('Content-Type: application/json; charset=utf-8');
                 echo json_encode(['success' => false, 'error' => Text::_(str_starts_with($e->getMessage(), 'COM_INTERCOM_') ? $e->getMessage() : 'COM_INTERCOM_ERROR')]);

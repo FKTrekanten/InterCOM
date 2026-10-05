@@ -97,20 +97,7 @@ final class Catalog
         if (empty($translations[$this->defaultLanguage()]['name'])) {
             throw new \RuntimeException('COM_INTERCOM_TRANSLATION_REQUIRED', 422);
         }
-        $rules = (array) ($input['rules'] ?? []);
-        foreach ($rules as $action => $groups) {
-            if (!in_array($action, ['intercom.type.compose', 'intercom.type.send'], true) || !is_array($groups)) {
-                throw new \RuntimeException('COM_INTERCOM_INVALID_RULES', 422);
-            }
-            foreach ($groups as $group => $value) {
-                if (
-                    !ctype_digit((string) $group) || !in_array((string) $value, ['', '0', '1'], true)
-                    || !$this->store->row('SELECT id FROM #__usergroups WHERE id=' . (int) $group)
-                ) {
-                    throw new \RuntimeException('COM_INTERCOM_INVALID_RULES', 422);
-                }
-            }
-        }
+        $rules = (new CommunicationPermissions($this->store))->normalize((array) ($input['rules'] ?? []));
         return $this->store->transaction(function () use ($id, $key, $word, $input, $translations, $rules, $actor): int {
             $this->lockConfiguration();
             $before = $id ? $this->store->row("SELECT * FROM #__intercom_types WHERE id=$id FOR UPDATE") : null;

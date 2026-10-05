@@ -22,6 +22,10 @@ $wa->usePreset('choicesjs')->useScript('webcomponent.field-fancy-select')->useSc
     require __DIR__ . '/design.php';
 elseif ($this->section === 'types' && $this->record) :
     $row = $this->record;
+    $wa->useScript('com_intercom.permissions');
+    foreach (['PERMISSIONS_PREVIEW', 'PERMISSIONS_UPDATING', 'PERMISSIONS_CALCULATION_ERROR'] as $key) {
+        Text::script('COM_INTERCOM_' . $key);
+    }
     $definition = (int) $row['id'] ? $r->catalog->definition($row) : ['translations' => []]; ?>
 <form action="index.php?option=com_intercom&amp;task=management.savetype" method="post" id="adminForm" name="adminForm">
     <?= HTMLHelper::_('form.token') ?>
@@ -52,7 +56,11 @@ elseif ($this->section === 'types' && $this->record) :
         echo HTMLHelper::_('uitab.endTab');
     endforeach;
     echo HTMLHelper::_('uitab.endTabSet'); ?>
-<p><?= $t('TRANSLATION_HELP') ?></p><h2><?= $t('GROUP_PERMISSIONS') ?></h2><?= $this->form->getInput('asset_id') ?><?= $this->form->getInput('rules') ?>
+<p><?= $t('TRANSLATION_HELP') ?></p><h2><?= $t('GROUP_PERMISSIONS') ?></h2>
+<div id="ic-permissions" data-preview-url="index.php?option=com_intercom&amp;task=management.previewpermissions&amp;format=json">
+<p id="ic-permissions-status" role="status" aria-live="polite"><?= $t('PERMISSIONS_PREVIEW') ?></p>
+    <?= $this->form->getInput('asset_id') ?><?= $this->form->getInput('rules') ?>
+</div>
 <button type="submit" class="btn btn-primary"><?= $t('SAVE_CHANGES') ?></button> <a class="btn btn-secondary" href="index.php?option=com_intercom&amp;view=settings"><?= $t('BACK') ?></a>
     <?php if ($row['id']) :
         ?><button type="submit" class="btn btn-danger" formaction="index.php?option=com_intercom&amp;task=management.deletetype" formnovalidate><?= $t('DELETE_UNUSED') ?></button><?php

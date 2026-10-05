@@ -32,3 +32,8 @@ check(($r->config['sender_name'] ?? '')==='CI shared sender', 'Options persists 
 check(($r->config['unsubscribe_form_id'] ?? '') === '432342', 'Native Options stores legacy unsubscribe ID as a lossless string');
 
 check(($r->config['footer_address'] ?? '') === "HTTP Club address\nSecond address line", 'Native Options normalises browser textarea CRLF');
+$httpGroup = $r->catalog->types()['http_group'];
+$httpAsset = $r->store->row('SELECT rules FROM #__assets WHERE name='.$r->store->q('com_intercom.communication.'.$httpGroup['id']));
+$httpRules = json_decode($httpAsset['rules'],true);
+check(!isset($httpRules['intercom.type.compose'][1]) && \Joomla\CMS\Access\Access::checkGroup(2,'intercom.type.compose','com_intercom.communication.'.$httpGroup['id'])===true,'Actual HTTP form saves inheritance without an accidental Public denial');
+check($httpGroup['revision']===1 && !$r->store->row("SELECT id FROM #__assets WHERE name LIKE 'com_intercom.settings.%'"),'HTTP permission preview does not save revisions or create settings assets');
