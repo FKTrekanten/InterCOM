@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {DraftCache, composerControls} from '../../src/component/media/js/draft-cache.mjs';
+import {DraftCache, composerControls, composerSendBlocker} from '../../src/component/media/js/draft-cache.mjs';
 
 const message = {type:'club',sender:'Club',subject_da:'Ufærdig',subject_en:'',body_da:'<p>Dansk</p>',body_en:'',tags:['group.Youth'],memberships:[],age_from:0,age_to:0,gender:'',format:'html'};
 const storage = () => {const values=new Map(); return {getItem:key=>values.get(key),setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};};
@@ -41,4 +41,23 @@ test('Saving and testing incomplete/new drafts are available; sending requires a
   assert.equal(composerControls({...tested,estimate_count:0},{approved:true}).confirm,false);
   for (const state of ['submitted','completed','uncertain','deleted']) assert.deepEqual(composerControls({state}),{save:false,preview:false,delete:false,confirm:false});
   assert.equal(composerControls({state:'cancelled'}).delete,true);
+});
+
+test('Every persistent send blocker is explained, including native string counts and outdated acceptance', () => {
+  const tested={state:'tested',estimate_count:'1'};
+  for (const [draft,options,reason] of [
+    [tested,{},'RELEASE_NOT_VERIFIED'],
+    [tested,{approved:true,estimating:true},'ESTIMATE_LOADING'],
+    [tested,{approved:true,audienceDirty:true},'AUDIENCE_CHANGED'],
+    [tested,{approved:true,dirty:true},'TEST_REQUIRED'],
+    [{...tested,state:'draft'},{approved:true},'TEST_REQUIRED'],
+    [{...tested,estimate_count:null},{approved:true},'ESTIMATE_UNAVAILABLE'],
+    [{...tested,estimate_error:true},{approved:true},'ESTIMATE_UNAVAILABLE'],
+    [{...tested,estimate_count:'0'},{approved:true},'NO_RECIPIENTS'],
+    [{...tested,estimate_count:0},{approved:true},'NO_RECIPIENTS'],
+    [tested,{approved:true},'']
+  ]) {
+    assert.equal(composerSendBlocker(draft,options),reason);
+    assert.equal(composerControls(draft,options).confirm,reason==='');
+  }
 });

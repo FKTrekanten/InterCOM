@@ -2,6 +2,7 @@
 """Test and prepare a reviewable release; --publish explicitly publishes it."""
 import argparse
 import hashlib
+import html
 import json
 import re
 import subprocess
@@ -15,9 +16,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = 'FKTrekanten/InterCOM'
+CHANGELOGS = {
+    'updates/changelog.xml': ('pkg_intercom', 'package', ''),
+    'updates/changelog-component.xml': ('com_intercom', 'component', ''),
+    'updates/changelog-task.xml': ('intercom', 'plugin', 'task'),
+    'updates/changelog-extension.xml': ('intercom', 'plugin', 'extension'),
+}
 GENERATED = ['VERSION', 'CHANGELOG.md', 'src/component/intercom.xml',
              'src/task/intercom.xml', 'src/pkg_intercom.xml',
-             'src/component/media/joomla.asset.json', 'src/extension/intercom.xml']
+             'src/component/media/joomla.asset.json', 'src/extension/intercom.xml', *CHANGELOGS]
 STATE = ROOT / 'dist/release-state.json'
 
 def run(*args, capture=False):
@@ -27,12 +34,56 @@ def run(*args, capture=False):
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
+def changelog_url(path):
+    return f'https://raw.githubusercontent.com/{REPO}/main/{path}'
+
+def write_changelog(path, identity, version, notes):
+    root = ET.parse(path).getroot() if path.exists() else ET.Element('changelogs')
+    if root.tag != 'changelogs':
+        sys.exit('Invalid Joomla changelog: ' + str(path))
+    if any(entry.findtext('version') == version for entry in root):
+        sys.exit('Joomla changelog already includes version ' + version)
+    entry = ET.Element('changelog')
+    for key, value in zip(['element', 'type', 'folder'], identity):
+        if value:
+            ET.SubElement(entry, key).text = value
+    ET.SubElement(entry, 'version').text = version
+    sections = {}
+    for block in re.split(r'\n\s*\n', notes.strip()):
+        if block.startswith('#'):
+            continue
+        for item in re.split(r'\n(?=- )', block):
+            bullet = item.startswith('- ')
+            value = ' '.join(item.removeprefix('- ').split())
+            value = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'\1 (\2)', value)
+            value = value.replace('**', '').replace('`', '')
+            if not value:
+                continue
+            section = 'change' if bullet else 'note'
+            if bullet and value.startswith(('Fix ', 'Restore ', 'Read ', 'Keep ', 'Preserve ', 'Explain ', 'Label ')):
+                section = 'fix'
+            elif bullet and value.startswith('Remove '):
+                section = 'remove'
+            elif bullet and value.startswith(('Add ', 'Include ', 'Document ')):
+                section = 'addition'
+            elif bullet and value.startswith('Translate '):
+                section = 'language'
+            if section not in sections:
+                sections[section] = ET.SubElement(entry, section)
+            # Joomla renders item text as HTML; keep release-note text literal.
+            ET.SubElement(sections[section], 'item').text = html.escape(value, quote=False)
+    root.insert(0, entry)
+    ET.indent(root, space='  ')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ET.ElementTree(root).write(path, encoding='utf-8', xml_declaration=True)
+
 def make_feed(version, checksum):
     updates = ET.Element('updates')
     update = ET.SubElement(updates, 'update')
     fields = {'name':'InterCOM', 'description':'Member communications',
               'element':'pkg_intercom', 'type':'package', 'version':version, 'client':'0',
-              'infourl':f'https://github.com/{REPO}/releases/tag/v{version}'}
+              'infourl':f'https://github.com/{REPO}/releases/tag/v{version}',
+              'changelogurl':changelog_url('updates/changelog.xml')}
     for key, value in fields.items():
         ET.SubElement(update, key).text = value
     ET.SubElement(ET.SubElement(update, 'downloads'), 'downloadurl',
@@ -66,6 +117,8 @@ def prepare(version, notes):
         sys.exit('This version already has a changelog entry; choose a new version.')
     changelog.write_text('# Changelog\n\n## ' + version + '\n\n' + notes + '\n\n'
                          + old.removeprefix('# Changelog').lstrip())
+    for name, identity in CHANGELOGS.items():
+        write_changelog(ROOT / name, identity, version, notes)
 
 def verify_public(url, expected_hash):
     # Retry boundedly for GitHub publication/cache propagation; never skip validation.
@@ -157,6 +210,8 @@ def main():
             '--dir', directory)
         if digest(Path(directory) / package.name) != checksum:
             sys.exit('Uploaded asset checksum mismatch; release remains draft')
+    for name in CHANGELOGS:
+        verify_public(changelog_url(name), digest(ROOT / name))
     run('gh', 'release', 'edit', 'v'+version, '--repo', REPO, '--draft=false')
     verify_public(f'https://github.com/{REPO}/releases/download/v{version}/{package.name}', checksum)
     (ROOT / 'updates/intercom.xml').write_bytes(feed)

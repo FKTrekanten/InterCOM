@@ -51,5 +51,12 @@ try {
     $s->execute('UPDATE #__extensions SET params='.$s->q(json_encode($config))." WHERE element='com_intercom'");
     $s->execute("UPDATE #__intercom_connections SET account_id='999999' WHERE provider='cleverreach'");
     check(!$approval->valid(),'Changing verified customer account invalidates acceptance');
+    $s->execute("UPDATE #__intercom_connections SET account_id='123456' WHERE provider='cleverreach'");
+    check($approval->valid(),'Original configuration still matches the verified proof');
+    $design = new \FKT\Component\Intercom\Administrator\Service\Design($s);
+    $before = $design->snapshot();
+    $design->save(array_replace($before['settings'], ['brand_en'=>'Updated English brand']), $before['revision'], 42);
+    check(!$approval->valid(),'Changing the English brand after verification requires fresh acceptance');
+    check($approval->latest(42)['state']==='verified','Historical verification remains recorded while the current configuration is unapproved');
 } finally {$s->rollback();}
 echo "NATIVE ACCEPTANCE OK\n";

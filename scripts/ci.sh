@@ -30,6 +30,7 @@ bash scripts/stack.sh up
 docker compose exec -T --user www-data -w /workspace joomla php vendor/bin/phpunit --do-not-cache-result
 version=$(cat VERSION)
 docker compose exec -T --user www-data joomla php /workspace/tests/joomla/install.php "/workspace/dist/pkg_intercom-$version.zip"
+docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/changelog.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/database-maintenance.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/integration.php
 # Retain the synthetic baseline to exercise an actual schema change.
@@ -38,6 +39,7 @@ docker compose exec -T --user www-data joomla php /workspace/tests/joomla/instal
 docker compose exec -T --user www-data joomla php /workspace/tests/joomla/upgrade.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/database-maintenance.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 -e INTERCOM_ADMIN_PASSWORD joomla php /workspace/tests/joomla/features.php
+docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/composer-editors.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/permissions.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/reconciliation.php
 docker compose exec -T --user www-data joomla php /workspace/tests/joomla/scheduler.php

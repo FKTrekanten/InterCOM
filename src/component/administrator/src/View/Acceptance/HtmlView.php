@@ -11,6 +11,7 @@ final class HtmlView extends BaseView
     public $runtime;
     public $proof;
     public $approved;
+    public $proofCurrent;
     public function display($tpl = null)
     {
         $app = Factory::getApplication();
@@ -22,6 +23,7 @@ final class HtmlView extends BaseView
         $approval = new ReleaseApproval($this->runtime->store);
         $this->proof = $approval->latest((int) $user->id);
         $this->approved = $approval->valid();
+        $this->proofCurrent = $this->proof && hash_equals($this->proof['fingerprint'], $approval->fingerprint());
         parent::display($tpl);
     }
 }

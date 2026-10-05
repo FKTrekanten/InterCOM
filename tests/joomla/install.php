@@ -34,6 +34,12 @@ foreach ($items as $item) {
     $expectedName = $item->type === 'plugin' && $item->folder === 'extension' ? 'InterCOM Options' : 'InterCOM';
     check($item->name === $expectedName, "Joomla Manage translates $item->element ($item->folder)");
     check($item->creationDate === $expectedDate, "Joomla Manage displays the release date for $item->element ($item->folder)");
+    $changelogFile = match ($item->type) {
+        'package' => 'changelog.xml',
+        'component' => 'changelog-component.xml',
+        default => 'changelog-' . $item->folder . '.xml',
+    };
+    check($item->changelogurl === 'https://raw.githubusercontent.com/FKTrekanten/InterCOM/main/updates/' . $changelogFile, "Joomla stores the changelog URL for $item->element ($item->folder)");
 }
 $db->setQuery("UPDATE #__extensions SET enabled=0 WHERE type='plugin' AND element IN ('compat','compat6')")->execute();
 check(is_object($app->bootComponent('com_intercom')->runtime),'Native component boots with compatibility plugins disabled');

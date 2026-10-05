@@ -29,7 +29,7 @@ Joomla's Database maintenance lists the latest SQL migration version separately 
 
 ## Release
 
-Every release must include written, version-specific changelog notes. Write `docs/releases/<version>.md` with the changes, relevant upgrade steps and validation before invoking the release script. The script adds those notes to `CHANGELOG.md`; review that entry as part of release preparation before publishing.
+Every release must include written, version-specific changelog notes. Write `docs/releases/<version>.md` with the changes, relevant upgrade steps and validation before invoking the release script. The script adds those notes to `CHANGELOG.md` and generates versioned Joomla XML changelogs for the package, component and plugins. Review both formats as part of release preparation before publishing. Joomla links the installed changelog through the version number in **Manage → Extensions** and shows available-release notes in **Update → Extensions**.
 
 ```sh
 python3 scripts/release.py 0.1.0 --notes /absolute/path/release-notes.md

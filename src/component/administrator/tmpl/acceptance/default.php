@@ -16,8 +16,11 @@ $p = $this->proof;
 <p><a href="index.php?option=com_config&amp;view=component&amp;component=com_intercom"><?= Text::_('JOPTIONS') ?></a></p>
 <?php if (($this->runtime->config['mode'] ?? 'fake') === 'live') : ?>
     <?php if ($p) :
-        ?><p><?= $t('ACCEPTANCE_TEST') ?> #<?= (int) $p['draft_id'] ?> · <?= $esc($t('ACCEPTANCE_STATE_' . strtoupper($p['state']))) ?></p><?php
+        ?><p><?= $t('ACCEPTANCE_TEST') ?> #<?= (int) $p['draft_id'] ?> · <?= $esc($t($p['state'] === 'verified' && !$this->proofCurrent ? 'ACCEPTANCE_STATE_OUTDATED' : 'ACCEPTANCE_STATE_' . strtoupper($p['state']))) ?></p><?php
     endif; ?>
+    <?php if ($p && $p['state'] === 'verified' && !$this->proofCurrent) : ?>
+<p class="alert alert-warning"><?= $t('ACCEPTANCE_OUTDATED_HELP') ?></p>
+    <?php endif; ?>
     <?php if (!$p || !in_array($p['state'], ['preparing','prepared','checking','submitted','uncertain'], true)) : ?>
 <form method="post" action="index.php?option=com_intercom">
 <input type="hidden" name="task" value="acceptance.prepare"><?= HTMLHelper::_('form.token') ?>

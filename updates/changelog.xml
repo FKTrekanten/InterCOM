@@ -1,0 +1,75 @@
+<?xml version='1.0' encoding='utf-8'?>
+<changelogs>
+  <changelog>
+    <element>pkg_intercom</element>
+    <type>package</type>
+    <version>0.3.14</version>
+    <fix>
+      <item>Fix the false Maintenance → Database warning that intercom_tags does not have a column named IF. Joomla's checker misread ADD COLUMN IF NOT EXISTS in migration 0.3.1.sql; the migration now uses the supported ADD COLUMN syntax for the actual labels column.</item>
+      <item>Fix the persistent warning after Update Structure, which previously reran the statement without satisfying the incorrectly parsed check.</item>
+    </fix>
+    <addition>
+      <item>Add native Database maintenance and Update Structure checks to CI for fresh installations, synthetic migrations and upgrades from the verified public package. These checks also verify that repair preserves tags, communications, drafts, encrypted credentials, settings and permissions.</item>
+      <item>Document the requirement to write and review a version-specific changelog for every release.</item>
+    </addition>
+    <note>
+      <item>After upgrading, Joomla's Database maintenance should report No problems for InterCOM. The database version can remain 0.3.8, the latest SQL migration, while the manifest version is 0.3.14. These versions track different things; no artificial migration-version bump is needed.</item>
+      <item>Validation includes full local CI, the native Joomla maintenance model and both upgrade paths. Existing data and permission rules are preserved.</item>
+    </note>
+  </changelog>
+  <changelog>
+    <element>pkg_intercom</element>
+    <type>package</type>
+    <version>0.3.13</version>
+    <fix>
+      <item>Preserve Inherited when saving communication-group permissions. Empty inherited selections no longer become explicit Denied rules that lock descendant user groups despite an Allowed selection.</item>
+      <item>Fix the live calculated-settings display and stuck spinner for new and existing communication groups. Calculations include descendant groups and preserve Joomla's explicit-denial and Super User behavior.</item>
+    </fix>
+    <change>
+      <item>Preview permission selections without saving them. Save changes applies the permissions through the existing audited, revision-checked save.</item>
+    </change>
+    <note>
+      <item>Existing permission rules are preserved during upgrades. After updating, open each affected communication group and review Public and the target user's other ancestor Joomla groups. Change unintended Denied settings back to Inherited, retain Allowed for the intended user group, and select Save changes. Intentional denials still override child grants; component-wide Options permissions remain prerequisites.</item>
+      <item>Validation includes full browser-form submissions against native Joomla, permission inheritance and deliberate-denial regressions, read-only previews, CSRF and restricted-role checks, stale revisions, spinner/error handling, and upgrades from the checksum-verified public package.</item>
+    </note>
+  </changelog>
+  <changelog>
+    <element>pkg_intercom</element>
+    <type>package</type>
+    <version>0.3.12</version>
+    <change>
+      <item>Use InterCOM consistently in Danish and English component, package, plugin, scheduled-task and branded email labels. Internal extension identifiers remain unchanged.</item>
+      <item>Enable the maintenance plugin automatically on fresh installs. Updates preserve its existing enabled/disabled setting.</item>
+    </change>
+    <language>
+      <item>Translate the main package name and description so Joomla displays InterCOM instead of PKG_INTERCOM.</item>
+    </language>
+    <addition>
+      <item>Include release dates for the package and its three extensions, replacing “Unknown” in Joomla's extension list. Release preparation keeps these dates current.</item>
+    </addition>
+    <note>
+      <item>On existing installations, enable Task – InterCOM and create an enabled InterCOM task in Joomla Scheduled Tasks, preferably every five minutes with a working trigger. The plugin applies retention, marks interrupted operations for review, reconciles filter reservations and sends optional archive copies. Enabling the plugin also requires configuring a scheduled task.</item>
+      <item>Validation covers the native Joomla extension list, fresh installation, scheduler dispatch and upgrades from the checksum-verified public 0.3.11 package, preserving drafts, revisions, settings, encrypted credentials, audit history, communication groups and permissions.</item>
+    </note>
+  </changelog>
+  <changelog>
+    <element>pkg_intercom</element>
+    <type>package</type>
+    <version>0.3.11</version>
+    <note>
+      <item>First public package for Joomla 6.1 and PHP 8.3 or newer. The package installs the native Intercom component, its scheduled-maintenance plugin and its configuration-validation plugin.</item>
+      <item>Install pkg_intercom-0.3.11.zip using Joomla's extension installer. New installations start in simulation. Existing installations retain their settings and encrypted credentials.</item>
+      <item>Before enabling live member delivery, configure the production account/list, verified sender, unsubscribe form, Joomla mail, roles/audience permissions, tags/suppression, footer and native site languages. Schedule Intercom maintenance, preferably every five minutes with a reliable trigger. Complete Delivery acceptance on that installation using exactly one approved recipient, inspect the received email and open its unsubscribe form without confirming an unsubscribe. Dev acceptance does not transfer to production.</item>
+      <item>Back up the database and Joomla configuration, preserving the site secret. Validate installation/update and restore on staging, check delegated Danish/English workflows, and inspect received light/dark emails in the clients used by members. These are deployment checks; publishing this package does not record their completion on the production site.</item>
+      <item>The release process runs local coding-style, unit, frontend, smoke, native Joomla install/upgrade, ACL/CSRF, scheduler, retention and SMTP-capture checks, then requires GitHub CI for the release commit. The authorized dev CleverReach send completed and its recipient confirmed receipt and the unsubscribe-form destination. Automated CI uses disposable databases and provider fixtures, never a live member send.</item>
+    </note>
+    <change>
+      <item>Compose Danish and English member emails with Joomla's editor, themed light/dark previews, first-name insertion, saved drafts and browser recovery. Start a new communication without deleting the current draft; save unfinished content or save it automatically before testing.</item>
+      <item>Configure CleverReach lists and list-bound unsubscribe forms, translated communication groups and suppression words, friendly team/membership tags, and group-based audience and communication permissions.</item>
+      <item>Use Intercom-managed filters with a configurable pool cap, early recipient estimates and protected reservations for uncertain or unfinished provider operations. Sends require a successful current-content test and server-side delivery acceptance.</item>
+      <item>Review the latest five confirmed sends on the dashboard, paginated sent-mail history, frozen message snapshots, audit history and filter reconciliation. Scheduled maintenance handles cleanup, reconciliation and optional archive copies.</item>
+      <item>Store credentials in authenticated Sodium encryption derived from Joomla's site secret. Configure email design, sender, address, social/member-profile links and retention; the default audit/content retention is 30 days.</item>
+      <item>Clarify all-member audience grants and separate the account-verification button from the OAuth fields in Options.</item>
+    </change>
+  </changelog>
+</changelogs>

@@ -2,6 +2,7 @@
 
 defined('_JEXEC') or die;
 use Joomla\CMS\Factory;
+use Joomla\CMS\Editor\Editor;
 use Joomla\CMS\Editor\EditorsRegistry;
 use Joomla\CMS\Plugin\PluginHelper;
 use FKT\Component\Intercom\Administrator\Domain\Message;
@@ -22,9 +23,13 @@ $wa->useStyle('com_intercom.app')->useScript('com_intercom.app')->usePreset('cho
 PluginHelper::importPlugin('editors');
 $editors = Factory::getContainer()->get(EditorsRegistry::class);
 $editors->initRegistry();
-$editorName = (string) $user->getParam('editor', $app->get('editor', 'tinymce'));
-$editor = $editors->get($editors->has($editorName) ? $editorName : 'none');
-foreach (['SAVED','TESTED','SUBMITTED','DIRTY','ERROR','CONFIRM_SEND','INVALID_MESSAGE','FAKE_TESTED','FAKE_SUBMITTED','ALL_AUDIENCE','NO_GROUPS','GROUP_REQUIRED','PREVIEW_UPDATING','PREVIEW_UPDATED','PREVIEW_OUTDATED','CONFIRM_DELETE','DELETED','RESTORED','ESTIMATE','ESTIMATE_CHECKED','ESTIMATE_STALE','ESTIMATE_UNAVAILABLE','ESTIMATE_LOADING','ESTIMATE_SIMULATED','COUNT_CHANGED','NO_RECIPIENTS','LOCAL_RECOVERED','LOCAL_SAVED','LOCAL_UNAVAILABLE','DRAFT_READONLY','TEST_REQUIRED','RELEASE_NOT_VERIFIED'] as $key) {
+$editorName = (string) ($user->getParam('editor') ?: $app->get('editor', 'tinymce'));
+if (!$editors->has($editorName) && !PluginHelper::isEnabled('editors', $editorName)) {
+    $editorName = 'none';
+}
+// Joomla's editor facade also supports enabled plugins using legacy onDisplay, including JCE.
+$editor = Editor::getInstance($editorName);
+foreach (['SAVED','TESTED','SUBMITTED','DIRTY','ERROR','CONFIRM_SEND','INVALID_MESSAGE','FAKE_TESTED','FAKE_SUBMITTED','ALL_AUDIENCE','NO_GROUPS','GROUP_REQUIRED','PREVIEW_UPDATING','PREVIEW_UPDATED','PREVIEW_OUTDATED','CONFIRM_DELETE','DELETED','RESTORED','ESTIMATE','ESTIMATE_CHECKED','ESTIMATE_STALE','ESTIMATE_UNAVAILABLE','ESTIMATE_LOADING','ESTIMATE_SIMULATED','COUNT_CHANGED','NO_RECIPIENTS','AUDIENCE_CHANGED','LOCAL_RECOVERED','LOCAL_SAVED','LOCAL_UNAVAILABLE','DRAFT_READONLY','TEST_REQUIRED','RELEASE_NOT_VERIFIED'] as $key) {
     Text::script('COM_INTERCOM_' . $key);
 }
 $id = $app->input->getInt('id');
@@ -100,11 +105,11 @@ endif; ?>
     ?><div data-language-panel="<?= $lang ?>">
 <label><?= $t('SUBJECT_' . strtoupper($lang)) ?><input name="subject_<?= $lang ?>" required maxlength="255"></label>
 <label for="body_<?= $lang ?>"><?= $t('BODY_' . strtoupper($lang)) ?></label>
-    <?= $editor->display('body_' . $lang, !empty($content['body_' . $lang]) ? Message::bodyHtml($content, $lang) : '', ['id' => 'body_' . $lang, 'height' => '340', 'width' => '100%'], ['buttons' => false]) ?>
+    <?= $editor->display('body_' . $lang, $esc(!empty($content['body_' . $lang]) ? Message::bodyHtml($content, $lang) : ''), '100%', '340', 60, 20, false, 'body_' . $lang) ?>
 <button type="button" class="ic-quiet ic-firstname" data-firstname="<?= $lang ?>"><?= $t('INSERT_FIRSTNAME') ?></button>
 </div>
 <?php endforeach; ?><p class="ic-help"><?= $t('TEXT_HELP') ?></p><div class="ic-actions"><button class="ic-quiet" type="button" data-go="0">← <?= $t('RECIPIENTS') ?></button><button type="button" data-action="save"><?= $t('SAVE') ?></button><button type="button" data-go="2"><?= $t('TO_TEST') ?> →</button></div></fieldset>
-<fieldset data-panel="2"><legend><?= $t('TEST_SEND') ?></legend><div class="ic-estimate-inline"><p data-estimate-line role="status" aria-live="polite"></p><button type="button" class="ic-quiet" data-refresh-estimate><?= $t('REFRESH_ESTIMATE') ?></button></div><p class="ic-help"><?= $t('TEST_HELP') ?></p><div class="ic-test-box"><p><?= $esc($user->email) ?></p><button type="button" data-action="preview" disabled><?= $t('PREVIEW') ?></button></div><label class="ic-check"><input id="ic-confirm" type="checkbox" disabled> <?= $t('CONFIRM') ?></label><label><?= $t('SEND_AT') ?><input name="send_at" type="datetime-local"></label><div class="ic-actions"><button class="ic-quiet" type="button" data-go="1">← <?= $t('CONTENT') ?></button><button type="button" data-action="release" disabled><?= $t('RELEASE') ?></button><button type="button" data-action="cancel" disabled><?= $t('CANCEL') ?></button></div></fieldset><p id="ic-send-help" class="ic-help" role="status"></p><p id="ic-status" role="status" aria-live="polite"></p><p id="ic-local-status" class="ic-help" role="status" aria-live="polite"></p>
+<fieldset data-panel="2"><legend><?= $t('TEST_SEND') ?></legend><div class="ic-estimate-inline"><p data-estimate-line role="status" aria-live="polite"></p><button type="button" class="ic-quiet" data-refresh-estimate><?= $t('REFRESH_ESTIMATE') ?></button></div><p class="ic-help"><?= $t('TEST_HELP') ?></p><div class="ic-test-box"><p><?= $esc($user->email) ?></p><button type="button" data-action="preview" disabled><?= $t('PREVIEW') ?></button></div><label class="ic-check"><input id="ic-confirm" type="checkbox" aria-describedby="ic-send-help" disabled> <?= $t('CONFIRM') ?></label><p id="ic-send-help" class="ic-help" role="status"></p><label><?= $t('SEND_AT') ?><input name="send_at" type="datetime-local"></label><div class="ic-actions"><button class="ic-quiet" type="button" data-go="1">← <?= $t('CONTENT') ?></button><button type="button" data-action="release" disabled><?= $t('RELEASE') ?></button><button type="button" data-action="cancel" disabled><?= $t('CANCEL') ?></button></div></fieldset><p id="ic-status" role="status" aria-live="polite"></p><p id="ic-local-status" class="ic-help" role="status" aria-live="polite"></p>
 </form><aside>
 <div class="ic-preview-top"><span class="ic-eyebrow"><?= $t('YOUR_MESSAGE') ?></span><div class="ic-preview-langs"><button type="button" data-preview-lang="da" aria-pressed="true">DA</button><button type="button" data-preview-lang="en" aria-pressed="false">EN</button></div></div>
 <dl class="ic-envelope"><dt><?= $t('SENDER') ?></dt><dd id="ic-preview-sender"></dd><dt><?= $t('SUBJECT') ?></dt><dd id="ic-preview-subject"></dd></dl>
@@ -112,7 +117,7 @@ endif; ?>
 <p id="ic-preview-status" class="ic-help" role="status"></p>
 <iframe id="ic-preview-frame" class="ic-preview-frame" sandbox="" referrerpolicy="no-referrer" title="<?= $esc($t('YOUR_MESSAGE')) ?>"></iframe>
 <p class="ic-help"><?= $t('PREVIEW_NOTE') ?></p><p class="ic-help"><?= $t('DARK_PREVIEW_HELP') ?></p><div class="ic-audience"><strong><?= $t('RECIPIENTS') ?></strong><p id="ic-audience-summary"></p><p id="ic-estimate" role="status" aria-live="polite"></p><button type="button" class="ic-quiet" id="ic-estimate-refresh"><?= $t('REFRESH_ESTIMATE') ?></button><p class="ic-help"><?= $t('ESTIMATE_HELP') ?></p></div>
-<details class="ic-draft-list"><summary><?= $t('DRAFTS') ?></summary><h2><?= $t('DRAFTS') ?></h2><ul class="ic-drafts">
+<details class="ic-draft-list"><summary><?= $t('DRAFTS') ?></summary><ul class="ic-drafts">
 <?php foreach ($r->store->rows('SELECT id,state,revision FROM #__intercom_drafts WHERE owner_id=' . (int) $user->id . " AND state!='deleted' ORDER BY id DESC LIMIT 30") as $row) : ?>
 <li><a href="<?= $esc(Route::_('index.php?option=com_intercom&id=' . (int) $row['id'])) ?>">#<?= (int) $row['id'] ?> · <?= $esc($t('STATE_' . strtoupper($row['state']))) ?></a></li>
 <?php endforeach; ?></ul></details>
@@ -127,7 +132,7 @@ endif; ?>
 <?php
 // Limit TinyMCE to formatting supported by the email sanitiser, independent of the site editor preset.
 $options = $app->getDocument()->getScriptOptions('plg_editor_tinymce');
-if ($editor->getName() === 'tinymce') {
+if ($editorName === 'tinymce') {
     foreach (['body_da', 'body_en'] as $field) {
         $options['tinyMCE'][$field] = array_replace($options['tinyMCE'][$field] ?? [], [
             'joomlaMergeDefaults' => true, 'toolbar' => 'undo redo | blocks | bold italic underline | bullist numlist | link | removeformat',

@@ -1,5 +1,5 @@
 import { JoomlaEditor } from 'editor-api';
-import { DraftCache, composerControls } from './draft-cache.mjs';
+import { DraftCache, composerControls, composerSendBlocker } from './draft-cache.mjs';
 import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
 
 (() => {
@@ -36,7 +36,8 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   const groupError = document.getElementById('ic-group-error');
   const text = key => Joomla.Text._('COM_INTERCOM_' + key);
   const editable = () => !draft || ['draft','tested'].includes(draft.state);
-  const bodyValue = lang => (JoomlaEditor.get('body_' + lang) || null)?.getValue() ?? form.elements['body_' + lang].value;
+  const getEditor = id => JoomlaEditor.get(id) || Joomla.editors?.instances?.[id] || null;
+  const bodyValue = lang => getEditor('body_' + lang)?.getValue() ?? form.elements['body_' + lang].value;
   for (const [key, value] of Object.entries(initial.message || {})) {
     // Editor values are rendered by Joomla on the server, including conversion of old plain-text drafts.
     if (key.startsWith('body_')) continue;
@@ -57,7 +58,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   function markEditorsSaved() {
     // Joomla's TinyMCE decorator exposes the provider. Keep its navigation warning
     // in sync only after these exact editor values have been saved successfully.
-    for (const lang of ['da','en']) JoomlaEditor.get('body_' + lang)?.instance?.setDirty?.(false);
+    for (const lang of ['da','en']) getEditor('body_' + lang)?.instance?.setDirty?.(false);
   }
   function needsTeam() {
     return requiresTeam(initial.types?.[form.elements.type.value], Array.from(form.elements['tags[]'].selectedOptions).map(el => el.value), initial.availableTeams || []);
@@ -97,7 +98,8 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     return true;
   }
   function sync() {
-    const controls = composerControls(draft, {busy,dirty,audienceDirty,approved:initial.releaseApproved});
+    const sendState = {busy,dirty,audienceDirty,estimating,approved:initial.releaseApproved};
+    const controls = composerControls(draft, sendState);
     form.querySelector('[data-action=save]').disabled = !controls.save;
     form.querySelector('[data-action=preview]').disabled = !controls.preview;
     confirm.disabled = !controls.confirm;
@@ -121,8 +123,8 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     const refresh = document.getElementById('ic-estimate-refresh');
     form.querySelectorAll('[data-refresh-estimate]').forEach(el => {el.disabled = busy || !editable() || needsTeam();});
     if (refresh) refresh.disabled = busy || !editable() || needsTeam();
-    document.getElementById('ic-send-help').textContent = !initial.releaseApproved ? text('RELEASE_NOT_VERIFIED') : !draft || dirty || draft.state !== 'tested' ? text('TEST_REQUIRED') : '';
-    if (draft?.estimate_count === 0 || audienceDirty) {confirm.disabled = true; form.querySelector('[data-action=release]').disabled = true;}
+    const blocker = composerSendBlocker(draft, sendState);
+    document.getElementById('ic-send-help').textContent = blocker ? text(blocker) : '';
     const groups = Array.from(form.elements['tags[]'].selectedOptions).map(el => el.textContent.trim());
     const memberships = Array.from(form.elements['memberships[]'].selectedOptions).map(el => el.textContent.trim());
     document.getElementById('ic-audience-summary').textContent = [...groups, ...memberships].join(', ') || text(initial.allAudience ? 'ALL_AUDIENCE' : 'NO_GROUPS');
@@ -222,7 +224,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   form.querySelectorAll('[data-firstname]').forEach(button => button.addEventListener('click', () => {
     const lang = button.dataset.firstname;
     const placeholder = lang === 'da' ? '{FIRSTNAME[std:Medlem]}' : '{FIRSTNAME[std:Member]}';
-    const editor = JoomlaEditor.get('body_' + lang);
+    const editor = getEditor('body_' + lang);
     if (editor) editor.replaceSelection(placeholder);
     else {
       const textarea = form.elements['body_' + lang];
@@ -250,7 +252,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
       }
       recoveredStep = recovery.step;
       restoredBodies = {da:recovered.body_da,en:recovered.body_en};
-      for (const lang of ['da','en']) {const editor = JoomlaEditor.get('body_' + lang); if (editor) {editor.setValue(restoredBodies[lang]); delete restoredBodies[lang];}}
+      for (const lang of ['da','en']) {const editor = getEditor('body_' + lang); if (editor) {editor.setValue(restoredBodies[lang]); delete restoredBodies[lang];}}
       dirty = JSON.stringify(recovered) !== JSON.stringify(initial.message || {});
       audienceDirty = audienceKey(recovered) !== savedAudience;
       editLanguage = recovery.language === 'da' ? 'da' : 'en'; previewLanguage = editLanguage;
@@ -266,14 +268,14 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   form.addEventListener('change', e => {
     if (e.target.matches('select,input[type=radio]')) changed(['type','tags[]'].includes(e.target.name)); else sync();
   });
-  // Joomla editor providers expose values through one API; this also handles iframe editors.
+  // Modern and legacy Joomla editor APIs expose live values, including iframe editors.
   // Initial provider normalisation is recorded without invalidating an unchanged tested draft.
   const previous = new Map();
   setInterval(() => {
     if (document.hidden) return;
     let firstProvider = false;
     for (const lang of ['da','en']) {
-      const editor = JoomlaEditor.get('body_' + lang);
+      const editor = getEditor('body_' + lang);
       if (!editor) continue;
       if (restoredBodies && Object.hasOwn(restoredBodies,lang)) {editor.setValue(restoredBodies[lang]); delete restoredBodies[lang]; previous.set(lang,editor.getValue());}
       const value = editor.getValue();
@@ -320,7 +322,9 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     body.set('approved_count', draft?.estimate_count ?? -1);
     body.set('confirm',confirm.checked ? '1' : '0');
     body.set('send_at',form.elements.send_at.value ? Math.floor(new Date(form.elements.send_at.value).getTime()/1000) : 0);
-    if (action === 'save') for (const lang of ['da','en']) previous.set(lang,bodyValue(lang));
+    // Use the exact submitted editor values as the baseline for both save and test.
+    // A later polling tick must not mistake already-tested edits for new changes.
+    if (['save','preview'].includes(action)) for (const lang of ['da','en']) previous.set(lang,bodyValue(lang));
     busy = true; sync();
     try {
       if (action === 'preview' && (dirty || !draft)) {

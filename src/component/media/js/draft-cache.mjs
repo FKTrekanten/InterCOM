@@ -28,10 +28,20 @@ export class DraftCache {
   clear(id) { try {this.storage?.removeItem(this.prefix + id);} catch {} }
 }
 
-export function composerControls(draft, {busy = false, dirty = false, audienceDirty = false, approved = false} = {}) {
+export function composerSendBlocker(draft, {dirty = false, audienceDirty = false, approved = false, estimating = false} = {}) {
+  if (estimating) return 'ESTIMATE_LOADING';
+  if (!approved) return 'RELEASE_NOT_VERIFIED';
+  if (audienceDirty) return 'AUDIENCE_CHANGED';
+  if (!draft || dirty || draft.state !== 'tested') return 'TEST_REQUIRED';
+  const count = Number(draft.estimate_count);
+  if (draft.estimate_error || draft.estimate_count == null || draft.estimate_count === '' || !Number.isInteger(count) || count < 0) return 'ESTIMATE_UNAVAILABLE';
+  if (count === 0) return 'NO_RECIPIENTS';
+  return '';
+}
+
+export function composerControls(draft, {busy = false, dirty = false, audienceDirty = false, approved = false, estimating = false} = {}) {
   const editable = !draft || ['draft','tested'].includes(draft.state);
-  const confirmedTest = !!draft && draft.state === 'tested' && !dirty && !audienceDirty;
   return {save:!busy && editable, preview:!busy && editable,
     delete:!busy && (!draft || ['draft','tested','cancelled'].includes(draft.state)),
-    confirm:!busy && confirmedTest && approved && draft.estimate_count > 0};
+    confirm:!busy && !composerSendBlocker(draft, {dirty,audienceDirty,approved,estimating})};
 }

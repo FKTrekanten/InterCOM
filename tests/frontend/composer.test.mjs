@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {DraftCache, composerControls} from '../../src/component/media/js/draft-cache.mjs';
+import {DraftCache, composerControls, composerSendBlocker} from '../../src/component/media/js/draft-cache.mjs';
 import {PreviewScheduler, requiresTeam, subjectLabel} from '../../src/component/media/js/preview.mjs';
 
 // Run the real composer event handlers against a small DOM/editor boundary.
@@ -27,7 +27,7 @@ test('Subject typing updates the envelope without requesting or replacing email 
     set(key,value) {this.values[key]=value;}
     getAll() {return [];}
   }
-  const sandbox = {DraftCache,composerControls,PreviewScheduler,requiresTeam,subjectLabel,FormData,Map,console,
+  const sandbox = {DraftCache,composerControls,composerSendBlocker,PreviewScheduler,requiresTeam,subjectLabel,FormData,Map,console,
     JoomlaEditor:{get:() => null},Joomla:{getOptions:() => ({language:'en',types:{club:{prefixes:{en:'Club News'}}}}),Text:{_:key => key}},
     document:{addEventListener(){},getElementById:id => id === 'ic-form' ? form : element(id),querySelectorAll:() => []},window:{addEventListener(){}},
     setTimeout:(callback,delay) => {tasks.set(++timer,{callback,at:time+delay});return timer;},clearTimeout:id => tasks.delete(id),setInterval(){},
@@ -58,26 +58,28 @@ test('Subject typing updates the envelope without requesting or replacing email 
   assert.equal(calls.at(-1).subject_en,'New subject');
 });
 
-function composerHarness(initial, api, editor = null) {
+function composerHarness(initial, api, editor = null, legacyEditors = {}) {
   const fields=Object.fromEntries(Object.entries({type:'club',sender:'Club',subject_da:'DA',subject_en:'EN',body_da:'Dansk',body_en:'English',gender:'',age_from:0,age_to:0,send_at:''}).map(([name,value])=>[name,{name,value,classList:{contains:()=>false},checkValidity:()=>true}]));
   fields['tags[]']=fields['memberships[]']={selectedOptions:[]};
-  const elements=new Map(),events=new Map(),actions=new Map(),steps=new Map();
+  const elements=new Map(),events=new Map(),actions=new Map(),steps=new Map(),firstnames=new Map();
+  let pollEditors;
   const element=id=>{if(!elements.has(id))elements.set(id,{textContent:'',hidden:false,checked:false,srcdoc:'',setAttribute(){},removeAttribute(){},addEventListener(){}});return elements.get(id);};
   const action=name=>{if(!actions.has(name))actions.set(name,{dataset:{action:name},addEventListener:(_,handler)=>actions.get(name).click=handler});return actions.get(name);};
   ['save','preview','release','delete','restore','cancel'].forEach(action);
+  for(const lang of ['da','en']) firstnames.set(lang,{dataset:{firstname:lang},addEventListener:(_,handler)=>firstnames.get(lang).click=handler});
   const go={dataset:{go:'1'},addEventListener:(_,handler)=>steps.set('content',handler)};
-  const form={elements:fields,action:'/api',querySelector:selector=>action(selector.match(/data-action=(\w+)/)?.[1]),querySelectorAll:selector=>selector==='[data-action]'?[...actions.values()]:selector==='[data-step],[data-go]'?[go]:selector==='input,select'?Object.values(fields).filter(f=>f.checkValidity):[],addEventListener:(event,handler)=>events.set(event,handler)};
+  const form={elements:fields,action:'/api',querySelector:selector=>action(selector.match(/data-action=(\w+)/)?.[1]),querySelectorAll:selector=>selector==='[data-action]'?[...actions.values()]:selector==='[data-firstname]'?[...firstnames.values()]:selector==='[data-step],[data-go]'?[go]:selector==='input,select'?Object.values(fields).filter(f=>f.checkValidity):[],addEventListener:(event,handler)=>events.set(event,handler)};
   class FormData {
     values=Object.fromEntries(Object.entries(fields).map(([key,field])=>[key,field.value]));
     get(key){return this.values[key];} set(key,value){this.values[key]=value;} getAll(){return [];}
   }
   let url='http://example.test/intercom';
-  const sandbox={DraftCache,composerControls,PreviewScheduler,requiresTeam,subjectLabel,FormData,Map,URL,
-    JoomlaEditor:{get:()=>editor},Joomla:{getOptions:()=>({language:'en',types:{club:{prefixes:{}}},...initial}),Text:{_:key=>key}},
+  const sandbox={DraftCache,composerControls,composerSendBlocker,PreviewScheduler,requiresTeam,subjectLabel,FormData,Map,URL,
+    JoomlaEditor:{get:()=>editor},Joomla:{editors:{instances:legacyEditors},getOptions:()=>({language:'en',types:{club:{prefixes:{}}},...initial}),Text:{_:key=>key}},
     document:{getElementById:id=>id==='ic-form'?form:element(id),querySelectorAll:()=>[],addEventListener(){}},window:{location:{href:url},history:{replaceState:(_,__,value)=>url=String(value)},addEventListener(){}},
-    setTimeout(){},clearTimeout(){},setInterval(){},fetch:async (_,request)=>({ok:true,json:async()=>({success:true,data:request.body.get('task')==='api.render'?{da:'Preview',en:'Preview'}:await api(request.body)})})};
+    setTimeout(){},clearTimeout(){},setInterval(callback){pollEditors=callback;},fetch:async (_,request)=>({ok:true,json:async()=>({success:true,data:request.body.get('task')==='api.render'?{da:'Preview',en:'Preview'}:await api(request.body)})})};
   runInNewContext(readFileSync(new URL('../../src/component/media/js/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,''),sandbox);
-  return {fields,element,action,content:()=>steps.get('content')(),url:()=>url,events};
+  return {fields,element,action,content:()=>steps.get('content')(),url:()=>url,events,firstname:lang=>firstnames.get(lang).click(),pollEditors:()=>pollEditors()};
 }
 
 test('Slow counts retain the saved draft URL and editing controls; saves wait for the current count before using its revision', async () => {
@@ -126,4 +128,51 @@ test('A confirmed save clears TinyMCE navigation warnings; a failed save preserv
   await h.action('save').click(); assert.deepEqual(states,[false,false]);
   const failed=composerHarness({},async()=>{throw new Error('Network unavailable');},editor);
   await failed.action('save').click(); assert.deepEqual(states,[false,false]);
+});
+
+test('Legacy iframe editor content and first-name insertions are saved and tested; later edits invalidate confirmation', async () => {
+  const values={da:'<p>Dansk fra editoren</p>',en:'<p>English from the editor</p>'},calls=[];
+  const editors=Object.fromEntries(['da','en'].map(lang=>['body_'+lang,{
+    getValue:()=>values[lang],setValue:value=>values[lang]=value,replaceSelection:value=>values[lang]+=value
+  }]));
+  const h=composerHarness({releaseApproved:true},async body=>{
+    calls.push(body.get('task'));
+    if(body.get('task')==='api.save'){
+      const message=JSON.parse(body.get('message'));
+      assert.equal(message.body_da,values.da); assert.equal(message.body_en,values.en);
+      return {id:14,revision:2,state:'draft',estimate_count:1};
+    }
+    assert.equal(body.get('task'),'api.preview'); assert.equal(body.get('revision'),2);
+    return {id:14,revision:2,state:'tested',estimate_count:1};
+  },null,editors);
+  h.pollEditors();
+  h.firstname('en'); assert.match(values.en,/\{FIRSTNAME\[std:Member\]\}/);
+  await h.action('preview').click(); assert.deepEqual(calls,['api.save','api.preview']);
+  assert.equal(h.element('ic-confirm').disabled,false);
+  h.pollEditors(); assert.equal(h.element('ic-confirm').disabled,false);
+  values.en='<p>Edited after testing</p>'; h.pollEditors();
+  assert.equal(h.element('ic-confirm').disabled,true);
+});
+
+test('Successful test mail cannot hide outdated delivery acceptance; reopening the tested draft explains the same blocker', async () => {
+  const tested={id:15,revision:3,tested_revision:3,state:'tested',estimate_count:'1'};
+  const h=composerHarness({releaseApproved:false},async body=>({...tested,state:body.get('task')==='api.save'?'draft':'tested'}));
+  await h.action('preview').click();
+  assert.equal(h.element('ic-status').textContent,'COM_INTERCOM_TESTED');
+  assert.equal(h.element('ic-confirm').disabled,true);
+  assert.equal(h.element('ic-send-help').textContent,'COM_INTERCOM_RELEASE_NOT_VERIFIED');
+  const reopened=composerHarness({releaseApproved:false,draft:tested},async()=>{});
+  assert.equal(reopened.element('ic-confirm').disabled,true);
+  assert.equal(reopened.element('ic-send-help').textContent,'COM_INTERCOM_RELEASE_NOT_VERIFIED');
+  const approved=composerHarness({releaseApproved:true,draft:tested},async()=>{});
+  assert.equal(approved.element('ic-confirm').disabled,false);
+  assert.equal(approved.element('ic-send-help').textContent,'');
+});
+
+test('Successful test mail with an empty audience explains why confirmation remains disabled', async () => {
+  const h=composerHarness({releaseApproved:true},async body=>({id:16,revision:1,state:body.get('task')==='api.save'?'draft':'tested',estimate_count:'0'}));
+  await h.action('preview').click();
+  assert.equal(h.element('ic-status').textContent,'COM_INTERCOM_TESTED');
+  assert.equal(h.element('ic-confirm').disabled,true);
+  assert.equal(h.element('ic-send-help').textContent,'COM_INTERCOM_NO_RECIPIENTS');
 });

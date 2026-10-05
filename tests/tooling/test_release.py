@@ -21,6 +21,8 @@ class ReleaseTests(unittest.TestCase):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('<extension><version>0.1.0</version></extension>')
+        for name in release.CHANGELOGS:
+            (self.root/name).write_text('<changelogs/>')
         (self.root/'VERSION').write_text('0.1.0\n')
         (self.root/'CHANGELOG.md').write_text('# Changelog\n\n## Unreleased\n')
         (self.root/release.GENERATED[5]).write_text('{"version":"0.1.0"}')
@@ -92,5 +94,20 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(update.findtext('sha256'),'a'*64)
         self.assertEqual(update.findtext('php_minimum'),'8.3')
         self.assertTrue(update.findtext('downloads/downloadurl').endswith('/v0.2.0/pkg_intercom-0.2.0.zip'))
+        self.assertEqual(update.findtext('changelogurl'),release.changelog_url('updates/changelog.xml'))
+
+    def test_joomla_changelog_retains_history_and_categorises_literal_notes(self):
+        path=self.root/'updates/changelog-task.xml'
+        release.write_changelog(path, ('intercom','plugin','task'), '0.1.0', '- Fix old issue.')
+        release.write_changelog(path, ('intercom','plugin','task'), '0.2.0', '- Restore **JCE** & `<textarea>` content.\n- Remove duplicate heading.\n- Add native changelog.\n\nRenew acceptance after changing email design.')
+        entries=ET.parse(path).getroot().findall('changelog')
+        self.assertEqual([e.findtext('version') for e in entries],['0.2.0','0.1.0'])
+        self.assertEqual(entries[0].findtext('folder'),'task')
+        self.assertEqual(entries[0].findtext('fix/item'),'Restore JCE &amp; &lt;textarea&gt; content.')
+        self.assertEqual(entries[0].findtext('remove/item'),'Remove duplicate heading.')
+        self.assertEqual(entries[0].findtext('addition/item'),'Add native changelog.')
+        self.assertIn('Renew acceptance',entries[0].findtext('note/item'))
+        with self.assertRaises(SystemExit):
+            release.write_changelog(path, ('intercom','plugin','task'), '0.2.0', 'Changed notes.')
 
 if __name__ == '__main__': unittest.main()
