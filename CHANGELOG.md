@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.12
+
+# InterCOM 0.3.12
+
+- Use **InterCOM** consistently in Danish and English component, package, plugin, scheduled-task and branded email labels. Internal extension identifiers remain unchanged.
+- Translate the main package name and description so Joomla displays **InterCOM** instead of `PKG_INTERCOM`.
+- Include release dates for the package and its three extensions, replacing “Unknown” in Joomla's extension list. Release preparation keeps these dates current.
+- Enable the maintenance plugin automatically on fresh installs. Updates preserve its existing enabled/disabled setting.
+
+On existing installations, enable **Task – InterCOM** and create an enabled **InterCOM** task in Joomla Scheduled Tasks, preferably every five minutes with a working trigger. The plugin applies retention, marks interrupted operations for review, reconciles filter reservations and sends optional archive copies. Enabling the plugin also requires configuring a scheduled task.
+
+Validation covers the native Joomla extension list, fresh installation, scheduler dispatch and upgrades from the checksum-verified public 0.3.11 package, preserving drafts, revisions, settings, encrypted credentials, audit history, communication groups and permissions.
+
 ## 0.3.11
 
 # Intercom 0.3.11
