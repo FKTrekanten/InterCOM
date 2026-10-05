@@ -191,7 +191,7 @@ _, login = request(management)
 status, overview = request('/administrator/index.php', {'option':'com_login','task':'login','username':'ci-manager',
     'passwd':os.environ['INTERCOM_ADMIN_PASSWORD'],token(login):'1',
     'return':base64.b64encode(b'index.php?option=com_intercom').decode()})
-assert status == 200 and 'Intercom dashboard' in overview and 'Latest sent emails' not in overview and 'ic-admin-stats' not in overview, 'Dashboard hides audit-derived data without permission'
+assert status == 200 and 'InterCOM dashboard' in overview and 'Latest sent emails' not in overview and 'ic-admin-stats' not in overview, 'Dashboard hides audit-derived data without permission'
 assert request(management + '&view=history')[0] == 403, 'Sent-mail history requires its dedicated permission'
 assert request(management + '&view=history&id=1')[0] == 403, 'Message detail deep link requires content permission'
 assert request(management + '&view=audit')[0] == 403, 'Audit deep link requires audit permission'

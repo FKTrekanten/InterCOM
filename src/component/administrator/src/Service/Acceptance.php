@@ -35,9 +35,9 @@ final class Acceptance
         }
         $w = $r->workflow($this->user);
         $draft = $w->saveAcceptance(['type' => array_key_first($types), 'sender' => $r->config['sender_name'],
-            'subject_da' => '[Intercom] Leveringstest til én modtager', 'subject_en' => '[Intercom] One-recipient acceptance test',
-            'body_da' => "Hej {FIRSTNAME[std:Medlem]}\n\nDette er en test af Intercom. Kontrollér layout, afsender, profillink og afmeldingsformular. Åbn formularen, men bekræft ikke afmeldingen.",
-            'body_en' => "Hello {FIRSTNAME[std:Member]}\n\nThis is an Intercom acceptance test. Check the layout, sender, member profile link and unsubscribe form. Open the form, but do not confirm an unsubscribe."], $recipient);
+            'subject_da' => '[InterCOM] Leveringstest til én modtager', 'subject_en' => '[InterCOM] One-recipient acceptance test',
+            'body_da' => "Hej {FIRSTNAME[std:Medlem]}\n\nDette er en test af InterCOM. Kontrollér layout, afsender, profillink og afmeldingsformular. Åbn formularen, men bekræft ikke afmeldingen.",
+            'body_en' => "Hello {FIRSTNAME[std:Member]}\n\nThis is an InterCOM acceptance test. Check the layout, sender, member profile link and unsubscribe form. Open the form, but do not confirm an unsubscribe."], $recipient);
         $id = (int) $draft['id'];
         try {
             $draft = $w->estimate($id, (int) $draft['revision'], true);

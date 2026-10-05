@@ -29,4 +29,5 @@ $asset->loadByName('com_intercom');
 $asset->rules = json_encode(['intercom.class' => [2 => 1, 3 => 0], 'intercom.club' => [2 => 0], 'intercom.compose' => [2 => 1]]);
 $asset->store();
 $db->setQuery("UPDATE #__schemas SET version_id='0.0.0' WHERE extension_id=$id")->execute();
+$db->setQuery("UPDATE #__extensions SET enabled=0 WHERE type='plugin' AND element='intercom' AND folder='task'")->execute();
 check(true, 'Synthetic 0.0.0 upgrade baseline prepared');

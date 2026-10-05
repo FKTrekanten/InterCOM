@@ -27,7 +27,7 @@ final class TestDeliveryTest extends TestCase
         self::assertCount(2, $sent);
         foreach ($sent as [$address, $payload]) {
             self::assertSame('coach@example.invalid', $address);
-            self::assertStringContainsString('[Intercom test / ', $payload['subject']);
+            self::assertStringContainsString('[InterCOM test / ', $payload['subject']);
             self::assertStringNotContainsString('{UNSUBSCRIBE}', $payload['html']);
             self::assertStringNotContainsString('{FIRSTNAME', $payload['html']);
             self::assertStringNotContainsString('prefers-color-scheme', $payload['text']);

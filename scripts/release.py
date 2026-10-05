@@ -10,6 +10,7 @@ import tempfile
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,7 +30,7 @@ def digest(path):
 def make_feed(version, checksum):
     updates = ET.Element('updates')
     update = ET.SubElement(updates, 'update')
-    fields = {'name':'Intercom', 'description':'Member communications',
+    fields = {'name':'InterCOM', 'description':'Member communications',
               'element':'pkg_intercom', 'type':'package', 'version':version, 'client':'0',
               'infourl':f'https://github.com/{REPO}/releases/tag/v{version}'}
     for key, value in fields.items():
@@ -45,10 +46,15 @@ def make_feed(version, checksum):
 def prepare(version, notes):
     run('bash', 'scripts/ci.sh')
     (ROOT / 'VERSION').write_text(version + '\n')
+    release_date = date.today().isoformat()
     for name in GENERATED[2:5] + [GENERATED[6]]:
         path = ROOT / name
         tree = ET.parse(path)
         tree.getroot().find('version').text = version
+        created = tree.getroot().find('creationDate')
+        if created is None:
+            created = ET.SubElement(tree.getroot(), 'creationDate')
+        created.text = release_date
         tree.write(path, encoding='utf-8', xml_declaration=True)
     asset = ROOT / GENERATED[5]
     data = json.loads(asset.read_text())
@@ -130,10 +136,10 @@ def main():
     run('git', 'add', *GENERATED)
     run('git', 'commit', '-m', f'Release {version}')
     release_commit = run('git', 'rev-parse', 'HEAD', capture=True).strip()
-    run('git', 'tag', '-a', 'v'+version, '-m', f'Intercom {version}')
+    run('git', 'tag', '-a', 'v'+version, '-m', f'InterCOM {version}')
     run('git', 'push', '--atomic', 'origin', 'main', 'v'+version)
     run('gh', 'release', 'create', 'v'+version, str(package), str(package)+'.sha256',
-        '--repo', REPO, '--verify-tag', '--draft', '--title', f'Intercom {version}',
+        '--repo', REPO, '--verify-tag', '--draft', '--title', f'InterCOM {version}',
         '--notes-file', str(notes_path))
     run_id = None
     for _ in range(40):

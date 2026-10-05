@@ -33,3 +33,7 @@ check((int) ($r->config['unsubscribe_form_id'] ?? 0) === 432342, 'Upgrade preser
 
 check((bool)$r->store->row("SHOW COLUMNS FROM #__intercom_filters LIKE 'checked_at'"), 'Upgrade installs reconciliation metadata on existing filters');
 check((bool)$r->store->row("SHOW COLUMNS FROM #__intercom_filter_creations LIKE 'reconciliation_status'"), 'Upgrade installs creation reconciliation metadata');
+
+check((int)$db->setQuery("SELECT enabled FROM #__extensions WHERE type='plugin' AND element='intercom' AND folder='task'")->loadResult() === 0, 'Upgrade preserves an explicitly disabled maintenance plugin');
+// Restore the test site's maintenance plugin for subsequent scheduler coverage.
+$db->setQuery("UPDATE #__extensions SET enabled=1 WHERE type='plugin' AND element='intercom' AND folder='task'")->execute();

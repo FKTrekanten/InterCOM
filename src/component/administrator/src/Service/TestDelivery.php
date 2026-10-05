@@ -22,7 +22,7 @@ final class TestDelivery
             $html = preg_replace('/<body[^>]*>/i', '$0<div style="padding:16px;background:#f4f7fa;color:#172534;font:12px Arial,sans-serif">' . $note . '</div>', $snapshot[$lang], 1);
             preg_match('/<body[^>]*>(.*?)<\/body>/is', $html, $body);
             $prefix = Message::translation($message['definition'] ?? [], $locale)['subject_prefix'];
-            $result[] = ['language' => $lang, 'subject' => '[Intercom test / ' . strtoupper($lang) . '] ' . ($prefix ? '[' . $prefix . '] ' : '') . $message['subject_' . $lang],
+            $result[] = ['language' => $lang, 'subject' => '[InterCOM test / ' . strtoupper($lang) . '] ' . ($prefix ? '[' . $prefix . '] ' : '') . $message['subject_' . $lang],
                 'html' => $html, 'text' => EmailContent::text($body[1] ?? ''), 'sender' => $message['sender']];
         }
         return $result;

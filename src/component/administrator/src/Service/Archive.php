@@ -22,7 +22,7 @@ final class Archive
             throw new \RuntimeException('COM_INTERCOM_INVALID_SETTINGS');
         }
         $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
-        $payload = ['subject' => '[Intercom archive #' . (int) $draft['id'] . '] ' . $message['subject_da'],
+        $payload = ['subject' => '[InterCOM archive #' . (int) $draft['id'] . '] ' . $message['subject_da'],
             'html' => '<p>Archive of an accepted communication. Sender: ' . htmlspecialchars($message['sender'], ENT_QUOTES, 'UTF-8') . '</p>'
                 . '<p>DA: ' . htmlspecialchars($message['subject_da'], ENT_QUOTES, 'UTF-8') . '</p>' . Message::bodyHtml($message, 'da')
                 . '<hr><p>EN: ' . htmlspecialchars($message['subject_en'], ENT_QUOTES, 'UTF-8') . '</p>' . Message::bodyHtml($message, 'en')

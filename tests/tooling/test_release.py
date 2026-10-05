@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
+from datetime import date
 
 spec = importlib.util.spec_from_file_location('release', Path(__file__).parents[2] / 'scripts/release.py')
 release = importlib.util.module_from_spec(spec)
@@ -54,14 +55,22 @@ class ReleaseTests(unittest.TestCase):
             release.main()
 
     def test_preparation_can_resume_without_duplicate_changelog(self):
-        self.invoke()
+        with patch.object(release, 'date') as clock:
+            clock.today.return_value = date(2026, 10, 5)
+            self.invoke()
         self.assertEqual(self.calls.count(('bash','scripts/ci.sh')),2)
         self.assertFalse(any(call[:2] == ('git','push') for call in self.calls))
+        for name in release.GENERATED[2:5] + [release.GENERATED[6]]:
+            self.assertEqual(ET.parse(self.root/name).getroot().findtext('creationDate'), '2026-10-05')
         self.status = ' M VERSION\n M CHANGELOG.md\n'
         self.calls.clear()
-        self.invoke()
+        with patch.object(release, 'date') as clock:
+            clock.today.return_value = date(2026, 10, 6)
+            self.invoke()
         self.assertEqual(self.calls.count(('bash','scripts/ci.sh')),1)
         self.assertEqual((self.root/'CHANGELOG.md').read_text().count('## 0.2.0'),1)
+        for name in release.GENERATED[2:5] + [release.GENERATED[6]]:
+            self.assertEqual(ET.parse(self.root/name).getroot().findtext('creationDate'), '2026-10-05')
 
     def test_modified_preparation_cannot_publish(self):
         self.invoke()

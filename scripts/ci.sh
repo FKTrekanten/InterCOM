@@ -30,7 +30,7 @@ docker compose exec -T --user www-data -w /workspace joomla php vendor/bin/phpun
 version=$(cat VERSION)
 docker compose exec -T --user www-data joomla php /workspace/tests/joomla/install.php "/workspace/dist/pkg_intercom-$version.zip"
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/integration.php
-# Exercise an actual schema change before the first public release exists.
+# Retain the synthetic baseline to exercise an actual schema change.
 docker compose exec -T --user www-data joomla php /workspace/tests/joomla/upgrade-baseline.php
 docker compose exec -T --user www-data joomla php /workspace/tests/joomla/install.php "/workspace/dist/pkg_intercom-$version.zip"
 docker compose exec -T --user www-data joomla php /workspace/tests/joomla/upgrade.php
@@ -43,4 +43,12 @@ docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/te
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/acceptance.php
 python3 tests/http-smoke.py
 docker compose exec -T --user www-data -e INTERCOM_CI=1 -e INTERCOM_TEST_CLIENT_SECRET -e INTERCOM_TEST_ACCESS_TOKEN joomla php /workspace/tests/joomla/settings-http.php
+# A separate disposable installation exercises the immutable public package.
+python3 scripts/fetch-upgrade-fixture.py
+docker compose down --volumes --remove-orphans
+bash scripts/stack.sh up
+docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/public-upgrade-baseline.php /workspace/dist/upgrade/pkg_intercom-0.3.11.zip
+docker compose exec -T --user www-data joomla php /workspace/tests/joomla/install.php "/workspace/dist/pkg_intercom-$version.zip"
+docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/public-upgrade.php
+docker compose exec -T --user www-data joomla php /workspace/tests/joomla/scheduler.php
 echo 'LOCAL CI PASSED'
