@@ -23,9 +23,13 @@ Create an InterCOM frontend menu item. Configure component-wide Joomla permissio
 bash scripts/ci.sh
 ```
 
-Runs Composer validation, PHP lint, language key parity, PSR-12, PHPUnit, package build, isolated Joomla/MariaDB installations, database workflow tests, synthetic SQL migration and checksum-verified public 0.3.11 package upgrades with data preservation, native scheduler dispatch, and authenticated HTTP/CSRF/send-confirmation checks. CI uses a separate Compose project and deletes only that project's test volumes. Production data and CR credentials must never be used in CI.
+Runs Composer validation, PHP lint, language key parity, PSR-12, PHPUnit, package build, isolated Joomla/MariaDB installations, database workflow tests, synthetic SQL migration and checksum-verified public 0.3.11 package upgrades with data preservation, native Database maintenance/Update Structure checks, native scheduler dispatch, and authenticated HTTP/CSRF/send-confirmation checks. CI uses a separate Compose project and deletes only that project's test volumes. Production data and CR credentials must never be used in CI.
+
+Joomla's Database maintenance lists the latest SQL migration version separately from the extension manifest version. These can differ when a release contains no schema changes. The native checker must report no problems, and **Update Structure** must preserve existing data.
 
 ## Release
+
+Every release must include written, version-specific changelog notes. Write `docs/releases/<version>.md` with the changes, relevant upgrade steps and validation before invoking the release script. The script adds those notes to `CHANGELOG.md`; review that entry as part of release preparation before publishing.
 
 ```sh
 python3 scripts/release.py 0.1.0 --notes /absolute/path/release-notes.md
