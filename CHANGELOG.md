@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.17
+
+- Fix the literal `%s` in Joomla's fallback error after a rejected InterCOM Options save. Preserve the specific validation or reservation error, with Danish and English translations.
+- Restore the saved Options values after a rejected save instead of displaying simulation mode and blank sender or approved-recipient fields. The rejected save preserves stored settings, the delivery-acceptance fingerprint, verified acceptance and live reservations.
+- Explain that active CleverReach reservations block account, delivery-mode and recipient-list changes, and direct administrators to **InterCOM → Filters → Reconcile with CleverReach**.
+- Document how to check completed mailings and reserved segments before switching lists, why test-only mailings remain protected, and how to renew acceptance using one approved recipient inside the new full recipient list.
+- Add native Joomla and authenticated HTTP regression checks for rejected saves, persisted settings, acceptance preservation, correct form values after redirect/reload, translated fallback errors and isolation from other components' form sessions.
+
+After upgrading, rejected Options saves reload the last saved values. If an earlier failed save left an already-open editor showing blank/default fields, click **Cancel** and reopen Options before making further changes. The release fixes the form display and error handling; it does not bypass live-reservation protections or add a force-release action.
+
+A successful recipient-list change still requires delivery acceptance for the new configuration. Keep your full recipient list selected, ensure the **Approved test recipient** is active and eligible on that list, and prepare a test in **Delivery acceptance**. InterCOM restricts its acceptance segment to that exact address. Select **Send to one approved recipient**, inspect the delivery and confirm acceptance. Preparation previews sent to the logged-in administrator do not establish acceptance. Existing acceptance tests and verification history are retained.
+
+There are no database migrations. Joomla's database version remains **0.3.8** while the extension manifest becomes **0.3.17**. Existing settings, credentials, permissions, drafts and scheduled tasks are preserved.
+
+Validation includes full local CI, 108 PHP unit tests, 20 frontend tests, native Joomla rejected-save and acceptance checks, authenticated HTTP form checks, installation, scheduler execution, database maintenance, and synthetic and checksum-verified public-package upgrades. Automated checks use disposable installations and provider/mail fixtures; no live member mailing is sent.
+
 ## 0.3.16
 
 - Fix scheduled maintenance failures escaping Joomla's scheduler: catch `Throwable` during component/runtime initialization and separately around retention/recovery, filter reconciliation and archive delivery. A failing phase no longer prevents the remaining phases from running within the available time budget.
