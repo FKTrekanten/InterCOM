@@ -3,6 +3,31 @@
   <changelog>
     <element>pkg_intercom</element>
     <type>package</type>
+    <version>0.3.18</version>
+    <addition>
+      <item>Add an administrator-only Abandon test mailing flow on InterCOM → Filters, displaying the exact CleverReach mailing ID and requiring a reason and explicit confirmation.</item>
+      <item>Include original provider references, requesting/verifying operators, verification time and reason in protected operation records and history details. Expire finished operations' reason text using the configured retention period. Retire incomplete acceptance tests without granting acceptance or changing unrelated valid approval.</item>
+      <item>Add Danish and English labels, an operator guide, migration 0.3.18.sql, provider-contract tests, native Joomla lifecycle and recovery checks, and authenticated HTTP confirmation, permission and history checks.</item>
+    </addition>
+    <change>
+      <item>Verify the current account, list and segment, matching prepared history and the exact static, unsent provider draft before showing manual deletion instructions. Scheduled, active, submitted, uncertain and completed mailings remain protected.</item>
+      <item>Require confirmation of permanent removal in CleverReach, an absent individual mailing and successful checks of the draft, waiting, running, automation and finished catalogues before releasing the reservation. Missing permissions, timeouts, incomplete results and identity mismatches retain it.</item>
+    </change>
+    <fix>
+      <item>Preserve durable abandonment claims across interrupted verification, block concurrent editing, testing, sending and restoration, and protect account/list changes. Failed initial inspections restore the original draft state while retaining its reservation; repeated successful verification cannot release a reused filter.</item>
+      <item>Preserve deleted drafts as deleted and cancel other abandoned drafts. Clear their operational provider references and test approval, requiring a fresh audience, mailing and test after restoration. Label history and filter status as abandonment, with no invented delivery or completion event.</item>
+    </fix>
+    <note>
+      <item>After upgrading, keep the original live CleverReach account and list selected. Open InterCOM → Filters → Abandon test mailing, check the exact IDs, enter a reason and choose Inspect and begin abandonment. Only after Unsent draft verified appears, delete that exact mailing in CleverReach, empty any trash if present and confirm that it cannot be restored or sent. Keep the segment itself. Return to InterCOM, confirm permanent removal and choose Verify retirement and release reservation. Begin the InterCOM inspection before deleting the provider mailing; a missing record cannot establish the required unsent baseline.</item>
+      <item>CleverReach's published API has no documented mailing DELETE endpoint or permanent-deletion/trash contract. This flow makes read-only provider requests and relies on the administrator's explicit permanent-removal confirmation alongside the absence checks. API absence alone does not prove permanence. If restoration remains possible or unclear, retain the reservation. Catalogue checks are bounded to ten pages of 100 records per state and a cooperative 40-second provider budget; reaching a bound retains the reservation. The provider response identifies the mailing's list; its filter association is established from matching managed local draft/history references and a successful read of that exact filter.</item>
+      <item>Use Continue abandonment after a failed or interrupted verification. Scheduled maintenance does not initiate abandonment or automatically release its claims. Completed member mailings continue to use Reconcile with CleverReach. Once all other live reservations and unresolved creation requests are clear, changing the recipient list remains possible and requires fresh delivery acceptance for the new configuration. A list can contain the full membership: acceptance restricts its test segment to the approved address.</item>
+      <item>This release adds the durable abandonment-operation table. Joomla's database and manifest versions become 0.3.18. Existing settings, encrypted credentials, communications, permissions, drafts, scheduled tasks and unrelated verified acceptance are preserved. Upgrading alone does not abandon or release any production reservation.</item>
+      <item>Validation includes full local CI, 130 PHP unit tests, 20 frontend tests, native Joomla abandonment and concurrent-action guards, provider failure/interruption recovery, acceptance preservation, authenticated HTTP forms and permission checks, scheduler execution, fresh installation, database maintenance, and synthetic and checksum-verified public-package upgrades. Automated checks use disposable installations and provider/mail fixtures; no live member mailing is sent or production provider record modified.</item>
+    </note>
+  </changelog>
+  <changelog>
+    <element>pkg_intercom</element>
+    <type>package</type>
     <version>0.3.17</version>
     <fix>
       <item>Fix the literal %s in Joomla's fallback error after a rejected InterCOM Options save. Preserve the specific validation or reservation error, with Danish and English translations.</item>
