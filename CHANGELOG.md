@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.15
+
+- Restore configured legacy Joomla editors, including JCE, in both composer languages. Empty user editor preferences now use Joomla's global editor, and saved HTML is safely encoded when reopening an editor.
+- Read live content from modern and legacy editor APIs when saving, testing, inserting first names and recovering drafts. TinyMCE retains the existing email-formatting controls.
+- Keep the exact submitted editor values as the baseline after saving or testing. A later editor polling tick no longer invalidates content that was already tested; subsequent edits still require another successful test.
+- Explain send-confirmation blockers beside the checkbox, including outdated delivery acceptance, unavailable or empty recipient estimates, and changed content or audience. Handle recipient counts returned as strings and keep confirmation disabled while recipient checks run.
+- Label historical acceptance verified for earlier settings clearly and explain how to renew it after changes to email design or delivery settings. A successful composer test does not renew delivery acceptance.
+- Remove the duplicate heading inside **Your drafts**.
+- Add Joomla-native XML changelogs for the package, component and bundled plugins, with links in the extension manifests and update feed. The release process generates these from the written release notes, retains published history and verifies their public URLs before publication.
+
+After upgrading, if sending is blocked because the email design or delivery settings changed after acceptance, open **InterCOM → Delivery acceptance**, prepare a new one-recipient test, select **Send to one approved recipient**, inspect the received email and select **Confirm delivery acceptance**. Then reload the composer. Existing newsletter drafts remain available, and sending still requires a positive recipient estimate and a successful test of the current content.
+
+There are no database migrations in this release. Joomla's database version can remain **0.3.8** while the manifest version becomes **0.3.15**. Existing settings, encrypted credentials, communications, permissions and drafts are preserved.
+
+Validation includes full local CI, 105 PHP unit tests, 20 frontend interaction tests, native Joomla legacy-editor and TinyMCE rendering, saved-HTML round trips, acceptance invalidation after an English-brand change, native changelog parsing and extension-manager rendering, authenticated HTTP guards, scheduled maintenance, and synthetic and public-package upgrade checks. Automated checks use disposable installations and provider fixtures; no live member mailing is sent.
+
 ## 0.3.14
 
 - Fix the false **Maintenance → Database** warning that `intercom_tags` does not have a column named `IF`. Joomla's checker misread `ADD COLUMN IF NOT EXISTS` in migration `0.3.1.sql`; the migration now uses the supported `ADD COLUMN` syntax for the actual `labels` column.
