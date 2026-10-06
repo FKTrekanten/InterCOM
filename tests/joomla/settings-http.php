@@ -37,3 +37,5 @@ $httpAsset = $r->store->row('SELECT rules FROM #__assets WHERE name='.$r->store-
 $httpRules = json_decode($httpAsset['rules'],true);
 check(!isset($httpRules['intercom.type.compose'][1]) && \Joomla\CMS\Access\Access::checkGroup(2,'intercom.type.compose','com_intercom.communication.'.$httpGroup['id'])===true,'Actual HTTP form saves inheritance without an accidental Public denial');
 check($httpGroup['revision']===1 && !$r->store->row("SELECT id FROM #__assets WHERE name LIKE 'com_intercom.settings.%'"),'HTTP permission preview does not save revisions or create settings assets');
+
+check(($r->config['sender_email'] ?? '') === 'sender@example.invalid' && ($r->config['acceptance_recipient'] ?? '') === 'approved@example.invalid', 'Rejected native Options preserves sender and approved test recipient in the database');

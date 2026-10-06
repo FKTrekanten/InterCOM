@@ -104,7 +104,7 @@ class HiddenInputs(HTMLParser):
             self.values[attrs.get('name','')] = attrs.get('value','')
 inputs = HiddenInputs(); inputs.feed(admin)
 status, admin = request('/administrator/index.php?option=com_config', {
-    **inputs.values, 'task':'component.apply', 'jform[footer_profile_da]':'https://example.org/da/profile', 'jform[footer_profile_en]':'https://example.org/en/profile', 'jform[footer_address]':'HTTP Club address\r\nSecond address line', 'jform[sender_name]':'CI shared sender', 'jform[mode]':'fake',
+    **inputs.values, 'task':'component.apply', 'jform[footer_profile_da]':'https://example.org/da/profile', 'jform[footer_profile_en]':'https://example.org/en/profile', 'jform[footer_address]':'HTTP Club address\r\nSecond address line', 'jform[sender_name]':'CI shared sender', 'jform[sender_email]':'sender@example.invalid', 'jform[acceptance_recipient]':'approved@example.invalid', 'jform[mode]':'fake',
     'jform[retention_days]':'45','jform[unsubscribe_form_id]':'432342'})
 assert status == 200 and 'Configuration saved' in admin, 'Native Options saves successfully'
 inputs = HiddenInputs(); inputs.feed(admin)
@@ -112,6 +112,20 @@ status, admin = request('/administrator/index.php?option=com_config', {
     **inputs.values, 'task':'component.apply', 'jform[footer_profile_da]':'https://example.org/da/profile', 'jform[footer_profile_en]':'https://example.org/en/profile', 'jform[footer_address]':'HTTP Club address\r\nSecond address line', 'jform[sender_name]':'CI shared sender', 'jform[mode]':'live',
     'jform[retention_days]':'99','jform[audience_rules]':'[]'})
 assert status == 200 and 'Check the recipient list' in admin, ('Invalid native Options rejected', status, re.findall(r'<joomla-alert[^>]*>(.*?)</joomla-alert>', admin, re.S))
+assert 'The InterCOM settings could not be saved.' in admin and 'Could not save data. Error: %s' not in admin, 'Rejected native Options renders the specific validation reason and a placeholder-free fallback'
+class OptionValues(HTMLParser):
+    def __init__(self): super().__init__(); self.values = {}; self.select = None
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'input': self.values[attrs.get('name','')] = attrs.get('value','')
+        elif tag == 'select': self.select = attrs.get('name')
+        elif tag == 'option' and self.select and 'selected' in attrs: self.values[self.select] = attrs.get('value','')
+    def handle_endtag(self, tag):
+        if tag == 'select': self.select = None
+for rendered in [admin, request(options)[1]]:
+    saved = OptionValues(); saved.feed(rendered)
+    for field, expected in {'mode':'fake', 'sender_name':'CI shared sender', 'sender_email':'sender@example.invalid', 'acceptance_recipient':'approved@example.invalid', 'retention_days':'45'}.items():
+        assert saved.values.get('jform['+field+']') == expected, ('Rejected Options and reload show persisted values', field)
 assert request('/administrator/index.php?option=com_intercom&task=connection.importtokens', {'expires_in':'3600'})[0] == 403, 'Token import requires CSRF'
 assert request('/administrator/index.php?option=com_intercom&task=connection.verifyaccount', {})[0] == 403, 'Identity pin requires CSRF'
 assert request('/administrator/index.php?option=com_intercom&task=connection.verifyaccount')[0] == 403, 'Identity pin requires POST'

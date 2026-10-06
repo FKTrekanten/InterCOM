@@ -7,14 +7,17 @@ use Joomla\CMS\Event\Model\BeforeSaveEvent;
 use Joomla\CMS\Event\Model\AfterSaveEvent;
 use Joomla\CMS\Language\Text;
 use Joomla\Event\SubscriberInterface;
+use Joomla\Event\EventInterface;
 use FKT\Component\Intercom\Administrator\Service\Settings;
 
 final class Intercom extends CMSPlugin implements SubscriberInterface
 {
     private $pending = null;
+    private bool $rejected = false;
     public static function getSubscribedEvents(): array
     {
-        return ['onExtensionBeforeSave' => 'beforeSave', 'onExtensionAfterSave' => 'afterSave'];
+        return ['onExtensionBeforeSave' => 'beforeSave', 'onExtensionAfterSave' => 'afterSave',
+            'application.before_respond' => 'beforeRespond', 'onBeforeRespond' => 'beforeRespond'];
     }
     public function beforeSave(BeforeSaveEvent $event): void
     {
@@ -40,7 +43,12 @@ final class Intercom extends CMSPlugin implements SubscriberInterface
         } catch (\Throwable $e) {
             $r->store->rollback();
             $r->store->audit((int) $app->getIdentity()->id, 'configuration.failed');
+            $this->rejected = true;
             $message = Text::_(str_starts_with($e->getMessage(), 'COM_INTERCOM_') ? $e->getMessage() : 'COM_INTERCOM_INVALID_SETTINGS');
+            // Joomla's Options controller translates JERROR_SAVE_FAILED without
+            // sprintf, leaving its %s literal. Override only on this rejected
+            // InterCOM save; the specific reason is already enqueued below.
+            $app->getLanguage()->load('com_intercom.configfailure', JPATH_ADMINISTRATOR . '/components/com_intercom');
             $app->enqueueMessage($message, 'error');
             throw new \RuntimeException($message);
         }
@@ -50,6 +58,16 @@ final class Intercom extends CMSPlugin implements SubscriberInterface
         if ($this->pending && $event->getContext() === 'com_config.component' && ($event->getItem()->element ?? '') === 'com_intercom') {
             $this->pending->store->commit();
             $this->pending = null;
+        }
+    }
+    public function beforeRespond(EventInterface $event): void
+    {
+        if ($this->rejected) {
+            // The native controller stores a nested params/id/option wrapper after
+            // catching the model exception. It cannot bind to the Options fields,
+            // so the redirected form shows defaults. Reload persisted settings.
+            $this->getApplication()->setUserState('com_config.edit.component.com_intercom.data', null);
+            $this->rejected = false;
         }
     }
 }
