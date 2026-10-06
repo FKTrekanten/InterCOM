@@ -62,6 +62,15 @@ foreach (array_merge($message['tags'] ?? [], $message['memberships'] ?? []) as $
         endif; ?>
     <?php endif; ?>
     <?php if (\Joomla\CMS\Factory::getApplication()->getIdentity()->authorise('intercom.audit', 'com_intercom')) :
+        $abandonments = $this->runtime->store->rows('SELECT a.*,u.name actor_name FROM #__intercom_abandonments a LEFT JOIN #__users u ON u.id=a.verified_by WHERE a.draft_id=' . (int) $row['draft_id'] . " AND a.state='released' ORDER BY a.id DESC");
+        foreach ($abandonments as $abandonment) : ?>
+<section class="alert alert-info"><h3><?= $t('STATE_ABANDONED') ?></h3>
+<p><?= $t('PROVIDER_REFERENCES') ?>: <?= $t('RECIPIENT_LIST') ?> <?= (int) $abandonment['group_id'] ?> · <?= $t('FILTER') ?> <?= (int) $abandonment['filter_id'] ?> · <?= $t('MAILING') ?> <?= (int) $abandonment['mailing_id'] ?></p>
+<p><?= $t('ACTOR') ?>: <?= $esc($abandonment['actor_name'] ?: '#' . $abandonment['verified_by']) ?> · <?= $date($abandonment['verified_at']) ?></p>
+            <?php if ($abandonment['reason'] !== '') : ?>
+<p><?= $t('ABANDON_REASON') ?>: <?= $esc($abandonment['reason']) ?></p>
+            <?php endif; ?></section>
+        <?php endforeach;
         $events = $this->runtime->store->rows('SELECT * FROM #__intercom_audit WHERE draft_id=' . (int) $row['draft_id'] . ' ORDER BY id DESC LIMIT 50');
         require dirname(__DIR__) . '/audit-table.php';
     endif; ?>
@@ -73,7 +82,7 @@ foreach (array_merge($message['tags'] ?? [], $message['memberships'] ?? []) as $
 <label><?= $t($label) ?><input class="form-control" type="<?= $kind ?>" name="<?= $key ?>" value="<?= $esc($this->filters[$key]) ?>"></label>
     <?php endforeach; ?>
 <label><?= $t('STATE') ?><select class="form-select" name="state"><option value=""><?= $t('ALL') ?></option>
-    <?php foreach (['releasing','submitted','scheduled','completed','uncertain'] as $state) :
+    <?php foreach (['releasing','submitted','scheduled','completed','uncertain','abandoned'] as $state) :
         ?><option value="<?= $state ?>" <?= $this->filters['state'] === $state ? 'selected' : '' ?>><?= $t('STATE_' . strtoupper($state)) ?></option><?php
     endforeach; ?>
 </select></label>

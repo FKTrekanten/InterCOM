@@ -26,7 +26,7 @@ require dirname(__DIR__) . '/navigation.php';
 endforeach; ?>
 </select></label><label><?= $t('STATE') ?><select class="form-select" name="state">
 <option value=""><?= $t('ALL') ?></option>
-<?php foreach (['free','draft','tested','testing','releasing','submitted','scheduled','cancelled','uncertain','deleted'] as $state) :
+<?php foreach (['free','draft','tested','testing','releasing','submitted','scheduled','cancelled','uncertain','deleted','abandoning'] as $state) :
     ?><option value="<?= $state ?>" <?= $this->filters['state'] === $state ? 'selected' : '' ?>><?= $t($state === 'free' ? 'FILTER_FREE' : 'STATE_' . strtoupper($state)) ?></option><?php
 endforeach; ?>
 </select></label>
@@ -37,6 +37,7 @@ endforeach; ?>
 </select></label><button class="btn btn-primary" type="submit" onclick="this.form.limitstart.value=0"><?= $t('APPLY_FILTERS') ?></button>
 <a class="btn btn-secondary" href="index.php?option=com_intercom&amp;view=filters"><?= $t('RESET_FILTERS') ?></a></div>
 <?php $filterRows = $this->rows;
+$filterActions = true;
 require dirname(__DIR__) . '/filter-table.php'; ?>
 <?= $this->pagination->getPagesLinks() ?><p><?= $this->pagination->getResultsCounter() ?></p></form>
 

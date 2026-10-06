@@ -11,19 +11,24 @@ use FKT\Component\Intercom\Administrator\Domain\UnsubscribeForm;
 
 final class CleverReachGateway implements \FKT\Component\Intercom\Administrator\Domain\ReleaseGateway, DeliveryGateway, FilterCreator, \FKT\Component\Intercom\Administrator\Domain\AudienceGateway, \FKT\Component\Intercom\Administrator\Domain\ReconciliationGateway
 {
+    private ?\FKT\Component\Intercom\Administrator\Domain\MaintenanceBudget $retirementBudget = null;
     public function __construct(private \Closure $token, private array $config, private ?\Closure $transport = null, private ?\Closure $authorizeRelease = null)
     {
     }
 
     private function request(string $method, string $path, ?array $data = null, string $base = '/v3'): mixed
     {
+        if ($this->retirementBudget?->expired()) {
+            throw new \RuntimeException('COM_INTERCOM_ABANDON_UNVERIFIED', 409);
+        }
         $token = ($this->token)();
         if ($this->transport !== null) {
             return ($this->transport)($method, $base . $path, $data);
         }
         $curl = curl_init('https://rest.cleverreach.com' . $base . $path);
         curl_setopt_array($curl, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => $method === 'GET' ? 10 : 25, CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => $this->retirementBudget?->timeout(5) ?? 5,
+            CURLOPT_TIMEOUT => $this->retirementBudget?->timeout(10) ?? ($method === 'GET' ? 10 : 25), CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $token, 'Content-Type: application/json']]);
         if ($data !== null) {
             curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($data, JSON_THROW_ON_ERROR));
@@ -250,6 +255,44 @@ final class CleverReachGateway implements \FKT\Component\Intercom\Administrator\
             throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
         }
         return $result;
+    }
+
+    public function retirementAccount(): string
+    {
+        $this->retirementBudget = new \FKT\Component\Intercom\Administrator\Domain\MaintenanceBudget(40);
+        return CleverReachIdentity::identifier($this->request('GET', '/debug/whoami'));
+    }
+
+    public function assertRetirementScope(int $group, int $filter): void
+    {
+        $list = $this->request('GET', '/groups/' . $group);
+        $remote = $this->filter($group, $filter);
+        if (!is_array($list) || (string) ($list['id'] ?? '') !== (string) $group || (string) ($remote['id'] ?? '') !== (string) $filter) {
+            throw new \RuntimeException('COM_INTERCOM_ABANDON_UNVERIFIED', 409);
+        }
+    }
+
+    public function retirementCatalogueContains(int $mailing, string $state): bool
+    {
+        // A bounded complete scan. Reaching the bound is uncertainty, not absence.
+        for ($page = 0; $page < 10; $page++) {
+            $rows = $this->request('GET', '/mailings?state=' . $state . '&limit=100&page=' . $page . '&omit_body=true');
+            if (!is_array($rows) || !array_is_list($rows) || count($rows) > 100) {
+                throw new \RuntimeException('COM_INTERCOM_ABANDON_UNVERIFIED', 409);
+            }
+            foreach ($rows as $row) {
+                if (!is_array($row) || !ctype_digit((string) ($row['id'] ?? '')) || (int) $row['id'] < 1) {
+                    throw new \RuntimeException('COM_INTERCOM_ABANDON_UNVERIFIED', 409);
+                }
+                if ((string) $row['id'] === (string) $mailing) {
+                    return true;
+                }
+            }
+            if (count($rows) < 100) {
+                return false;
+            }
+        }
+        throw new \RuntimeException('COM_INTERCOM_ABANDON_UNVERIFIED', 409);
     }
 
     public function filter(int $groupId, int $id): array

@@ -42,6 +42,7 @@ docker compose exec -T --user www-data -e INTERCOM_CI=1 -e INTERCOM_ADMIN_PASSWO
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/composer-editors.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/permissions.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/reconciliation.php
+docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/abandonment.php
 docker compose exec -T --user www-data joomla php /workspace/tests/joomla/scheduler.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/scheduler-failures.php
 docker compose exec -T --user www-data -e INTERCOM_CI=1 joomla php /workspace/tests/joomla/maintenance-budgets.php

@@ -25,7 +25,7 @@ final class History
             'audience_fingerprint' => $draft['audience_fingerprint'], 'rules' => json_decode($draft['audience_rules'] ?? 'null', true)];
         $this->store->transaction(function () use ($draft, $message, $id, $snapshot, $settings): void {
             $old = $this->store->row("SELECT state FROM #__intercom_history WHERE draft_id=$id FOR UPDATE");
-            if ($old && $old['state'] !== 'prepared') {
+            if ($old && !in_array($old['state'], ['prepared', 'abandoned'], true)) {
                 throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
             }
             $account = (string) ($this->store->row("SELECT account_id FROM #__intercom_connections WHERE provider='cleverreach'")['account_id'] ?? '');
@@ -33,7 +33,11 @@ final class History
             $type = $this->store->q($message['type']);
             $mode = $this->store->q($draft['delivery_mode']);
             if ($old) {
-                $this->store->execute("UPDATE #__intercom_history SET revision=" . (int) $draft['revision'] . ",snapshot=$json,filter_id=" . (int) $draft['filter_id'] . ",type_key=$type WHERE draft_id=$id");
+                // Restored abandoned drafts start a new prepared mailing. The
+                // durable abandonment record retains the previous provider IDs.
+                $this->store->execute("UPDATE #__intercom_history SET state='prepared',revision=" . (int) $draft['revision'] . ",snapshot=$json,filter_id=" . (int) $draft['filter_id']
+                    . ",type_key=$type,delivery_mode=$mode,account_id=" . $this->store->q($account) . ',group_id=' . (int) ($settings['group_id'] ?? 0)
+                    . ",mailing_id=0,requested_at=NULL,scheduled_at=0,started_at=NULL,finished_at=NULL WHERE draft_id=$id");
             } else {
                 $this->store->execute("INSERT INTO #__intercom_history(draft_id,revision,actor_id,delivery_mode,account_id,group_id,type_key,filter_id,snapshot,created_at) VALUES($id," . (int) $draft['revision'] . ',' . (int) $draft['owner_id'] . ",$mode," . $this->store->q($account) . ',' . (int) ($settings['group_id'] ?? 0) . ",$type," . (int) $draft['filter_id'] . ",$json,UTC_TIMESTAMP())");
             }

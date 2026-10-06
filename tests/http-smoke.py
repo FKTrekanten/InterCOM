@@ -1,5 +1,5 @@
 """Exercise native session/CSRF/API boundaries against disposable CI only."""
-import base64, http.cookiejar, json, os, re, urllib.error, urllib.parse, urllib.request
+import base64, http.cookiejar, json, os, re, subprocess, urllib.error, urllib.parse, urllib.request
 from html.parser import HTMLParser
 base = 'http://127.0.0.1:' + os.environ.get('INTERCOM_PORT', '18088')
 client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
@@ -220,6 +220,42 @@ assert request(management + '&task=reconciliation.run')[0] == 403, 'Reconciliati
 call('save', {'message':json.dumps({**message, 'tags':[]})}, 422)
 print('PASS: Design CRUD/concurrency, theme preview, sender defaults, filter page and team-policy guard')
 
+# No live provider calls: this isolated fixture temporarily removes credentials.
+def abandonment_fixture(action):
+    return subprocess.check_output(['docker','compose','exec','-T','--user','www-data','-e','INTERCOM_CI=1','joomla','php','/workspace/tests/joomla/abandonment-http-fixture.php',action], text=True)
+fixture = json.loads(abandonment_fixture('seed'))
+try:
+    _, filters = request(management + '&view=filters')
+    assert 'Abandon test mailing' in filters and str(fixture['mailing']) in filters, 'Filters exposes abandonment and exact provider mailing ID for eligible deleted tests'
+    route = management + '&view=abandonment&filter_id=' + str(fixture['filter'])
+    _, confirmation = request(route)
+    assert 'Inspect and begin abandonment' in confirmation and 'name="reason"' in confirmation, 'Separate confirmation page requests reason before inspection'
+    parser = HiddenInputs(); parser.feed(confirmation)
+    for action in ['inspect','verify']:
+        action_route = management + '&task=abandonment.' + action
+        assert request(action_route)[0] == 403 and request(action_route,{})[0] == 403, 'Abandonment requires POST and CSRF'
+    status, denied = request(management, {**parser.values,'task':'abandonment.inspect','reason':'HTTP fixture'})
+    assert status == 200 and 'Confirm the abandonment step' in denied, 'Inspection requires explicit confirmation'
+    status, pending = request(management, {**parser.values,'task':'abandonment.inspect','reason':'HTTP fixture','confirmed':'1'})
+    assert status == 200 and 'Retirement unverified; reservation retained' in pending, 'Provider failure gives a recoverable UI without releasing its reservation'
+    abandonment_fixture('baseline')
+    _, confirmation = request(route)
+    assert 'Verify retirement and release reservation' in confirmation and 'name="permanently_removed"' in confirmation and 'Empty any trash' in confirmation, 'Verified baseline renders manual permanent-removal instructions and attestation'
+    parser = HiddenInputs(); parser.feed(confirmation)
+    status, rejected = request(management, {**parser.values,'task':'abandonment.verify'})
+    assert status == 200 and 'Confirm the abandonment step' in rejected, 'Absence verification cannot bypass the permanent-removal attestation'
+    status, retained = request(management, {**parser.values,'task':'abandonment.verify','permanently_removed':'1'})
+    assert status == 200 and 'Retirement unverified; reservation retained' in retained and 'name="permanently_removed"' in retained, 'Failed verification retains a resumable claimed reservation'
+    abandonment_fixture('complete')
+    _, released = request(management + '&view=filters')
+    row = re.search(r'<tr data-filter-id="' + str(fixture['filter']) + r'">(.*?)</tr>',released,re.S)
+    assert row and 'Available' in row[1] and 'Abandoned; reservation released' in row[1] and 'Abandon test mailing' not in row[1], 'Released reservation renders available with abandonment rather than completion'
+    _, history = request(management + '&view=history&id=' + str(fixture['draft']))
+    assert str(fixture['mailing']) in history and 'HTTP fixture' in history and 'Abandoned' in history, 'Native history shows original mailing references and operator reason'
+finally:
+    abandonment_fixture('reset')
+print('PASS: Abandonment confirmation, provider failure recovery and HTTP security guards')
+
 # Native Manager role can open the component but cannot inspect audits or settings.
 admin_client = client
 client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
@@ -233,6 +269,9 @@ assert request(management + '&view=history&id=1')[0] == 403, 'Message detail dee
 assert request(management + '&view=audit')[0] == 403, 'Audit deep link requires audit permission'
 assert request(management + '&view=filters')[0] == 403, 'Filter deep link requires audit permission'
 assert request(management + '&task=reconciliation.run', {})[0] == 403, 'Manager cannot run reconciliation'
+assert request(management + '&view=abandonment&filter_id=799999')[0] == 403, 'Manager cannot inspect abandonment'
+assert request(management + '&task=abandonment.inspect', {})[0] == 403, 'Manager cannot initiate abandonment'
+assert request(management + '&task=abandonment.verify', {})[0] == 403, 'Manager cannot verify abandonment'
 assert request(management + '&view=acceptance')[0] == 403, 'Manager cannot inspect delivery acceptance'
 assert request(management + '&task=acceptance.prepare', {})[0] == 403, 'Manager cannot initiate acceptance'
 assert request(settings + '&section=design')[0] == 403, 'Email design deep link requires admin permission'

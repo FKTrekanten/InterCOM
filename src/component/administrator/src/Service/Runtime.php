@@ -85,6 +85,12 @@ final class Runtime
         return $gateway instanceof \FKT\Component\Intercom\Administrator\Domain\ReconciliationGateway ? new Reconciliation($this->store, $gateway, $this->config) : null;
     }
 
+    public function abandonment(): Abandonment
+    {
+        $gateway = new CleverReachGateway(fn () => $this->connection->token(), $this->config);
+        return new Abandonment($this->store, new \FKT\Component\Intercom\Administrator\Infrastructure\CleverReachRetirement($gateway), $this->config);
+    }
+
     public function testDelivery(): TestDelivery
     {
         return new TestDelivery(static function (string $address, array $payload): bool {

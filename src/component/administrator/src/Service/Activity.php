@@ -58,7 +58,8 @@ final class Activity
             }
         } elseif ($view === 'filters') {
             $from = '#__intercom_filters f LEFT JOIN #__intercom_drafts d ON d.id=f.draft_id';
-            $columns = 'f.*,d.state,d.updated_at,d.owner_id';
+            $columns = 'f.*,d.state,d.updated_at,d.owner_id,d.mailing_id,d.delivery_mode,h.state history_state,h.requested_at,h.reconstructed';
+            $from .= ' LEFT JOIN #__intercom_history h ON h.draft_id=d.id';
             $order = 'd.updated_at DESC,f.filter_id DESC';
             $list = $this->context();
             if (($filters['scope'] ?? 'current') === 'current') {
@@ -69,7 +70,7 @@ final class Activity
             $state = $filters['state'] ?? '';
             if ($state === 'free') {
                 $where[] = 'f.draft_id IS NULL';
-            } elseif (in_array($state, ['draft', 'tested', 'testing', 'releasing', 'submitted', 'scheduled', 'completed', 'cancelled', 'uncertain', 'deleted'], true)) {
+            } elseif (in_array($state, ['draft', 'tested', 'testing', 'releasing', 'submitted', 'scheduled', 'completed', 'cancelled', 'uncertain', 'deleted', 'abandoning'], true)) {
                 $where[] = 'd.state=' . $this->store->q($state);
             }
         } else {

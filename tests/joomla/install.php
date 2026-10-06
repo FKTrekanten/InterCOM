@@ -46,3 +46,5 @@ check(is_object($app->bootComponent('com_intercom')->runtime),'Native component 
 echo "INSTALL OK\n";
 check((int)$db->setQuery("SELECT enabled FROM #__extensions WHERE element='intercom' AND folder='extension'")->loadResult()===1,'Options validation plugin enabled');
 check(is_numeric($db->setQuery('SELECT COUNT(*) FROM #__intercom_filter_creations')->loadResult()),'Managed filter intent table installed');
+
+check(is_numeric($db->setQuery('SELECT COUNT(*) FROM #__intercom_abandonments')->loadResult()), 'Durable abandonment operation table installed');
