@@ -277,6 +277,15 @@ final class CleverReachGateway implements \FKT\Component\Intercom\Administrator\
         // A bounded complete scan. Reaching the bound is uncertainty, not absence.
         for ($page = 0; $page < 10; $page++) {
             $rows = $this->request('GET', '/mailings?state=' . $state . '&limit=100&page=' . $page . '&omit_body=true');
+            // Live single-state responses retain the state wrapper, e.g.
+            // {"draft": [...]}. Accept only the exact requested state; an absent
+            // or different state is not evidence of an empty catalogue.
+            if (is_array($rows) && !array_is_list($rows)) {
+                if (array_keys($rows) !== [$state]) {
+                    throw new \RuntimeException('COM_INTERCOM_ABANDON_UNVERIFIED', 409);
+                }
+                $rows = $rows[$state];
+            }
             if (!is_array($rows) || !array_is_list($rows) || count($rows) > 100) {
                 throw new \RuntimeException('COM_INTERCOM_ABANDON_UNVERIFIED', 409);
             }

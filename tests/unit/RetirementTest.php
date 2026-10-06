@@ -16,12 +16,16 @@ final class RetirementTest extends TestCase
         $gateway = new CleverReachGateway(fn () => 'fixture', ['group_id' => 758666], static function ($method, $path, $data) use ($remote, $catalogues, $failure) {
             self::assertSame('GET', $method);
             self::assertNull($data);
+            if (str_starts_with($path, '/v3/mailings?')) {
+                parse_str(explode('?', $path)[1], $query);
+                $state = $query['state'];
+                return [$state => $catalogues[$state] ?? []];
+            }
             return match (true) {
                 $path === '/v3/debug/whoami' => ['id' => '231113'],
                 $path === '/v3/groups/758666' => ['id' => '758666'],
                 $path === '/v3/groups/758666/filters/783415' => ['id' => '783415'],
                 $path === '/v3/mailings/17459494' => $failure ? throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR', $failure) : $remote,
-                str_starts_with($path, '/v3/mailings?') => $catalogues[explode('&', explode('state=', $path)[1])[0]] ?? [],
                 default => throw new \LogicException('Unexpected provider fixture path'),
             };
         });
@@ -117,7 +121,7 @@ final class RetirementTest extends TestCase
             self::assertSame('GET', $method);
             parse_str(explode('?', $path)[1], $query);
             $pages[] = (int) $query['page'];
-            return array_fill(0, 100, ['id' => 999]);
+            return ['draft' => array_fill(0, 100, ['id' => 999])];
         });
         try {
             $gateway->retirementCatalogueContains(17459494, 'draft');
@@ -126,6 +130,50 @@ final class RetirementTest extends TestCase
             self::assertSame('COM_INTERCOM_ABANDON_UNVERIFIED', $e->getMessage());
             self::assertSame(range(0, 9), $pages);
         }
+    }
+
+    public function testWrappedPaginationFindsMailingAndRequiresAnActualLastPage(): void
+    {
+        foreach ([true, false] as $present) {
+            $pages = [];
+            $gateway = new CleverReachGateway(fn () => 'fixture', [], static function ($method, $path) use ($present, &$pages) {
+                self::assertSame('GET', $method);
+                parse_str(explode('?', $path)[1], $query);
+                $page = (int) $query['page'];
+                $pages[] = $page;
+                return ['draft' => $page === 0 ? array_fill(0, 100, ['id' => 999]) : ($present ? [['id' => '17459494']] : [])];
+            });
+            self::assertSame($present, $gateway->retirementCatalogueContains(17459494, 'draft'));
+            self::assertSame([0, 1], $pages);
+        }
+    }
+
+    public static function invalidCatalogues(): array
+    {
+        return [
+            'different state' => [['finished' => []]],
+            'additional state' => [['draft' => [], 'waiting' => []]],
+            'missing state' => [['total' => 0]],
+            'malformed state' => [['draft' => null]],
+            'keyed rows' => [['draft' => ['mailing' => ['id' => 17459494]]]],
+            'missing row ID' => [['draft' => [[]]]],
+            'invalid row ID' => [['draft' => [['id' => 'invalid']]]],
+            'too many rows' => [['draft' => array_fill(0, 101, ['id' => 999])]],
+        ];
+    }
+
+    #[DataProvider('invalidCatalogues')]
+    public function testWrongStateOrMalformedWrapperNeverEstablishesAbsence(array $response): void
+    {
+        $gateway = new CleverReachGateway(fn () => 'fixture', [], static fn () => $response);
+        $this->expectExceptionMessage('COM_INTERCOM_ABANDON_UNVERIFIED');
+        $gateway->retirementCatalogueContains(17459494, 'draft');
+    }
+
+    public function testFlatCatalogueRemainsSupported(): void
+    {
+        $gateway = new CleverReachGateway(fn () => 'fixture', [], static fn () => [['id' => '17459494']]);
+        self::assertTrue($gateway->retirementCatalogueContains(17459494, 'draft'));
     }
 
     public function testExpiredOverallBudgetStartsNoFurtherProviderRequest(): void
