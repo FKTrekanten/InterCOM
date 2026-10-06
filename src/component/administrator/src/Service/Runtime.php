@@ -63,9 +63,11 @@ final class Runtime
             $this->store,
             (string) ($this->config['board_archive_email'] ?? ''),
             fn (int $id): bool => $gateway instanceof CleverReachGateway ? $gateway->finished($id) : false,
-            static function (string $address, array $payload): bool {
+            static function (string $address, array $payload, int $timeout): bool {
                 $app = \Joomla\CMS\Factory::getApplication();
                 $mail = \Joomla\CMS\Factory::getContainer()->get(\Joomla\CMS\Mail\MailerFactoryInterface::class)->createMailer();
+                $mail->Timeout = $timeout;
+                $mail->getSMTPInstance()->Timelimit = $timeout;
                 $mail->setSender([$app->get('mailfrom'), $app->get('fromname')]);
                 $mail->addRecipient($address);
                 $mail->setSubject($payload['subject']);

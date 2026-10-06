@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FKT\Component\Intercom\Administrator\Service;
 
 use FKT\Component\Intercom\Administrator\Domain\MailingStatus;
+use FKT\Component\Intercom\Administrator\Domain\MaintenanceBudget;
 use FKT\Component\Intercom\Administrator\Domain\ReconciliationGateway;
 use FKT\Component\Intercom\Administrator\Infrastructure\Store;
 
@@ -36,17 +37,21 @@ final class Reconciliation
         }
     }
 
-    public function run(int $actor = 0): array
+    public function run(int $actor = 0, ?MaintenanceBudget $budget = null): array
     {
         $summary = ['checked' => 0, 'released' => 0, 'adopted' => 0, 'blocked' => 0];
         if (($this->config['mode'] ?? 'fake') !== 'live') {
             return $summary;
         }
         $group = (int) ($this->config['group_id'] ?? 0);
+        $budget = ($budget ?? new MaintenanceBudget())->limit(40);
+        if ($budget->expired()) {
+            return $summary;
+        }
         $leases = $this->store->rows("SELECT f.filter_id FROM #__intercom_filters f JOIN #__intercom_drafts d ON d.id=f.draft_id WHERE f.managed=1 AND f.group_id=$group AND d.delivery_mode='live' AND d.state IN ('submitted','scheduled','uncertain','cancelled','deleted') ORDER BY f.checked_at,f.filter_id LIMIT 20");
-        $started = time();
+        $leasesBudget = $budget->limit(20);
         foreach ($leases as $lease) {
-            if (time() - $started >= 20) {
+            if ($leasesBudget->expired()) {
                 break;
             }
             $status = $this->store->transaction(function () use ($lease, $actor): ?string {
@@ -94,9 +99,12 @@ final class Reconciliation
                 $summary[$status === 'released' ? 'released' : 'blocked']++;
             }
         }
+        if ($budget->expired()) {
+            return $summary;
+        }
         $intents = $this->store->rows("SELECT id FROM #__intercom_filter_creations WHERE group_id=$group AND (state='uncertain' OR (state='pending' AND created_at<UTC_TIMESTAMP()-INTERVAL 15 MINUTE)) ORDER BY checked_at,id LIMIT 20");
         foreach ($intents as $intent) {
-            if (time() - $started >= 40) {
+            if ($budget->expired()) {
                 break;
             }
             $status = $this->store->transaction(function () use ($intent, $actor): ?string {

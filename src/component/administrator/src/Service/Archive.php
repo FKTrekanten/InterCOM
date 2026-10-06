@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FKT\Component\Intercom\Administrator\Service;
 
 use FKT\Component\Intercom\Administrator\Domain\Message;
+use FKT\Component\Intercom\Administrator\Domain\MaintenanceBudget;
 use FKT\Component\Intercom\Administrator\Infrastructure\Store;
 
 final class Archive
@@ -41,8 +42,12 @@ final class Archive
         $this->store->audit($actor, 'archive.queued', (int) $draft['id'], ['revision' => (int) $draft['revision']]);
     }
 
-    public function maintain(): void
+    public function maintain(?MaintenanceBudget $budget = null): void
     {
+        $budget = ($budget ?? new MaintenanceBudget())->limit(20);
+        if ($budget->expired()) {
+            return;
+        }
         // A crashed SMTP call has an unknown outcome; never resend it automatically.
         $this->store->transaction(function (): void {
             foreach ($this->store->rows("SELECT draft_id FROM #__intercom_archives WHERE state='sending' AND updated_at < UTC_TIMESTAMP()-INTERVAL 15 MINUTE FOR UPDATE") as $row) {
@@ -52,6 +57,9 @@ final class Archive
             }
         });
         foreach ($this->store->rows("SELECT draft_id FROM #__intercom_archives WHERE state='pending' AND due_at <= UNIX_TIMESTAMP() ORDER BY due_at LIMIT 10") as $candidate) {
+            if ($budget->expired()) {
+                break;
+            }
             $id = (int) $candidate['draft_id'];
             $row = $this->store->row("SELECT * FROM #__intercom_archives WHERE draft_id=$id");
             if (!$row || $row['state'] !== 'pending') {
@@ -66,6 +74,9 @@ final class Archive
                 $this->store->audit(0, 'archive.status_failed', $id);
                 continue;
             }
+            if ($budget->expired()) {
+                break; // Do not claim a send that cannot be started in this run.
+            }
             $lease = $this->store->transaction(function () use ($id): ?array {
                 $current = $this->store->row("SELECT * FROM #__intercom_archives WHERE draft_id=$id FOR UPDATE");
                 if (!$current || $current['state'] !== 'pending') {
@@ -79,7 +90,7 @@ final class Archive
                 continue;
             }
             try {
-                if (!(($this->send)($lease['address'], $payload))) {
+                if (!(($this->send)($lease['address'], $payload, $budget->timeout(10)))) {
                     throw new \RuntimeException('Archive not accepted');
                 }
                 $this->store->execute("UPDATE #__intercom_archives SET state='submitted',updated_at=UTC_TIMESTAMP() WHERE draft_id=$id AND state='sending'");

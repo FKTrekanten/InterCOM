@@ -7,6 +7,7 @@ namespace FKT\Component\Intercom\Administrator\Service;
 use FKT\Component\Intercom\Administrator\Domain\DeliveryGateway;
 use FKT\Component\Intercom\Administrator\Domain\FilterCreator;
 use FKT\Component\Intercom\Administrator\Domain\Message;
+use FKT\Component\Intercom\Administrator\Domain\MaintenanceBudget;
 use FKT\Component\Intercom\Administrator\Domain\Policy;
 use FKT\Component\Intercom\Administrator\Infrastructure\Store;
 
@@ -540,7 +541,33 @@ final class Workflow
         return $this->store->draft($id, $this->actor);
     }
 
-    public function maintain(int $retentionDays): void
+    public function maintain(int $retentionDays, ?callable $onFailure = null, ?MaintenanceBudget $budget = null): bool
+    {
+        $budget ??= new MaintenanceBudget();
+        $ok = true;
+        $sweeps = [
+            'Retention and interrupted-operation recovery' => fn () => $this->maintainRetention($retentionDays),
+            'Filter reconciliation' => fn () => $this->reconciliation?->run(0, $budget),
+            'Archive delivery' => fn () => $this->archive?->maintain($budget),
+        ];
+        foreach ($sweeps as $label => $sweep) {
+            if ($budget->expired()) {
+                break; // Remaining work is picked up on the next scheduled run.
+            }
+            try {
+                $sweep();
+            } catch (\Throwable $error) {
+                if ($onFailure === null) {
+                    throw $error; // Preserve the contract of direct maintenance callers.
+                }
+                $ok = false;
+                $onFailure($label, $error);
+            }
+        }
+        return $ok;
+    }
+
+    private function maintainRetention(int $retentionDays): void
     {
         $days = max(1, min(3650, $retentionDays));
         $this->store->transaction(function () use ($days): void {
@@ -564,7 +591,5 @@ final class Workflow
             (new History($this->store))->maintain($days);
             $this->store->audit(0, 'maintenance.completed', 0, ['retention_days' => $days]);
         });
-        $this->reconciliation?->run();
-        $this->archive?->maintain();
     }
 }
