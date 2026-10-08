@@ -29,7 +29,7 @@ if (!$editors->has($editorName) && !PluginHelper::isEnabled('editors', $editorNa
 }
 // Joomla's editor facade also supports enabled plugins using legacy onDisplay, including JCE.
 $editor = Editor::getInstance($editorName);
-foreach (['SAVED','TESTED','SUBMITTED','DIRTY','ERROR','CONFIRM_SEND','INVALID_MESSAGE','FAKE_TESTED','FAKE_SUBMITTED','ALL_AUDIENCE','NO_GROUPS','GROUP_REQUIRED','PREVIEW_UPDATING','PREVIEW_UPDATED','PREVIEW_OUTDATED','CONFIRM_DELETE','DELETED','RESTORED','ESTIMATE','ESTIMATE_CHECKED','ESTIMATE_STALE','ESTIMATE_UNAVAILABLE','ESTIMATE_LOADING','ESTIMATE_SIMULATED','COUNT_CHANGED','NO_RECIPIENTS','AUDIENCE_CHANGED','LOCAL_RECOVERED','LOCAL_SAVED','LOCAL_UNAVAILABLE','DRAFT_READONLY','TEST_REQUIRED','RELEASE_NOT_VERIFIED'] as $key) {
+foreach (['AGES','FEMALE','MALE','SAVED','TESTED','SUBMITTED','DIRTY','ERROR','CONFIRM_SEND','INVALID_MESSAGE','FAKE_TESTED','FAKE_SUBMITTED','ALL_AUDIENCE','NO_GROUPS','GROUP_REQUIRED','PREVIEW_UPDATING','PREVIEW_UPDATED','PREVIEW_OUTDATED','CONFIRM_DELETE','DELETED','RESTORED','ESTIMATE','ESTIMATE_CHECKED','ESTIMATE_STALE','ESTIMATE_UNAVAILABLE','ESTIMATE_LOADING','ESTIMATE_SIMULATED','COUNT_CHANGED','NO_RECIPIENTS','AUDIENCE_CHANGED','LOCAL_RECOVERED','LOCAL_SAVED','LOCAL_UNAVAILABLE','DRAFT_READONLY','TEST_REQUIRED','RELEASE_NOT_VERIFIED'] as $key) {
     Text::script('COM_INTERCOM_' . $key);
 }
 $id = $app->input->getInt('id');
@@ -45,21 +45,25 @@ foreach ($definitions as $key => $definition) {
 }
 $initial = ['composerUrl' => Route::_('index.php?option=com_intercom&view=composer&Itemid=' . $app->input->getInt('Itemid'), false), 'types' => $typeOptions, 'language' => str_starts_with($app->getLanguage()->getTag(), 'da') ? 'da' : 'en', 'allAudience' => $policy->scope()['all'], 'draft' => $draft, 'message' => $content, 'simulation' => ($r->config['mode'] ?? 'fake') === 'fake'];
 
-$tags = $memberships = $tagLabels = [];
+$tags = $disciplines = $memberships = $tagLabels = [];
 foreach ($r->catalog->tags() as $row) {
     $tagLabels[$row['tag']] = \FKT\Component\Intercom\Administrator\Domain\TagLabel::display($row, $app->getLanguage()->getTag());
-    if (str_starts_with($row['tag'], 'group.')) {
+    if (str_starts_with($row['tag'], 'group.') || str_starts_with($row['tag'], 'discipline.')) {
         if ($policy->scope()['all'] || in_array($row['tag'], $policy->scope()['tags'], true)) {
-            $tags[] = $row['tag'];
+            if (str_starts_with($row['tag'], 'discipline.')) {
+                $disciplines[] = $row['tag'];
+            } else {
+                $tags[] = $row['tag'];
+            }
         }
-    } else {
+    } elseif (str_starts_with($row['tag'], 'membership.')) {
         $memberships[] = $row['tag'];
     }
 }
 $initial['newUrl'] = Route::_('index.php?option=com_intercom&view=composer&new=1&Itemid=' . $app->input->getInt('Itemid'), false);
 $initial['fresh'] = !$id && $app->input->getBool('new');
 $initial['editorBodies'] = ['da' => !empty($content['body_da']) ? Message::bodyHtml($content, 'da') : '', 'en' => !empty($content['body_en']) ? Message::bodyHtml($content, 'en') : ''];
-$initial['availableTeams'] = $tags;
+$initial['availableTeams'] = array_merge($tags, $disciplines);
 $initial['locale'] = $app->getLanguage()->getTag();
 $initial['timezone'] = $user->getParam('timezone', $app->get('offset', 'UTC'));
 $initial['cacheContext'] = (int) $user->id . '.' . hash('sha256', ($r->config['mode'] ?? 'fake') . ':' . ($r->config['group_id'] ?? 0) . ':' . ($r->connection->accountId()));
@@ -86,7 +90,7 @@ endif; ?>
 <label class="ic-type"><input type="radio" name="type" value="<?= $esc($type) ?>" <?= $type === $policy->types()[0] ? 'checked' : '' ?>><span><strong><?= $esc(Message::translation($definitions[$type], $app->getLanguage()->getTag())['name']) ?></strong><small><?= $esc(Message::translation($definitions[$type], $app->getLanguage()->getTag())['description']) ?></small></span></label>
 <?php endforeach; ?></div>
 <p class="ic-help"><?= $t('GROUP_HELP') ?></p>
-<?php foreach (['tags' => [$tags, 'GROUPS', 6], 'memberships' => [$memberships, 'MEMBERSHIPS', 11]] as $field => [$choices, $label, $prefix]) : ?>
+<?php foreach (['tags' => [$tags, 'GROUPS', 6], 'disciplines' => [$disciplines, 'DISCIPLINES', 11], 'memberships' => [$memberships, 'MEMBERSHIPS', 11]] as $field => [$choices, $label, $prefix]) : ?>
 <label for="ic-<?= $field ?>"><?= $t($label) ?></label>
 <joomla-field-fancy-select placeholder="<?= $esc($t('SELECT_TAGS')) ?>">
 <select id="ic-<?= $field ?>" name="<?= $field ?>[]" multiple>
@@ -97,6 +101,7 @@ endif; ?>
 <p id="ic-group-error" class="ic-field-error" role="alert" hidden><?= $t('GROUP_REQUIRED') ?></p>
 <p class="ic-help"><?= $t('TAG_MATCH_HELP') ?></p>
 <details><summary><?= $t('MORE_FILTERS') ?></summary>
+<p class="ic-help"><?= $t('MEMBER_AGE_HELP') ?></p>
 <div class="ic-row"><label><?= $t('AGE_FROM') ?><input name="age_from" type="number" min="0" max="120" value="0"></label><label><?= $t('AGE_TO') ?><input name="age_to" type="number" min="0" max="120" value="0"></label><label><?= $t('GENDER') ?><select name="gender"><option value=""><?= $t('ALL') ?></option><option value="male"><?= $t('MALE') ?></option><option value="female"><?= $t('FEMALE') ?></option></select></label></div></details><div class="ic-actions"><span class="ic-help"><?= $t('SCOPE_NOTE') ?></span><button type="button" data-go="1"><?= $t('WRITE') ?> →</button></div></fieldset>
 <div class="ic-draft-controls"><button class="ic-quiet" type="button" data-action="delete" disabled><?= $t('DELETE_DRAFT') ?></button><button class="ic-quiet" type="button" data-action="restore" hidden><?= $t('RESTORE_DRAFT') ?></button><p class="ic-help"><?= $t('DELETE_HELP') ?></p></div>
 <fieldset data-panel="1"><legend><?= $t('CONTENT') ?></legend><div class="ic-estimate-inline"><p data-estimate-line role="status" aria-live="polite"></p><button type="button" class="ic-quiet" data-refresh-estimate><?= $t('REFRESH_ESTIMATE') ?></button></div><p class="ic-help"><?= $t('BOTH_LANGUAGES') ?></p><label><?= $t('SENDER') ?><input name="sender" required maxlength="255" value="<?= $esc($r->config['sender_name'] ?? 'Trekanten Fencing') ?>"></label>

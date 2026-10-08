@@ -40,7 +40,7 @@ final class Workflow
         $audience = \FKT\Component\Intercom\Administrator\Domain\Audience::validate($input);
         return $this->store->transaction(function () use ($input, $audience, $id, $revision): array {
             $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
-            $this->policy->assertAllowed($audience['type'], $audience['tags'], 'compose');
+            $this->policy->assertAllowed($audience['type'], \FKT\Component\Intercom\Administrator\Domain\Audience::targetedTags($audience), 'compose');
             $old = [];
             if ($id) {
                 $draft = $this->store->draft($id, $this->actor, true);
@@ -87,7 +87,7 @@ final class Workflow
     private function saveMessage(array $message, int $id, int $revision): array
     {
         $mode = $this->store->q($this->gateway->mode());
-        $this->policy->assertAllowed($message['type'], $message['tags'], 'compose');
+        $this->policy->assertAllowed($message['type'], \FKT\Component\Intercom\Administrator\Domain\Audience::targetedTags($message), 'compose');
         return $this->store->transaction(function () use ($message, $id, $revision, $mode): array {
             $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
             if ($this->catalog) {
@@ -147,7 +147,7 @@ final class Workflow
                 }
                 $draft['current_fingerprint'] = $fingerprint;
             }
-            $this->policy->assertAllowed($message['type'], $message['tags'], $operation === 'release' ? 'send' : 'compose');
+            $this->policy->assertAllowed($message['type'], \FKT\Component\Intercom\Administrator\Domain\Audience::targetedTags($message), $operation === 'release' ? 'send' : 'compose');
             if (
                 (int) $draft['revision'] !== $revision || !in_array($draft['state'], ['draft', 'tested'], true)
                 || ($operation === 'release' && ($draft['state'] !== 'tested' || (int) $draft['tested_revision'] !== $revision))
@@ -265,7 +265,7 @@ final class Workflow
             throw new \RuntimeException('COM_INTERCOM_MODE_CHANGED', 409);
         }
         $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
-        $this->policy->assertAllowed($message['type'], $message['tags'], 'compose');
+        $this->policy->assertAllowed($message['type'], \FKT\Component\Intercom\Administrator\Domain\Audience::targetedTags($message), 'compose');
         if ($this->catalog && ($message['definition'] ?? null) !== $this->catalog->snapshot($message)) {
             throw new \RuntimeException('COM_INTERCOM_DEFINITION_CHANGED', 409);
         }
@@ -345,7 +345,7 @@ final class Workflow
             throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
         }
         $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
-        $this->policy->assertAllowed($message['type'], $message['tags'], 'send');
+        $this->policy->assertAllowed($message['type'], \FKT\Component\Intercom\Administrator\Domain\Audience::targetedTags($message), 'send');
         if ($this->catalog && (($message['definition'] ?? null) !== $this->catalog->snapshot($message) || ($draft['tested_fingerprint'] ?? '') !== $this->catalog->fingerprint($message))) {
             throw new \RuntimeException('COM_INTERCOM_DEFINITION_CHANGED', 409);
         }
@@ -406,6 +406,7 @@ final class Workflow
             $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
             if (
                 array_diff($message['tags'], $this->gateway->tags('group'))
+                || array_diff($message['disciplines'] ?? [], $this->gateway->tags('discipline'))
                 || array_diff($message['memberships'], $this->gateway->tags('membership'))
             ) {
                 throw new \RuntimeException('COM_INTERCOM_SCOPE_DENIED');
@@ -492,7 +493,7 @@ final class Workflow
                 throw new \RuntimeException('COM_INTERCOM_MODE_CHANGED', 409);
             }
             $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
-            $this->policy->assertAllowed($message['type'], $message['tags'], 'compose');
+            $this->policy->assertAllowed($message['type'], \FKT\Component\Intercom\Administrator\Domain\Audience::targetedTags($message), 'compose');
             if (!in_array($draft['state'], ['draft', 'tested'], true) || (int) $draft['revision'] !== $revision) {
                 throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
             }
@@ -534,7 +535,7 @@ final class Workflow
                 throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
             }
             $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
-            $this->policy->assertAllowed($message['type'], $message['tags'], 'compose');
+            $this->policy->assertAllowed($message['type'], \FKT\Component\Intercom\Administrator\Domain\Audience::targetedTags($message), 'compose');
             $this->store->execute("UPDATE #__intercom_drafts SET state='draft',revision=revision+1,tested_revision=NULL,tested_fingerprint=NULL,updated_at=UTC_TIMESTAMP() WHERE id=$id");
             $this->store->audit($this->actor, 'draft.restored', $id);
         });

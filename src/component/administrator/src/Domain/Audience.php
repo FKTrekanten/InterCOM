@@ -13,7 +13,7 @@ final class Audience
             throw new \RuntimeException('COM_INTERCOM_INVALID_MESSAGE', 422);
         }
         $result = ['type' => $type];
-        foreach (['tags' => 'group.', 'memberships' => 'membership.'] as $key => $prefix) {
+        foreach (['tags' => 'group.', 'disciplines' => 'discipline.', 'memberships' => 'membership.'] as $key => $prefix) {
             $values = $input[$key] ?? [];
             if (!is_array($values) || count($values) > 100) {
                 throw new \RuntimeException('COM_INTERCOM_INVALID_MESSAGE', 422);
@@ -44,6 +44,29 @@ final class Audience
             throw new \RuntimeException('COM_INTERCOM_INVALID_MESSAGE', 422);
         }
         return $result;
+    }
+
+    public static function targetedTags(array $message): array
+    {
+        return array_merge($message['tags'] ?? [], $message['disciplines'] ?? []);
+    }
+
+    public static function summary(array $message, string $language = 'en-GB'): string
+    {
+        $da = str_starts_with($language, 'da');
+        $parts = array_map(
+            static fn ($tag) => $message['tag_labels'][$tag][$language] ?? TagLabel::automatic($tag),
+            array_merge(self::targetedTags($message), $message['memberships'] ?? [])
+        );
+        $from = (int) ($message['age_from'] ?? 0);
+        $to = (int) ($message['age_to'] ?? 0);
+        if ($from || $to) {
+            $parts[] = ($da ? 'alder ' : 'ages ') . ($from && !$to ? $from . '+' : ($from ?: 0) . '-' . $to);
+        }
+        if ($message['gender'] ?? '') {
+            $parts[] = $message['gender'] === 'female' ? ($da ? 'kvinder' : 'women') : ($da ? 'mænd' : 'men');
+        }
+        return implode(', ', $parts);
     }
 
     public static function fingerprint(array $rules, array $definition, string $account, string $mode, int $list): string

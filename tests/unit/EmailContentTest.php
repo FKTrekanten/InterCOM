@@ -59,9 +59,8 @@ final class EmailContentTest extends TestCase
             'definition' => ['suppression' => 'club-updates']], new \DateTimeImmutable('2026-09-30'));
         self::assertSame(['operator' => '', 'field' => 'tags', 'logic' => 'CONTAINS', 'condition' => 'group.Youth,group.Senior'], $rules[0]);
         self::assertSame(['operator' => 'AND', 'field' => 'tags', 'logic' => 'CONTAINS', 'condition' => 'membership.A,membership.B'], $rules[1]);
-        self::assertSame('2016-10-01', $rules[2]['condition']);
-        self::assertSame('1995-09-30', $rules[3]['condition']);
-        self::assertSame(['operator' => 'AND', 'field' => 'suppression', 'logic' => 'NOCONTAINS', 'condition' => 'club-updates'], $rules[5]);
+        self::assertSame(implode(',', array_map(static fn ($age) => 'member.female_' . $age, range(10, 30))), $rules[2]['condition']);
+        self::assertSame(['operator' => 'AND', 'field' => 'suppression', 'logic' => 'NOCONTAINS', 'condition' => 'club-updates'], $rules[3]);
     }
 
     public function testNewCommunicationUsesSeparateComposeAndSendGrants(): void

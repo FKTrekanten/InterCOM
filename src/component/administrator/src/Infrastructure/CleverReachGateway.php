@@ -153,18 +153,21 @@ final class CleverReachGateway implements \FKT\Component\Intercom\Administrator\
         if ($message['tags']) {
             $add('tags', 'CONTAINS', implode(',', $message['tags']));
         }
+        if ($message['disciplines'] ?? []) {
+            $add('tags', 'CONTAINS', implode(',', $message['disciplines']));
+        }
         if ($message['memberships']) {
             $add('tags', 'CONTAINS', implode(',', $message['memberships']));
         }
-        $today ??= new \DateTimeImmutable('today', new \DateTimeZone('Europe/Copenhagen'));
-        if ($message['age_from']) {
-            $add('birthdate', 'SM', $today->modify('-' . $message['age_from'] . ' years +1 day')->format('Y-m-d'));
-        }
-        if ($message['age_to']) {
-            $add('birthdate', 'BG', $today->modify('-' . ($message['age_to'] + 1) . ' years')->format('Y-m-d'));
-        }
-        if ($message['gender']) {
-            $add('gender', 'EQ', $message['gender']);
+        if ($message['age_from'] || $message['age_to'] || $message['gender']) {
+            $members = [];
+            $genders = $message['gender'] ? [$message['gender']] : ['female', 'male', 'other'];
+            foreach ($genders as $gender) {
+                for ($age = $message['age_from'] ?: 0; $age <= ($message['age_to'] ?: 120); $age++) {
+                    $members[] = 'member.' . $gender . '_' . $age;
+                }
+            }
+            $add('tags', 'CONTAINS', implode(',', $members));
         }
         $add('suppression', 'NOCONTAINS', $message['definition']['suppression'] ?? $message['type']);
         return $rules;

@@ -121,7 +121,7 @@ final class Message
 
     private static function groupLabels(array $message, string $language): string
     {
-        return implode(', ', array_map(static fn (string $tag): string => $message['tag_labels'][$tag][$language] ?? TagLabel::automatic($tag), $message['tags'] ?? []));
+        return implode(', ', array_map(static fn (string $tag): string => $message['tag_labels'][$tag][$language] ?? TagLabel::automatic($tag), Audience::targetedTags($message)));
     }
 
     public static function text(array $message): string

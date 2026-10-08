@@ -23,7 +23,7 @@ final class Settings
                 throw new \RuntimeException('COM_INTERCOM_INVALID_RULES');
             }
             foreach ($rule['tags'] ?? [] as $tag) {
-                if (!is_string($tag) || !str_starts_with($tag, 'group.') || str_contains($tag, ',')) {
+                if (!is_string($tag) || (!str_starts_with($tag, 'group.') && !str_starts_with($tag, 'discipline.')) || str_contains($tag, ',')) {
                     throw new \RuntimeException('COM_INTERCOM_INVALID_RULES');
                 }
             }
@@ -66,6 +66,7 @@ final class Settings
             // audience changes made after this request's Runtime was constructed.
             $config['audience_rules'] = $current['audience_rules'] ?? '[]';
             $config['communication_catalog_version'] = (int) ($current['communication_catalog_version'] ?? 1);
+            $config['member_audience_version'] = (int) ($current['member_audience_version'] ?? 1);
             // Do not switch accounts, modes or recipient lists while any filter is reserved.
             $reserved = $r->store->hasLiveReservations();
             foreach (['mode', 'group_id'] as $key) {

@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {DraftCache, composerControls, composerSendBlocker} from '../../src/component/media/js/draft-cache.mjs';
 
-const message = {type:'club',sender:'Club',subject_da:'Ufærdig',subject_en:'',body_da:'<p>Dansk</p>',body_en:'',tags:['group.Youth'],memberships:[],age_from:0,age_to:0,gender:'',format:'html'};
+const message = {type:'club',sender:'Club',subject_da:'Ufærdig',subject_en:'',body_da:'<p>Dansk</p>',body_en:'',tags:['group.Youth'],disciplines:[],memberships:[],age_from:0,age_to:0,gender:'',format:'html'};
 const storage = () => {const values=new Map(); return {getItem:key=>values.get(key),setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};};
 
 test('Bilingual incomplete content survives reload with its language and step; server revisions and account/list/user contexts stay isolated', () => {
@@ -60,4 +60,13 @@ test('Every persistent send blocker is explained, including native string counts
     assert.equal(composerSendBlocker(draft,options),reason);
     assert.equal(composerControls(draft,options).confirm,reason==='');
   }
+});
+
+
+test('Browser recovery migrates old disciplines and preserves new discipline choices', () => {
+  const cache = new DraftCache(storage(),'context');
+  cache.save(0,0,{...message,tags:['group.Youth','group.epee'],disciplines:['discipline.foil']},'en',0);
+  const restored = cache.load(0,0).message;
+  assert.deepEqual(restored.tags,['group.Youth']);
+  assert.deepEqual(restored.disciplines,['discipline.foil','discipline.epee']);
 });

@@ -21,13 +21,13 @@ status, page = request('/index.php?option=com_users&task=user.login', {
     'username':'intercom', 'password':os.environ['INTERCOM_ADMIN_PASSWORD'], token(page):'1',
     'return':base64.b64encode(b'index.php?option=com_intercom').decode()})
 assert status == 200 and 'id="ic-form"' in page, 'Native session login opens component'
-assert '<joomla-field-fancy-select' in page and 'name="tags[]" multiple' in page and 'name="memberships[]" multiple' in page, 'Exactly two native multi-select recipient fields render'
+assert '<joomla-field-fancy-select' in page and 'name="tags[]" multiple' in page and 'name="memberships[]" multiple' in page and 'name="disciplines[]" multiple' in page, 'Three native multi-select recipient fields render'
 assert 'joomla-editor-tinymce' in page, 'Native Joomla editor renders'
 csrf = token(page)
 api = '/index.php?option=com_intercom&format=json'
 assert request(api, {'task':'api.save'})[0] == 403, 'Missing CSRF denied'
 message = {'type':'class','sender':'Smoke','subject_da':'Test','subject_en':'Test',
-           'body_da':'Simulering','body_en':'Simulation','tags':['group.Youth']}
+           'body_da':'Simulering','body_en':'Simulation','tags':['group.Youth'],'disciplines':['discipline.sabre','discipline.foil']}
 def call(action, fields, expected=200):
     status, raw = request(api, {'task':'api.'+action, csrf:'1', **fields})
     result = json.loads(raw)
@@ -186,7 +186,7 @@ assert request(permission_preview, {**inputs.values, 'jform[rules][core.admin][2
 _, tagpage = request(settings + '&section=tags')
 assert 'group.Youth' in tagpage and 'Refresh tags' in tagpage, 'Recipient visibility catalogue renders separately'
 assert '/media/com_intercom/js/tags.js?' in tagpage, 'Joomla resolves the registered bulk-selection script'
-assert tagpage.count('data-toggle-all') == 2 and 'jform[labels][group.Youth][da-DK]' in tagpage and 'Youth, Wednesday 17:30' in tagpage, 'Both tag sections support bulk selection and multilingual display names'
+assert tagpage.count('data-toggle-all') == 3 and 'jform[labels][group.Youth][da-DK]' in tagpage and 'Youth, Wednesday 17:30' in tagpage, 'All three tag sections support bulk selection and multilingual display names'
 _, scopepage = request(settings + '&section=access')
 assert 'jform[scopes]' in scopepage and 'Audience access' in scopepage, 'Structured Joomla group audience grants render'
 _, frontend = request('/index.php?option=com_intercom&view=composer')
@@ -217,7 +217,7 @@ assert status == 200 and 'filters-limit' in filters, 'Full filter pool has a sep
 assert 'Reconcile with CleverReach' in filters and 'Unresolved filter creations' in filters, 'Administrator can see reconciliation and unresolved slots'
 assert request(management + '&task=reconciliation.run', {})[0] == 403, 'Reconciliation requires CSRF'
 assert request(management + '&task=reconciliation.run')[0] == 403, 'Reconciliation cannot run through GET'
-call('save', {'message':json.dumps({**message, 'tags':[]})}, 422)
+call('save', {'message':json.dumps({**message, 'tags':[], 'disciplines':[]})}, 422)
 print('PASS: Design CRUD/concurrency, theme preview, sender defaults, filter page and team-policy guard')
 
 # No live provider calls: this isolated fixture temporarily removes credentials.

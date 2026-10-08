@@ -27,9 +27,9 @@ final class Archive
             'html' => '<p>Archive of an accepted communication. Sender: ' . htmlspecialchars($message['sender'], ENT_QUOTES, 'UTF-8') . '</p>'
                 . '<p>DA: ' . htmlspecialchars($message['subject_da'], ENT_QUOTES, 'UTF-8') . '</p>' . Message::bodyHtml($message, 'da')
                 . '<hr><p>EN: ' . htmlspecialchars($message['subject_en'], ENT_QUOTES, 'UTF-8') . '</p>' . Message::bodyHtml($message, 'en')
-                . '<hr><p>Audience criteria: ' . htmlspecialchars(json_encode(['groups' => $message['tags'], 'memberships' => $message['memberships'],
-                    'age_from' => $message['age_from'], 'age_to' => $message['age_to'], 'gender' => $message['gender'],
-                    'communication' => $message['definition']['key'] ?? $message['type'], 'suppression' => $message['definition']['suppression'] ?? $message['type']]), ENT_QUOTES, 'UTF-8') . '</p>',
+                . '<hr><p>Audience criteria: ' . htmlspecialchars(\FKT\Component\Intercom\Administrator\Domain\Audience::summary($message), ENT_QUOTES, 'UTF-8') . '</p>'
+                . '<p>Communication: ' . htmlspecialchars($message['definition']['key'] ?? $message['type'], ENT_QUOTES, 'UTF-8')
+                . ' · Opt-out: ' . htmlspecialchars($message['definition']['suppression'] ?? $message['type'], ENT_QUOTES, 'UTF-8') . '</p>',
             'text' => Message::text($message), 'mailing_id' => (int) $draft['mailing_id'], 'revision' => (int) $draft['revision']];
         foreach (['html', 'text'] as $field) {
             $payload[$field] = strtr($payload[$field], ['{FIRSTNAME[std:Medlem]}' => 'Medlem', '{FIRSTNAME[std:Member]}' => 'Member',

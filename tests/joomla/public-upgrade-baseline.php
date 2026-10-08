@@ -13,6 +13,7 @@ check($manifest['version'] === '0.3.11', 'Upgrade baseline is the actual publish
 $r = $app->bootComponent('com_intercom')->runtime;
 $store = $r->store;
 $params = json_decode($store->row("SELECT params FROM #__extensions WHERE element='com_intercom'")['params'], true);
+$params['audience_rules'] = json_encode([['group'=>2,'all'=>false,'tags'=>['group.epee','group.Youth']]]);
 $params = array_merge($params, ['mode' => 'fake', 'sender_name' => 'Upgrade fixture', 'retention_days' => 45]);
 $store->execute('UPDATE #__extensions SET params=' . $store->q(json_encode($params)) . " WHERE element='com_intercom'");
 $cipher = new \FKT\Component\Intercom\Administrator\Domain\CredentialCipher($app->get('secret'));
@@ -29,6 +30,10 @@ $rules = json_encode(['intercom.type.compose' => [2 => 1, 3 => 0], 'intercom.typ
 $store->execute('UPDATE #__assets SET rules=' . $store->q($rules) . " WHERE id=$assetId");
 $store->audit(42, 'public.upgrade.fixture', $id);
 $store->execute("UPDATE #__extensions SET enabled=0 WHERE type='plugin' AND folder='task' AND element='intercom'");
-file_put_contents('/tmp/intercom-public-upgrade.json', json_encode(['draft' => $draft, 'params' => $params, 'envelope' => $envelope,
+$legacyDraft = $workflow->save(['type'=>'license','sender'=>'Upgrade fixture','subject_da'=>'DA','subject_en'=>'EN','body_da'=>'Dansk','body_en'=>'English','tags'=>['group.epee','group.Youth'],'age_from'=>8,'age_to'=>12]);
+$legacyId = (int)$legacyDraft['id'];
+$store->execute("UPDATE #__intercom_drafts SET state='tested',tested_revision=revision,tested_fingerprint='old',audience_fingerprint='old',estimate_count=34 WHERE id=$legacyId");
+$store->execute("INSERT INTO #__intercom_tags (list_id,tag,enabled,available,ordering,labels) VALUES (0,'group.epee',1,1,17,'{\"da-DK\":\"Kårde\",\"en-GB\":\"Epee choice\"}')");
+file_put_contents('/tmp/intercom-public-upgrade.json', json_encode(['legacy_id'=>$legacyId,'draft' => $draft, 'params' => $params, 'envelope' => $envelope,
     'type' => $type, 'rules' => $rules, 'revision' => $store->row("SELECT * FROM #__intercom_revisions WHERE draft_id=$id")]));
 echo "PUBLIC UPGRADE BASELINE OK\n";

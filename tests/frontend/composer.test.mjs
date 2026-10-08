@@ -9,7 +9,7 @@ import {PreviewScheduler, requiresTeam, subjectLabel} from '../../src/component/
 // No external library or live provider is involved in this interaction test.
 test('Subject typing updates the envelope without requesting or replacing email HTML; body typing is delayed', async () => {
   const fields = Object.fromEntries(Object.entries({type:'club',sender:'Club',subject_da:'DA',subject_en:'Old',body_da:'Dansk',body_en:'English',gender:'',age_from:0,age_to:0,send_at:''}).map(([name,value]) => [name,{name,value,classList:{contains:() => false}}]));
-  fields['tags[]'] = fields['memberships[]'] = {selectedOptions:[]};
+  fields['tags[]'] = fields['disciplines[]'] = fields['memberships[]'] = {selectedOptions:[]};
   const elements = new Map(), buttons = new Map(), events = new Map(), tasks = new Map(), calls = [];
   const element = id => {
     if (!elements.has(id)) elements.set(id,{textContent:'',checked:false,value:'',srcdoc:'',setAttribute(){},removeAttribute(){},addEventListener(){}});
@@ -60,7 +60,7 @@ test('Subject typing updates the envelope without requesting or replacing email 
 
 function composerHarness(initial, api, editor = null, legacyEditors = {}) {
   const fields=Object.fromEntries(Object.entries({type:'club',sender:'Club',subject_da:'DA',subject_en:'EN',body_da:'Dansk',body_en:'English',gender:'',age_from:0,age_to:0,send_at:''}).map(([name,value])=>[name,{name,value,classList:{contains:()=>false},checkValidity:()=>true}]));
-  fields['tags[]']=fields['memberships[]']={selectedOptions:[]};
+  fields['tags[]']=fields['disciplines[]']=fields['memberships[]']={selectedOptions:[]};
   const elements=new Map(),events=new Map(),actions=new Map(),steps=new Map(),firstnames=new Map();
   let pollEditors;
   const element=id=>{if(!elements.has(id))elements.set(id,{textContent:'',hidden:false,checked:false,srcdoc:'',setAttribute(){},removeAttribute(){},addEventListener(){}});return elements.get(id);};

@@ -10,8 +10,8 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   let draft = initial.draft || null, dirty = !draft, busy = false;
   let step = 0, editLanguage = initial.language || 'da', previewLanguage = editLanguage, previewTheme = 'light';
   let rendered = null, audienceDirty = false, estimating = false, activeAt = Date.now();
-  const audienceFields = ['type','tags','memberships','age_from','age_to','gender'];
-  const audienceKey = value => JSON.stringify(Object.fromEntries(audienceFields.map(k => [k, Array.isArray(value[k]) ? [...value[k]].sort() : value[k]])));
+  const audienceFields = ['type','tags','disciplines','memberships','age_from','age_to','gender'];
+  const audienceKey = value => JSON.stringify(Object.fromEntries(audienceFields.map(k => [k, Array.isArray(value[k]) ? [...value[k]].sort() : (k === 'disciplines' ? [] : value[k])])));
   let savedAudience = initial.message ? audienceKey(initial.message) : '';
   let storage; try {storage = window.localStorage;} catch {}
   const cache = new DraftCache(storage, initial.cacheContext, initial.retentionDays);
@@ -51,7 +51,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     const result = Object.fromEntries(['type','sender','subject_da','subject_en','gender'].map(k => [k, data.get(k)]));
     result.format = 'html';
     for (const lang of ['da','en']) result['body_' + lang] = bodyValue(lang);
-    for (const k of ['tags','memberships']) result[k] = data.getAll(k + '[]');
+    for (const k of ['tags','disciplines','memberships']) result[k] = data.getAll(k + '[]');
     for (const k of ['age_from','age_to']) result[k] = Number(data.get(k) || 0);
     return result;
   }
@@ -61,7 +61,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     for (const lang of ['da','en']) getEditor('body_' + lang)?.instance?.setDirty?.(false);
   }
   function needsTeam() {
-    return requiresTeam(initial.types?.[form.elements.type.value], Array.from(form.elements['tags[]'].selectedOptions).map(el => el.value), initial.availableTeams || []);
+    return requiresTeam(initial.types?.[form.elements.type.value], ['tags','disciplines'].flatMap(k => Array.from(form.elements[k + '[]'].selectedOptions).map(el => el.value)), initial.availableTeams || []);
   }
   function showStep(value) {
     if (Number(value) > 0 && needsTeam()) {
@@ -126,8 +126,9 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     const blocker = composerSendBlocker(draft, sendState);
     document.getElementById('ic-send-help').textContent = blocker ? text(blocker) : '';
     const groups = Array.from(form.elements['tags[]'].selectedOptions).map(el => el.textContent.trim());
+    const disciplines = Array.from(form.elements['disciplines[]'].selectedOptions).map(el => el.textContent.trim());
     const memberships = Array.from(form.elements['memberships[]'].selectedOptions).map(el => el.textContent.trim());
-    document.getElementById('ic-audience-summary').textContent = [...groups, ...memberships].join(', ') || text(initial.allAudience ? 'ALL_AUDIENCE' : 'NO_GROUPS');
+    document.getElementById('ic-audience-summary').textContent = [...groups, ...disciplines, ...memberships, ...memberCriteria()].join(', ') || text(initial.allAudience ? 'ALL_AUDIENCE' : 'NO_GROUPS');
     document.querySelectorAll('.intercom [data-preview-theme]').forEach(el => el.setAttribute('aria-pressed', String(el.dataset.previewTheme === previewTheme)));
     const html = rendered?.[previewLanguage + (previewTheme === 'dark' ? '_dark' : '')];
     if (html && frame.srcdoc !== html) frame.srcdoc = html;
@@ -135,6 +136,12 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
       groupError.hidden = true;
       form.querySelectorAll('[aria-describedby="ic-group-error"]').forEach(el => {el.removeAttribute('aria-invalid'); el.removeAttribute('aria-describedby');});
     }
+  }
+  function memberCriteria() {
+    const data = message(), parts = [];
+    if (data.age_from || data.age_to) parts.push(text('AGES') + ' ' + (data.age_from && !data.age_to ? data.age_from + '+' : data.age_from + '-' + data.age_to));
+    if (data.gender) parts.push(text(data.gender === 'female' ? 'FEMALE' : 'MALE'));
+    return parts;
   }
   const scheduler = new PreviewScheduler(async () => {
     const data = message();
@@ -238,7 +245,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   if (!editable()) cache.clear(cacheId);
   if (recovery) {
     const recovered = recovery.message;
-    const allowed = ['tags','memberships'].every(k => recovered[k].every(v => Array.from(form.elements[k + '[]'].options).some(o => o.value === v)))
+    const allowed = ['tags','disciplines','memberships'].every(k => recovered[k].every(v => Array.from(form.elements[k + '[]'].options).some(o => o.value === v)))
       && Array.from(form.querySelectorAll('input[name=type]')).some(r => r.value === recovered.type);
     if (allowed) {
       for (const [key,value] of Object.entries(recovered)) {

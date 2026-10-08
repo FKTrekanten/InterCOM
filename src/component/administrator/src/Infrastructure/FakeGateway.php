@@ -15,7 +15,12 @@ final class FakeGateway implements DeliveryGateway, \FKT\Component\Intercom\Admi
 
     public function tags(string $origin): array
     {
-        return $origin === 'group' ? ['group.Youth', 'group.Senior'] : ['membership.Active', 'membership.Passive'];
+        return match ($origin) {
+            'group' => ['group.Youth', 'group.Senior'],
+            'discipline' => ['discipline.epee', 'discipline.foil', 'discipline.sabre'],
+            'membership' => ['membership.Active', 'membership.Passive'],
+            default => [],
+        };
     }
 
     public function updateAudience(int $filterId, array $rules): void

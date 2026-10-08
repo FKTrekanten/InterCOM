@@ -171,9 +171,9 @@ final class Catalog
     public function refreshTags(DeliveryGateway $gateway, int $actor): void
     {
         try {
-            $tags = array_values(array_unique(array_merge($gateway->tags('group'), $gateway->tags('membership'))));
+            $tags = array_values(array_unique(array_merge($gateway->tags('group'), $gateway->tags('discipline'), $gateway->tags('membership'))));
             foreach ($tags as $tag) {
-                if (!is_string($tag) || !preg_match('/^(group|membership)\.[^,{}\x00-\x1f]{1,180}$/uD', $tag)) {
+                if (!is_string($tag) || !preg_match('/^(group|discipline|membership)\.[^,{}\x00-\x1f]{1,180}$/uD', $tag)) {
                     throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
                 }
             }
@@ -198,6 +198,7 @@ final class Catalog
     public function tags(bool $enabled = true): array
     {
         return $this->store->rows('SELECT * FROM #__intercom_tags WHERE list_id=' . $this->context()
+            . " AND (tag LIKE 'group.%' OR tag LIKE 'discipline.%' OR tag LIKE 'membership.%')"
             . ($enabled ? ' AND enabled=1 AND available=1' : '') . ' ORDER BY ordering,tag');
     }
 
@@ -210,7 +211,7 @@ final class Catalog
     public function tagLabels(array $message): array
     {
         $labels = [];
-        foreach ($message['tags'] ?? [] as $tag) {
+        foreach (\FKT\Component\Intercom\Administrator\Domain\Audience::targetedTags($message) as $tag) {
             foreach ($this->languages() as $language => $name) {
                 $labels[$tag][$language] = $this->label($tag, $language);
             }
@@ -247,7 +248,7 @@ final class Catalog
     public function assertTags(array $message): void
     {
         $allowed = array_column($this->tags(), 'tag');
-        if (array_diff(array_merge($message['tags'], $message['memberships']), $allowed)) {
+        if (array_diff(array_merge(\FKT\Component\Intercom\Administrator\Domain\Audience::targetedTags($message), $message['memberships']), $allowed)) {
             throw new \RuntimeException('COM_INTERCOM_SCOPE_DENIED', 403);
         }
     }
@@ -291,7 +292,7 @@ final class Catalog
             $tags = array_values(array_unique((array) ($rule['tags'] ?? [])));
             if (
                 !$this->store->row("SELECT id FROM #__usergroups WHERE id=$id") || array_diff($tags, $allowed)
-                || array_filter($tags, static fn ($tag) => !str_starts_with($tag, 'group.'))
+                || array_filter($tags, static fn ($tag) => (!str_starts_with($tag, 'group.') && !str_starts_with($tag, 'discipline.')))
             ) {
                 throw new \RuntimeException('COM_INTERCOM_INVALID_RULES', 422);
             }

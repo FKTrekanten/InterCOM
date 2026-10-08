@@ -14,9 +14,13 @@ export class DraftCache {
       if (value.revision !== revision) return null; // Never replace a newer server revision.
       if (!['da','en'].includes(value.language) || !Number.isInteger(value.step) || value.step < 0 || value.step > 2) return null;
       if (!value.message || ['sender','subject_da','subject_en','body_da','body_en','type'].some(k => typeof value.message[k] !== 'string' || value.message[k].length > (k.startsWith('body_') ? 100000 : 255))) return null;
-      if (['tags','memberships'].some(k => !Array.isArray(value.message[k]) || value.message[k].some(v => typeof v !== 'string'))) return null;
+      value.message.disciplines ??= [];
+      if (['tags','disciplines','memberships'].some(k => !Array.isArray(value.message[k]) || value.message[k].some(v => typeof v !== 'string'))) return null;
       if (['age_from','age_to'].some(k => !Number.isInteger(value.message[k]) || value.message[k] < 0 || value.message[k] > 120) || !['','male','female'].includes(value.message.gender) || value.message.format !== 'html') return null;
-      const keys = ['sender','subject_da','subject_en','body_da','body_en','type','tags','memberships','age_from','age_to','gender','format'];
+      const moved = value.message.tags.filter(t => ['group.epee','group.foil','group.sabre'].includes(t));
+      value.message.tags = value.message.tags.filter(t => !moved.includes(t));
+      value.message.disciplines = [...new Set([...value.message.disciplines, ...moved.map(t => t.replace('group.', 'discipline.'))])];
+      const keys = ['sender','subject_da','subject_en','body_da','body_en','type','tags','disciplines','memberships','age_from','age_to','gender','format'];
       value.message = Object.fromEntries(keys.map(k => [k,value.message[k]]));
       return value;
     } catch { return null; }

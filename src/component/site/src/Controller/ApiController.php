@@ -69,7 +69,7 @@ final class ApiController extends BaseController
             $input['body_' . $lang] = trim((string) ($input['body_' . $lang] ?? '')) ?: ($lang === 'da' ? '<p>Din besked vises her.</p>' : '<p>Your message appears here.</p>');
         }
         $message = Message::validate($input);
-        $runtime->policy($user)->assertAllowed($message['type'], $message['tags'], 'compose');
+        $runtime->policy($user)->assertAllowed($message['type'], \FKT\Component\Intercom\Administrator\Domain\Audience::targetedTags($message), 'compose');
         $message['definition'] = $runtime->catalog->snapshot($message);
         $message['design'] = $runtime->design->snapshot();
         $message['tag_labels'] = $runtime->catalog->tagLabels($message);

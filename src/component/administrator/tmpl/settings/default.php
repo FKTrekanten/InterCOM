@@ -79,7 +79,7 @@ elseif ($this->section === 'types' && $this->record) :
 <h2><?= $t('RECIPIENT_TAGS') ?></h2><p><?= $t('DRAG_ROW_HELP') ?></p><p><?= $t('TAG_LABEL_HELP') ?></p><p><?= $t('TAG_CATALOGUE_HELP') ?></p><p><?= $t('LAST_REFRESH') ?>: <?= $esc($meta['refreshed_at'] ?? '-') ?> UTC</p>
 <form action="index.php?option=com_intercom&amp;task=management.refreshtags" method="post" class="mb-3"><?= HTMLHelper::_('form.token') ?><button class="btn btn-secondary"><?= $t('REFRESH_TAGS') ?></button></form>
 <form action="index.php?option=com_intercom&amp;task=management.savetags" method="post"><?= HTMLHelper::_('form.token') ?><input type="hidden" name="jform[revision]" value="<?= (int) ($meta['revision'] ?? 0) ?>">
-    <?php foreach (['group' => 'GROUPS', 'membership' => 'MEMBERSHIPS'] as $prefix => $label) : ?>
+    <?php foreach (['group' => 'GROUPS', 'discipline' => 'DISCIPLINES', 'membership' => 'MEMBERSHIPS'] as $prefix => $label) : ?>
 <h3><?= $t($label) ?> (<?= $prefix ?>.*)</h3><fieldset data-tag-section="<?= $prefix ?>"><legend class="visually-hidden"><?= $t($label) ?></legend><label class="mb-3"><input type="checkbox" data-toggle-all aria-label="<?= $t('CHECK_ALL') ?> <?= $t($label) ?>"> <?= $t('CHECK_ALL') ?></label><div class="table-responsive"><table class="table"><thead><tr><th><?= $t('SHOW_TAG') ?></th><th><?= $t('TAG') ?></th><th><?= $t('TAG_LABELS') ?></th><th><?= $t('AVAILABILITY') ?></th><th><?= $t('ORDERING') ?></th></tr></thead><tbody data-tag-rows>
         <?php foreach ($r->catalog->tags(false) as $row) :
             if (!str_starts_with($row['tag'], $prefix . '.')) {
@@ -117,7 +117,7 @@ elseif ($this->section === 'types' && $this->record) :
         $tags = array_values(array_unique(array_merge(array_column($r->catalog->tags(), 'tag'), $selected))); ?>
 <tr><td><?= $esc($group['title']) ?></td><td><input type="checkbox" name="jform[scopes][<?= $id ?>][all]" value="1" aria-describedby="ic-all-audience-help ic-audience-grants-help" aria-label="<?= $esc($group['title']) ?> <?= $t('ALL_AUDIENCE') ?>" <?= !empty($scope[$id]['all']) ? 'checked' : '' ?>></td><td><joomla-field-fancy-select><select multiple name="jform[scopes][<?= $id ?>][tags][]" aria-label="<?= $esc($group['title']) ?> <?= $t('ALLOWED_TAGS') ?>">
         <?php foreach ($tags as $tag) :
-            if (!str_starts_with($tag, 'group.')) {
+            if (!str_starts_with($tag, 'group.') && !str_starts_with($tag, 'discipline.')) {
                 continue;
             } ?><option value="<?= $esc($tag) ?>" <?= in_array($tag, $selected, true) ? 'selected' : '' ?>><?= $esc($r->catalog->label($tag, $locale)) ?></option><?php
         endforeach; ?>

@@ -33,10 +33,7 @@ require dirname(__DIR__) . '/navigation.php';
 <dt><?= $t('SEND_AT') ?></dt><dd><?= $row['scheduled_at'] ? $date(gmdate('Y-m-d H:i:s', (int) $row['scheduled_at'])) : $t('NOT_RECORDED') ?></dd>
 <dt><?= $t('ESTIMATE') ?></dt><dd><?= ($snapshot['submission_estimate'] ?? $snapshot['estimate'] ?? null) !== null ? (int) ($snapshot['submission_estimate'] ?? $snapshot['estimate'] ?? null) : $t('NOT_RECORDED') ?> · <?= $date($snapshot['submission_estimate_checked'] ?? $snapshot['estimate_checked'] ?? null) ?></dd>
 <dt><?= $t('RECIPIENTS') ?></dt><dd><?php
-foreach (array_merge($message['tags'] ?? [], $message['memberships'] ?? []) as $tag) : ?>
-<span title="<?= $esc($tag) ?>"><?= $esc($message['tag_labels'][$tag][\Joomla\CMS\Factory::getApplication()->getLanguage()->getTag()] ?? \FKT\Component\Intercom\Administrator\Domain\TagLabel::automatic($tag)) ?></span><br>
-<?php endforeach; ?>
-    <?= $t('AGE_FROM') ?>: <?= (int) ($message['age_from'] ?? 0) ?> · <?= $t('AGE_TO') ?>: <?= (int) ($message['age_to'] ?? 0) ?> · <?= $t('GENDER') ?>: <?= $esc($message['gender'] ?? '') ?></dd>
+echo $esc(\FKT\Component\Intercom\Administrator\Domain\Audience::summary($message, \Joomla\CMS\Factory::getApplication()->getLanguage()->getTag())); ?></dd>
 <dt><?= $t('PROVIDER_REFERENCES') ?></dt><dd><?= $t('RECIPIENT_LIST') ?> <?= (int) $row['group_id'] ?> · <?= $t('FILTER') ?> <?= (int) $row['filter_id'] ?> · <?= $t('MAILING') ?> <?= (int) $row['mailing_id'] ?></dd>
 </dl>
     <?php if (!$snapshot) :

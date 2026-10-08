@@ -16,6 +16,19 @@ final class PolicyTest extends TestCase
         $this->coach()->assertAllowed('class', ['group.Youth'], 'send');
         $this->addToAssertionCount(1);
     }
+    public function testGrantedDisciplineAndTrainingGroupCanBeTargetedTogether(): void
+    {
+        $policy = new Policy(['access' => true, 'compose' => true, 'class' => true], ['all' => false, 'tags' => ['group.Youth', 'discipline.foil']]);
+        $policy->assertAllowed('class', \FKT\Component\Intercom\Administrator\Domain\Audience::targetedTags(['tags' => ['group.Youth'], 'disciplines' => ['discipline.foil']]), 'compose');
+        $this->addToAssertionCount(1);
+    }
+
+    public function testTrainingGroupGrantCannotAuthorizeAnUngrantedDiscipline(): void
+    {
+        $this->expectExceptionMessage('COM_INTERCOM_SCOPE_DENIED');
+        $this->coach()->assertAllowed('class', \FKT\Component\Intercom\Administrator\Domain\Audience::targetedTags(['tags' => ['group.Youth'], 'disciplines' => ['discipline.sabre']]), 'compose');
+    }
+
     public function testForgedTeamIsDenied(): void
     {
         $this->expectException(\RuntimeException::class);
