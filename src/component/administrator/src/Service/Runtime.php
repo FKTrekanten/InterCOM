@@ -28,6 +28,12 @@ final class Runtime
         $this->design = new Design($store);
     }
 
+    public function connectionStatus(): array
+    {
+        $enabled = $this->store->row("SELECT t.id FROM #__scheduler_tasks t JOIN #__extensions e ON e.type='plugin' AND e.folder='task' AND e.element='intercom' AND e.enabled=1 WHERE t.type='intercom.maintenance' AND t.state=1 LIMIT 1") !== null;
+        return $this->connection->status($this->config, $enabled);
+    }
+
     public function policy(User $user): Policy
     {
         $grants = [];
@@ -82,7 +88,7 @@ final class Runtime
     public function reconciliation(): ?Reconciliation
     {
         $gateway = $this->gateway();
-        return $gateway instanceof \FKT\Component\Intercom\Administrator\Domain\ReconciliationGateway ? new Reconciliation($this->store, $gateway, $this->config) : null;
+        return $gateway instanceof \FKT\Component\Intercom\Administrator\Domain\ReconciliationGateway ? new Reconciliation($this->store, $gateway, $this->config, fn ($budget) => $this->connection->token($budget)) : null;
     }
 
     public function abandonment(): Abandonment
@@ -117,11 +123,11 @@ final class Runtime
             $approval->authorize($mailing, $draftId, (int) $user->id);
             $approval->check($draftId, (int) $user->id, $this->config, $readGateway);
         });
-        return new Workflow($this->store, $gateway, $this->policy($user), (int) $user->id, $this->catalog, null, $this->reconciliation(), $this->config, $this->testDelivery());
+        return new Workflow($this->store, $gateway, $this->policy($user), (int) $user->id, $this->catalog, null, $this->reconciliation(), $this->config, $this->testDelivery(), fn ($budget) => $this->connection->maintain($this->config, $budget), fn () => ($this->config['mode'] ?? 'fake') === 'live' ? $this->connection->token() : null);
     }
 
     public function workflow(User $user): Workflow
     {
-        return new Workflow($this->store, $this->gateway(), $this->policy($user), (int) $user->id, $this->catalog, $this->archive(), $this->reconciliation(), $this->config, $this->testDelivery());
+        return new Workflow($this->store, $this->gateway(), $this->policy($user), (int) $user->id, $this->catalog, $this->archive(), $this->reconciliation(), $this->config, $this->testDelivery(), fn ($budget) => $this->connection->maintain($this->config, $budget), fn () => ($this->config['mode'] ?? 'fake') === 'live' ? $this->connection->token() : null);
     }
 }

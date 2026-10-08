@@ -56,15 +56,7 @@ try {
     $exchange=new Connection($s,$cipher,$lookup,static fn($form,$credentials)=>array_merge($credentials,['access_token'=>'new','refresh_token'=>'new-refresh','expires_at'=>time()+300]));
     $exchange->authorize('code','https://example.invalid/callback',42);
     check($exchange->token()==='new','OAuth authorization verifies replacement identity');
-    $v=$exchange->credentials();$v['expires_at']=time()-1;
-    $s->execute("UPDATE #__intercom_connections SET envelope=".$s->q($cipher->encrypt($v))." WHERE provider='cleverreach'");
-    check($exchange->token()==='new','Automatic refresh verifies account identity');
-    $badExchange=new Connection($s,$cipher,$lookup,static fn($form,$credentials)=>array_merge($credentials,['access_token'=>'other','expires_at'=>time()+300]));
-    // Refresh must never switch accounts even with no live reservations.
-    $v=$exchange->credentials();$v['expires_at']=time()-1;
-    $s->execute("UPDATE #__intercom_connections SET envelope=".$s->q($cipher->encrypt($v))." WHERE provider='cleverreach'");
-    try {$badExchange->token();throw new Exception('Expected refresh rejection');}
-    catch(RuntimeException $e) {check($e->getMessage()==='COM_INTERCOM_ACCOUNT_MISMATCH','Refresh cannot change pinned account');}
+    // Durable refresh and account mismatch recovery are exercised in connection-renewal.php.
     $s->execute('UPDATE #__intercom_filters SET draft_id=NULL WHERE group_id!=0');
     $s->execute("DELETE FROM #__intercom_filter_creations WHERE state IN ('pending','uncertain')");
     $s->execute('INSERT INTO #__intercom_filters(filter_id,group_id,managed) VALUES(3999999011,758666,1)');

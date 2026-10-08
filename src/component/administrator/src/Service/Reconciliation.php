@@ -11,7 +11,7 @@ use FKT\Component\Intercom\Administrator\Infrastructure\Store;
 
 final class Reconciliation
 {
-    public function __construct(private Store $store, private ReconciliationGateway $gateway, private array $config)
+    public function __construct(private Store $store, private ReconciliationGateway $gateway, private array $config, private ?\Closure $connectionPreflight = null)
     {
     }
 
@@ -54,6 +54,7 @@ final class Reconciliation
             if ($leasesBudget->expired()) {
                 break;
             }
+            ($this->connectionPreflight)?->__invoke($leasesBudget->limit(30));
             $status = $this->store->transaction(function () use ($lease, $actor): ?string {
                 $group = $this->lockConfiguration();
                 $id = (int) $lease['filter_id'];
@@ -107,6 +108,7 @@ final class Reconciliation
             if ($budget->expired()) {
                 break;
             }
+            ($this->connectionPreflight)?->__invoke($budget->limit(30));
             $status = $this->store->transaction(function () use ($intent, $actor): ?string {
                 $group = $this->lockConfiguration();
                 $id = (int) $intent['id'];

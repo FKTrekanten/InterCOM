@@ -33,6 +33,11 @@ final class Store
         return $this->db->setQuery($sql)->loadAssocList();
     }
 
+    public function inTransaction(): bool
+    {
+        return $this->transactionDepth > 0;
+    }
+
     public function begin(): void
     {
         if ($this->transactionDepth !== 0) {

@@ -135,7 +135,8 @@ status, admin = request('/administrator/index.php?option=com_intercom&task=conne
     'client_secret':os.environ['INTERCOM_TEST_CLIENT_SECRET']})
 assert status == 200 and 'Saved' in admin, 'Credentials saved despite simulated reservations'
 access = os.environ['INTERCOM_TEST_ACCESS_TOKEN']
-for value in (access, os.environ['INTERCOM_TEST_CLIENT_ID'], os.environ['INTERCOM_TEST_CLIENT_SECRET']):
+assert os.environ['INTERCOM_TEST_CLIENT_ID'] in admin, 'Configured client ID is visible in backend connection details'
+for value in (access, os.environ['INTERCOM_TEST_CLIENT_SECRET']):
     assert value not in admin, 'Secrets never echoed into page'
 status, admin = request('/administrator/index.php?option=com_intercom&task=connection.importtokens', {
     token(admin):'1','access_token':access,'expires_in':'0'})

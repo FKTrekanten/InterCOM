@@ -20,14 +20,14 @@ final class CleverReachIdentity
         return (string) $id;
     }
 
-    public function resolve(#[\SensitiveParameter] string $token): string
+    public function resolve(#[\SensitiveParameter] string $token, int $timeout = 10): string
     {
         if ($this->transport !== null) {
             return self::identifier(($this->transport)($token));
         }
         $curl = curl_init('https://rest.cleverreach.com/v3/debug/whoami');
         curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_TIMEOUT => 10, CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_TIMEOUT => max(1, $timeout), CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $token, 'Accept: application/json']]);
         $raw = curl_exec($curl);
         $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);

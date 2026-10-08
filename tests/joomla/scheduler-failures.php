@@ -55,7 +55,11 @@ $gateway = new \FKT\Component\Intercom\Administrator\Infrastructure\CleverReachG
     static function () { throw new LogicException('No provider request expected'); });
 $workflow = new Workflow($store, new FakeGateway(), new Policy([], []), 0, null,
     new Archive($store, '', static fn () => false, static fn () => false),
-    new Reconciliation($store, $gateway, ['mode'=>'live','group_id'=>799991]));
+    new Reconciliation($store, $gateway, ['mode'=>'live','group_id'=>799991]), null, null,
+    static function ($budget) use (&$calls, &$fault) {
+        $calls[] = 'connection';
+        if ($fault === 'connection') { throw new TypeError('Injected secret@example.invalid password=private'); }
+    });
 $runtime = new class ($workflow) {
     public array $config = ['retention_days'=>30];
     public function __construct(private Workflow $workflow) {}
@@ -96,7 +100,7 @@ try {
     };
     $failedId = $makeTask('InterCOM failure fixture');
     $nextId = $makeTask('InterCOM following task fixture');
-    foreach (['initialization','retention','reconciliation','archive','exception','logger'] as $case) {
+    foreach (['initialization','connection','retention','reconciliation','archive','exception','logger'] as $case) {
         $fault = $case === 'logger' ? 'initialization' : $case;
         $breakLogger = $case === 'logger';
         $calls = [];
@@ -107,8 +111,8 @@ try {
         $row = $db->setQuery("SELECT * FROM #__scheduler_tasks WHERE id=$failedId")->loadAssoc();
         check($row['locked'] === null && (int)$row['last_exit_code'] === Status::KNOCKOUT, "Failure is visible and task lock is released: $case");
         check(strtotime($row['next_execution'].' UTC') > time() && (int)$row['times_failed'] > 0, "Failure advances execution instead of immediate reselection: $case");
-        if (in_array($case, ['retention','reconciliation','archive','exception'], true)) {
-            check($calls === ['retention','reconciliation','archive'], "Remaining independent phases run after failure: $case");
+        if (in_array($case, ['connection','retention','reconciliation','archive','exception'], true)) {
+            check($calls === ['connection','retention','reconciliation','archive'], "Remaining independent phases run after failure: $case");
         }
         $fault = '';
         $breakLogger = false;
@@ -120,7 +124,7 @@ try {
     $expireDuringRetention = true;
     $budget = new \FKT\Component\Intercom\Administrator\Domain\MaintenanceBudget(60, static function () use (&$elapsed): float { return $elapsed; });
     check($workflow->maintain(30, static function () { throw new LogicException('No failure expected'); }, $budget), 'Budget exhaustion yields normally without a failure');
-    check($calls === ['retention'], 'An exhausted overall run budget defers the remaining phases');
+    check($calls === ['connection','retention'], 'An exhausted overall run budget defers the remaining phases');
     $expireDuringRetention = false;
     check(count($logs) >= 6, 'Task warnings identify every injected failure');
     foreach ($logs as $message) {

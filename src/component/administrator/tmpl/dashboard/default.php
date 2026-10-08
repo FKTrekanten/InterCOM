@@ -15,6 +15,10 @@ $esc = static fn ($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $t = static fn ($key) => Text::_('COM_INTERCOM_' . $key);
 require dirname(__DIR__) . '/navigation.php';
 ?>
+<?php if ($user->authorise('core.admin', 'com_intercom')) :
+    $connectionStatus = $r->connectionStatus();
+    require dirname(__DIR__) . '/connection-status.php';
+endif; ?>
 <p><?= $t('OPTIONS_HELP') ?></p>
 <p class="badge bg-secondary"><?= $t(($r->config['mode'] ?? 'fake') === 'fake' ? 'SIMULATION' : 'LIVE') ?> · <?= $t('RECIPIENT_LIST') ?> <?= $r->catalog->context() ?></p>
 <?php if ($user->authorise('intercom.audit', 'com_intercom')) :

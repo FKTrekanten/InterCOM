@@ -11,6 +11,7 @@ $db->setQuery('DROP TABLE #__intercom_filter_creations')->execute();
 $db->setQuery('DROP TABLE #__intercom_history')->execute();
 $db->setQuery('DROP TABLE #__intercom_acceptance')->execute();
 $db->setQuery('DROP TABLE #__intercom_abandonments')->execute();
+$db->setQuery('DROP TABLE #__intercom_connection_renewals')->execute();
 foreach (['types', 'type_translations', 'tags', 'catalogues', 'archives', 'design'] as $table) {
     $db->setQuery('DROP TABLE #__intercom_' . $table)->execute();
 }

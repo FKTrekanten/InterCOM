@@ -13,7 +13,7 @@ use FKT\Component\Intercom\Administrator\Infrastructure\Store;
 
 final class Workflow
 {
-    public function __construct(private Store $store, private DeliveryGateway $gateway, private Policy $policy, private int $actor, private ?Catalog $catalog = null, private ?Archive $archive = null, private ?Reconciliation $reconciliation = null, private ?array $providerConfig = null, private ?TestDelivery $testDelivery = null)
+    public function __construct(private Store $store, private DeliveryGateway $gateway, private Policy $policy, private int $actor, private ?Catalog $catalog = null, private ?Archive $archive = null, private ?Reconciliation $reconciliation = null, private ?array $providerConfig = null, private ?TestDelivery $testDelivery = null, private ?\Closure $connectionMaintenance = null, private ?\Closure $connectionPreflight = null)
     {
     }
 
@@ -122,6 +122,7 @@ final class Workflow
 
     private function begin(int $id, int $revision, string $operation): array
     {
+        ($this->connectionPreflight)?->__invoke();
         return $this->store->transaction(function () use ($id, $revision, $operation): array {
             // Serialize account changes with acquiring a provider reservation.
             $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
@@ -547,6 +548,7 @@ final class Workflow
         $budget ??= new MaintenanceBudget();
         $ok = true;
         $sweeps = [
+            'Connection renewal' => fn () => ($this->connectionMaintenance)?->__invoke($budget),
             'Retention and interrupted-operation recovery' => fn () => $this->maintainRetention($retentionDays),
             'Filter reconciliation' => fn () => $this->reconciliation?->run(0, $budget),
             'Archive delivery' => fn () => $this->archive?->maintain($budget),

@@ -24,7 +24,7 @@ foreach ($changes->check() as $error) {
 }
 $snapshot = static function () use ($db,$extensionId): array {
     $data=[];
-    foreach (['intercom_tags','intercom_types','intercom_type_translations','intercom_drafts','intercom_connections'] as $table) {
+    foreach (['intercom_tags','intercom_types','intercom_type_translations','intercom_drafts','intercom_connections','intercom_connection_renewals'] as $table) {
         $data[$table]=$db->setQuery('SELECT * FROM #__'.$table)->loadAssocList();
     }
     $data['params']=$db->setQuery('SELECT params FROM #__extensions WHERE extension_id='.$extensionId)->loadResult();
