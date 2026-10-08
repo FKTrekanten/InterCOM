@@ -4,6 +4,21 @@
     <element>intercom</element>
     <type>plugin</type>
     <folder>task</folder>
+    <version>0.3.21</version>
+    <fix>
+      <item>Fix low-contrast selected text in the composer’s training-group, discipline and membership controls. Selected chips explicitly use white text on the existing navy background, including highlighted/hovered selections. Joomla’s remove buttons retain their own transparent styling and inherit the readable chip text color.</item>
+    </fix>
+    <language>
+      <item>Translate the Danish discipline heading as Discipliner and use consistent discipline terminology in composer guidance, validation messages and audience-access help.</item>
+    </language>
+    <note>
+      <item>Validation: a browser preview using Joomla Cassiopeia’s actual Choices styles confirmed white text and remove icons on navy chips for all three controls, including a highlighted discipline chip. The color pair has approximately 15.5:1 contrast. PHP syntax and Danish/English language-key parity checks passed. This change affects presentation and translations only; audience rules, stored tags and permissions retain their existing behavior.</item>
+    </note>
+  </changelog>
+  <changelog>
+    <element>intercom</element>
+    <type>plugin</type>
+    <folder>task</folder>
     <version>0.3.20</version>
     <change>
       <item>Match age and gender through one exact-tag rule containing member.&amp;lt;gender&amp;gt;_&amp;lt;age&amp;gt; combinations. Both choices must match the same member, rather than the mailbox owner's receiver birthdate/gender attributes. Missing age bounds use 0 and 120; missing gender includes female, male and other. With neither choice, no member-tag rule is emitted. Age/gender validation limits are unchanged.</item>
