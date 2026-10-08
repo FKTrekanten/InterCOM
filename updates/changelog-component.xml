@@ -3,6 +3,26 @@
   <changelog>
     <element>com_intercom</element>
     <type>component</type>
+    <version>0.3.22</version>
+    <change>
+      <item>Scheduled maintenance checks the CleverReach connection even when no newsletters are being sent. Monthly access tokens renew seven days before expiry, and each newly issued refresh token is saved for the next renewal.</item>
+      <item>Backend Options and the administrator dashboard show the OAuth client ID, verified CleverReach account, localized access-token expiry with timezone, last connection check, last successful renewal and planned renewal date. Connection messages explain when automatic renewal needs attention.</item>
+      <item>Full isolated CI passed: 152 PHPUnit tests, 21 frontend tests, native Joomla scheduler failure recovery, HTTP security/settings checks, and fresh/synthetic/public-package upgrade checks with Database maintenance validation.</item>
+      <item>Simulated 90 days without newsletter activity renewed on days 23, 46 and 69 using each newly rotated refresh token. Recovery checks cover validation failure, competing requests, unknown/interrupted exchanges, account mismatch and manual credential replacement.</item>
+      <item>Backend rendering checks cover English/Danish text and date formats, timezone conversion across daylight-saving changes, HTML escaping and secret exclusion.</item>
+    </change>
+    <fix>
+      <item>Preserve newly issued token pairs in encrypted storage before account validation, so temporary validation failures can recover without replaying the previous refresh token.</item>
+      <item>Keep concurrent renewal requests behind a shared durable claim. Lost/interrupted exchange responses require recovery, and late responses cannot replace credentials supplied by a manual reconnect.</item>
+      <item>Keep automatic renewal bound to the pinned account and outside mailing transactions, preventing unrelated rollbacks from discarding rotated credentials.</item>
+    </fix>
+    <note>
+      <item>Adds a connection-renewal metadata/pending-credentials table. Existing encrypted credentials, account identity, mailing reservations, settings and permissions are preserved. Enable Task – InterCOM and an InterCOM scheduled task, backed by a working server cron trigger. Simulation pauses renewal. The backend warns about disabled scheduling and connection checks older than 48 hours. Before deployment, confirm pre-expiry renewal and refresh-token rotation with a controlled CleverReach connection. Automated tests use synthetic provider responses.</item>
+    </note>
+  </changelog>
+  <changelog>
+    <element>com_intercom</element>
+    <type>component</type>
     <version>0.3.21</version>
     <fix>
       <item>Fix low-contrast selected text in the composer’s training-group, discipline and membership controls. Selected chips explicitly use white text on the existing navy background, including highlighted/hovered selections. Joomla’s remove buttons retain their own transparent styling and inherit the readable chip text color.</item>
