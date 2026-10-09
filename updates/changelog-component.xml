@@ -3,6 +3,23 @@
   <changelog>
     <element>com_intercom</element>
     <type>component</type>
+    <version>0.3.23</version>
+    <fix>
+      <item>Keep selected training groups, disciplines and memberships readable with white text on navy, including highlighted and hovered selections. Scope the color overrides to InterCOM recipient chips so host-template styles cannot replace their contrast pair; remove controls inherit the chip text color.</item>
+      <item>Keep the preview's sender-name label on one line. Widen the label column from 70px to at least 100px and let longer translated labels determine its width while sender and subject values can still wrap.</item>
+    </fix>
+    <note>
+      <item>Install the updated package and refresh Joomla, template/CDN and browser caches if old composer styling remains. Production inspection found the loaded InterCOM stylesheet lacked the earlier explicit white-text rule. The release updates the web-asset version. No database migration or mailing action is required.</item>
+    </note>
+    <change>
+      <item>A local browser preview confirmed white text on navy for all three recipient controls, including a highlighted selection, with a conflicting template color rule loaded afterward.</item>
+      <item>Browser layout inspection confirmed the Danish sender-name label occupies one 19px-high line in a 100px column.</item>
+      <item>Publication is gated by the repository's full isolated CI and uploaded/public package checksum verification.</item>
+    </change>
+  </changelog>
+  <changelog>
+    <element>com_intercom</element>
+    <type>component</type>
     <version>0.3.22</version>
     <change>
       <item>Scheduled maintenance checks the CleverReach connection even when no newsletters are being sent. Monthly access tokens renew seven days before expiry, and each newly issued refresh token is saved for the next renewal.</item>
