@@ -3,6 +3,24 @@
   <changelog>
     <element>pkg_intercom</element>
     <type>package</type>
+    <version>0.3.24</version>
+    <fix>
+      <item>Preserve absolute email links in both TinyMCE body editors, including local media links selected through Joomla 6.2's new link picker. Previously, a picked relative link could appear clickable in the editor but lose its destination when the email was saved or previewed. Keep the existing server-side URL sanitisation rules.</item>
+    </fix>
+    <note>
+      <item>Install the updated package before using Joomla 6.2's link picker in InterCOM. Reinsert any links whose destinations were already removed from saved drafts, save the draft and send a fresh test. No database migration is required.</item>
+    </note>
+    <change>
+      <item>The full isolated CI suite passed on Joomla 6.2.0 with PHP 8.3 and MariaDB 10.6, including fresh installation, public 0.3.11 package upgrades, database maintenance, scheduler recovery, configuration validation, permissions and test-email delivery into local Mailpit.</item>
+      <item>A browser reproduction confirmed a selected media link lost its destination before the fix and retained its absolute URL in both the saved draft and email preview afterward.</item>
+      <item>A delegated composer saved Danish and English content with bold, italic, underline, lists and absolute links; each survived the configured Joomla text filters.</item>
+      <item>Regression checks cover the email URL settings for both TinyMCE body editors. The 6.1.4 and 6.2.0 source changes were reviewed; details are recorded in docs/joomla-6.2-compatibility.md.</item>
+      <item>Publication is gated by the repository's full isolated CI and uploaded/public package checksum verification.</item>
+    </change>
+  </changelog>
+  <changelog>
+    <element>pkg_intercom</element>
+    <type>package</type>
     <version>0.3.23</version>
     <fix>
       <item>Keep selected training groups, disciplines and memberships readable with white text on navy, including highlighted and hovered selections. Scope the color overrides to InterCOM recipient chips so host-template styles cannot replace their contrast pair; remove controls inherit the chip text color.</item>
