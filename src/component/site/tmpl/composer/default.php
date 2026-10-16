@@ -10,6 +10,7 @@ use FKT\Component\Intercom\Administrator\Domain\EmailDesign;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Router\Route;
+use Joomla\CMS\Uri\Uri;
 
 $app = Factory::getApplication();
 $user = $app->getIdentity();
@@ -144,6 +145,8 @@ if ($editorName === 'tinymce') {
             'block_formats' => 'Paragraph=p;Heading 1=h1;Heading 2=h2;Heading 3=h3',
             'content_style' => 'body {font-family:' . EmailDesign::FONTS[$design['body_font']] . ';font-size:' . $design['body_size'] . 'px;line-height:1.65} p {margin:0 0 16px} h1,h2,h3 {font-family:' . EmailDesign::FONTS[$design['heading_font']] . ';line-height:1.3}',
             'menubar' => false, 'branding' => false, 'resize' => false, 'toolbar_mode' => 'sliding',
+            // Email links need an absolute URL, including links from Joomla's native picker.
+            'relative_urls' => false, 'remove_script_host' => false, 'document_base_url' => Uri::root(),
         ]);
     }
     $app->getDocument()->addScriptOptions('plg_editor_tinymce', $options, false);

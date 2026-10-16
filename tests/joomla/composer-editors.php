@@ -68,6 +68,12 @@ try {
     $page = $view->render();
     check(substr_count($page, 'class="js-editor-tinymce"') === 2, 'Modern TinyMCE still renders both composer languages');
     check($app->getDocument()->getScriptOptions('plg_editor_tinymce')['tinyMCE']['body_en']['menubar'] === false, 'TinyMCE retains email-safe formatting options');
+    foreach (['body_da', 'body_en'] as $field) {
+        $options = $app->getDocument()->getScriptOptions('plg_editor_tinymce')['tinyMCE'][$field];
+        check($options['relative_urls'] === false && $options['remove_script_host'] === false
+            && $options['document_base_url'] === \Joomla\CMS\Uri\Uri::root(),
+            'Native picker links in '.$field.' keep absolute site URLs for email sanitisation');
+    }
 } finally {
     $r->store->rollback();
     unset(ExtensionHelper::$extensions[PluginInterface::class]['intercomfixture:editors']);
