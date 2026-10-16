@@ -3,6 +3,22 @@
   <changelog>
     <element>com_intercom</element>
     <type>component</type>
+    <version>0.3.27</version>
+    <fix>
+      <item>Fix stale composer and email-list styling after upgrades by declaring the release version on each CSS and JavaScript asset. Joomla reads individual asset versions when generating cache URLs; the registry's overall version alone did not refresh those URLs.</item>
+      <item>Keep individual asset versions synchronized automatically during release preparation.</item>
+    </fix>
+    <addition>
+      <item>Add regression checks for release-time asset version updates and Joomla's rendered composer stylesheet and script URLs.</item>
+    </addition>
+    <note>
+      <item>Install the package normally. Newly generated pages request versioned CSS and JavaScript URLs. Clear Joomla's page cache once if it still serves an older page with the previous asset URLs. No database schema or email delivery behavior changes.</item>
+      <item>The full isolated CI suite passed, including PHP and frontend tests, release tooling tests, Joomla installation and upgrades, database maintenance, scheduler and authenticated HTTP checks. Joomla's actual asset registry and rendered HTML confirm explicit release versions for all registered assets and versioned composer CSS and JavaScript URLs.</item>
+    </note>
+  </changelog>
+  <changelog>
+    <element>com_intercom</element>
+    <type>component</type>
     <version>0.3.26</version>
     <change>
       <item>Refine delivery status to match the composer's existing white surfaces, typography, borders and secondary actions while keeping failures prominent.</item>
