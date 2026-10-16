@@ -39,17 +39,19 @@ endif; ?>
     };
     ?>
 <li data-mail-id="<?= (int) $row['id'] ?>">
-<div class="ic-mail-row-head"><span class="ic-mail-badge" data-state="<?= $esc($row['state']) ?>"><?= $t('STATE_' . strtoupper($row['state'])) ?></span><small>#<?= (int) $row['id'] ?></small></div>
-<a class="ic-mail-subject" href="<?= $esc(Route::_('index.php?option=com_intercom&view=composer&Itemid=' . $app->input->getInt('Itemid') . '&id=' . (int) $row['id'] . '&box=' . $mailPage['view'], false)) ?>"><?= $esc($subject ?: $t('UNTITLED')) ?></a>
+<div class="ic-mail-message"><a class="ic-mail-subject" href="<?= $esc(Route::_('index.php?option=com_intercom&view=composer&Itemid=' . $app->input->getInt('Itemid') . '&id=' . (int) $row['id'] . '&box=' . $mailPage['view'], false)) ?>"><?= $esc($subject ?: $t('UNTITLED')) ?></a>
     <?php if ($savedMessage) :
         ?><p><?= $esc(Audience::summary($savedMessage, $app->getLanguage()->getTag()) ?: $t('ALL_AUDIENCE')) ?></p><?php
     endif; ?>
+</div>
+<div class="ic-mail-meta"><div class="ic-mail-row-head"><span class="ic-mail-badge" data-state="<?= $esc($row['state']) ?>"><?= $t('STATE_' . strtoupper($row['state'])) ?></span><small>#<?= (int) $row['id'] ?></small></div>
     <?php if ($stamp) :
-        ?><p><?= $t($stampLabel) ?> <?= $esc(HTMLHelper::_('date', $stamp, 'd-m-Y H:i T', true)) ?></p><?php
+        ?><p class="ic-mail-date"><span><?= $t($stampLabel) ?></span> <span><?= $esc(HTMLHelper::_('date', $stamp, 'd-m-Y H:i T', true)) ?></span></p><?php
     endif; ?>
     <?php if ($row['estimate_count'] !== null) :
         ?><p><?= $t('ESTIMATE') ?>: <?= (int) $row['estimate_count'] ?></p><?php
     endif; ?>
+</div>
     <?php if ($savedMessage) :
         ?><button class="ic-quiet" type="button" data-copy-id="<?= (int) $row['id'] ?>"><?= $t('COPY_TO_DRAFT') ?></button><?php
     endif; ?>

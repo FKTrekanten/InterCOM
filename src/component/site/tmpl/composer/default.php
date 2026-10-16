@@ -82,13 +82,14 @@ $app->getDocument()->addScriptOptions('com_intercom', $initial);
 <div class="intercom">
 <header><p class="ic-eyebrow">INTERCOM</p><a class="ic-quiet" id="ic-new-message" href="<?= $esc($initial['newUrl']) ?>" <?= $draft ? '' : 'hidden' ?>><?= $t('NEW') ?> →</a><h1><?= $t('NEW') ?></h1><p><?= $t('INTRO') ?></p></header>
 <section id="ic-state-panel" class="ic-state-panel" data-severity="<?= $esc($draft['status_severity'] ?? 'info') ?>" aria-label="<?= $t('MAIL_STATUS') ?>">
-<div class="ic-state-heading"><strong id="ic-state"><?= $draft ? $t($draft['status_title']) : $t('STATE_DRAFT') ?></strong><span id="ic-mail-id"><?= $draft ? '#' . (int) $draft['id'] : '' ?></span></div>
-<p id="ic-state-help"><?= $draft ? $t($draft['status_detail']) : $t('STATUS_DRAFT') ?></p>
-<p id="ic-operation" class="ic-help"></p><p id="ic-status" role="status" aria-live="polite" tabindex="-1"></p>
-<button id="ic-status-refresh" type="button" class="ic-quiet"><?= $t('REFRESH_STATUS') ?></button>
+<div class="ic-state-top"><div class="ic-state-heading"><strong id="ic-state"><?= $draft ? $t($draft['status_title']) : $t('STATE_DRAFT') ?></strong><span id="ic-mail-id"><?= $draft ? '#' . (int) $draft['id'] : '' ?></span></div>
+<div class="ic-state-actions"><button id="ic-status-refresh" type="button" class="ic-quiet"><?= $t('REFRESH_STATUS') ?></button>
 <?php if ($draft && $draft['content'] !== '{}') :
     ?><button type="button" class="ic-quiet" data-copy-id="<?= (int) $draft['id'] ?>"><?= $t('COPY_TO_DRAFT') ?></button><?php
-endif; ?>
+endif; ?></div></div>
+<p id="ic-state-help"><?= $draft ? $t($draft['status_detail']) : $t('STATUS_DRAFT') ?></p>
+<p id="ic-status" role="status" aria-live="polite" tabindex="-1"></p>
+<details id="ic-operation-details" class="ic-operation-details" <?= empty($draft['test_operation']) ? 'hidden' : '' ?>><summary><?= $t('DELIVERY_DETAILS') ?></summary><p id="ic-operation" class="ic-help"></p></details>
 <?php if ($draft && $draft['copy_source_id']) :
     ?><p class="ic-help"><?= sprintf($t('COPY_SOURCE'), (int) $draft['copy_source_id']) ?></p><?php
 endif; ?>
@@ -141,7 +142,8 @@ endif; ?>
 <p id="ic-preview-status" class="ic-help" role="status"></p>
 <iframe id="ic-preview-frame" class="ic-preview-frame" sandbox="" referrerpolicy="no-referrer" title="<?= $esc($t('YOUR_MESSAGE')) ?>"></iframe>
 <p class="ic-help"><?= $t('PREVIEW_NOTE') ?></p><p class="ic-help"><?= $t('DARK_PREVIEW_HELP') ?></p><div class="ic-audience"><strong><?= $t('RECIPIENTS') ?></strong><p id="ic-audience-summary"></p><p id="ic-estimate" role="status" aria-live="polite"></p><button type="button" class="ic-quiet" id="ic-estimate-refresh"><?= $t('REFRESH_ESTIMATE') ?></button><p class="ic-help"><?= $t('ESTIMATE_HELP') ?></p></div>
-<?php require __DIR__ . '/mailbox.php'; ?></aside></div>
+</aside></div>
+<?php require __DIR__ . '/mailbox.php'; ?>
 <dialog id="ic-delete-dialog" aria-labelledby="ic-delete-title"><form method="dialog">
 <h2 id="ic-delete-title"><?= $t('DELETE_DRAFT') ?></h2><p><?= $t('CONFIRM_DELETE') ?></p>
 <div class="ic-actions"><button class="ic-quiet" value="cancel" autofocus><?= $t('CANCEL_ACTION') ?></button><button value="delete"><?= $t('DELETE_DRAFT') ?></button></div>

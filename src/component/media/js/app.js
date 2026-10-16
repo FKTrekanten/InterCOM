@@ -57,6 +57,8 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     document.getElementById('ic-state-help').textContent = text(statusUnknown ? 'STATUS_UNKNOWN' : detail) + scheduled;
     document.getElementById('ic-mail-id').textContent = draft ? '#' + draft.id : '';
     document.getElementById('ic-operation').textContent = currentOp ? text('OPERATION_REFERENCE') + ': ' + currentOp.operation_id + updated : '';
+    const operationDetails = document.getElementById('ic-operation-details');
+    if (operationDetails) operationDetails.hidden = !currentOp;
     let result = '';
     if (currentOp && ['accepted','failed','uncertain'].includes(currentOp.outcome) && ['test_da','accepted_da','test_en','accepted_en','complete'].includes(currentOp.stage) && !initial.simulation) {
       result = ['da','en'].map(lang => text(Number(currentOp['accepted_' + lang]) ? 'TEST_ACCEPTED_' + lang.toUpperCase() : 'TEST_NOT_CONFIRMED') + (Number(currentOp['accepted_' + lang]) ? '' : ' (' + lang.toUpperCase() + ')')).join(' · ');
