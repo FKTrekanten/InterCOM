@@ -3,6 +3,25 @@
   <changelog>
     <element>com_intercom</element>
     <type>component</type>
+    <version>0.3.26</version>
+    <change>
+      <item>Refine delivery status to match the composer's existing white surfaces, typography, borders and secondary actions while keeping failures prominent.</item>
+      <item>Move Your emails below the composer and preview at full width, with underline navigation, compact search filters and divider-separated rows.</item>
+    </change>
+    <addition>
+      <item>Add collapsible Delivery details with Danish and English labels; explanations and next steps remain visible.</item>
+    </addition>
+    <fix>
+      <item>Keep email subjects, states, dates and copy actions aligned on desktop and readable at mobile widths.</item>
+    </fix>
+    <note>
+      <item>Clear Joomla's cache and reload after installation. This release has no database schema changes. Sending, recovery, copying and permission rules are unchanged.</item>
+      <item>The full isolated CI suite passed, including PHP and frontend tests, package installation and upgrades, native Database maintenance, scheduler and authenticated HTTP checks. Desktop and 390px browser checks verified delivery details, list navigation, readable date wrapping and no horizontal page overflow.</item>
+    </note>
+  </changelog>
+  <changelog>
+    <element>com_intercom</element>
+    <type>component</type>
     <version>0.3.25</version>
     <fix>
       <item>Keep test drafts editable when validation, tag lookup or local rendering fails before remote preparation. Age-only audiences no longer fetch unused optional tag catalogues; selected origins share one catalogue fetch per request.</item>

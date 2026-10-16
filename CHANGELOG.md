@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.26
+
+# InterCOM 0.3.26
+
+## Changes
+
+- Refine delivery status to match the composer's existing white surfaces, typography, borders and secondary actions while keeping failures prominent.
+- Add collapsible Delivery details with Danish and English labels; explanations and next steps remain visible.
+- Move Your emails below the composer and preview at full width, with underline navigation, compact search filters and divider-separated rows.
+- Keep email subjects, states, dates and copy actions aligned on desktop and readable at mobile widths.
+
+## Upgrade
+
+Clear Joomla's cache and reload after installation. This release has no database schema changes. Sending, recovery, copying and permission rules are unchanged.
+
+## Validation
+
+The full isolated CI suite passed, including PHP and frontend tests, package installation and upgrades, native Database maintenance, scheduler and authenticated HTTP checks. Desktop and 390px browser checks verified delivery details, list navigation, readable date wrapping and no horizontal page overflow.
+
 ## 0.3.25
 
 # InterCOM 0.3.25
