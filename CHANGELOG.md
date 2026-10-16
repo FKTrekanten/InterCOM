@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.25
+
+# InterCOM 0.3.25
+
+## Changes
+
+- Keep test drafts editable when validation, tag lookup or local rendering fails before remote preparation. Age-only audiences no longer fetch unused optional tag catalogues; selected origins share one catalogue fetch per request.
+- Record durable preparation boundaries and separate Danish/English test acceptance. Uncertain remote writes retain protection, while interrupted safe stages can recover without repeating delivery.
+- Show persistent, prominent composer status and test results, including accurate failure guidance after reload and read-only status refresh after a lost response.
+- Add guarded administrator recovery for complete legacy 0.3.24 pre-history failures such as the reported #10 pattern. Recovery requires explicit version verification and does not send email.
+- Add Copy to new draft with current permission/targeting validation, source provenance, duplicate-request protection and fresh test requirements.
+- Separate Drafts, Sent / Scheduled, In progress / Needs review and Cancelled / Deleted, with subjects, relevant dates, literal subject/ID search, state filtering and pagination.
+
+## Upgrade and operations
+
+The SQL migration adds durable test-operation metadata and copy provenance/deduplication fields. Existing drafts, reservations, credentials and history are preserved. Clear Joomla's cache and reload after installation. No legacy draft is automatically unlocked on upgrade. See `docs/test-recovery.md` for the recovery requirements and test-result meanings.
+
+Production recovery and live delivery remain explicit operator actions. Installing this release does not automatically recover a locked draft.
+
+## Validation
+
+Full isolated `scripts/ci.sh` passed: PHP lint/style and bilingual key parity, 157 PHP unit tests (696 assertions), 24 frontend tests, five tooling tests, package build, Joomla installation and synthetic/public 0.3.11 upgrades, native Database maintenance and scheduler checks, workflow fixtures and authenticated HTTP checks. Browser verification covered the prominent persisted failure message, copying a submitted email, an age-only simulated test and a 390px viewport without horizontal overflow. Synthetic tests cover age-only delivery, preliminary failure, uncertain write boundaries, partial bilingual SMTP acceptance, interruption/stale callbacks, guarded legacy recovery, independent copying, owner isolation, list classification, search and pagination. Authenticated HTTP tests cover POST/CSRF guards, authoritative status, copying and rendered list/status placement.
+
 ## 0.3.24
 
 # InterCOM 0.3.24
