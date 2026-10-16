@@ -25,7 +25,9 @@ class ReleaseTests(unittest.TestCase):
             (self.root/name).write_text('<changelogs/>')
         (self.root/'VERSION').write_text('0.1.0\n')
         (self.root/'CHANGELOG.md').write_text('# Changelog\n\n## Unreleased\n')
-        (self.root/release.GENERATED[5]).write_text('{"version":"0.1.0"}')
+        (self.root/release.GENERATED[5]).write_text(json.dumps({'version':'0.1.0','assets':[
+            {'name':'app','type':'style','uri':'app.css'},
+            {'name':'app','type':'script','uri':'app.js','version':'0.1.0'}]}))
         (self.root/'notes.md').write_text('Tested release notes.')
         (self.root/'dist').mkdir()
         self.calls = []
@@ -62,6 +64,8 @@ class ReleaseTests(unittest.TestCase):
             self.invoke()
         self.assertEqual(self.calls.count(('bash','scripts/ci.sh')),2)
         self.assertFalse(any(call[:2] == ('git','push') for call in self.calls))
+        assets = json.loads((self.root/release.GENERATED[5]).read_text())
+        self.assertTrue(all(item['version'] == '0.2.0' for item in assets['assets']))
         for name in release.GENERATED[2:5] + [release.GENERATED[6]]:
             self.assertEqual(ET.parse(self.root/name).getroot().findtext('creationDate'), '2026-10-05')
         self.status = ' M VERSION\n M CHANGELOG.md\n'

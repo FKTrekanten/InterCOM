@@ -6,7 +6,8 @@
     {
       "name": "com_intercom.app",
       "type": "style",
-      "uri": "com_intercom/app.css"
+      "uri": "com_intercom/app.css",
+      "version": "0.3.26"
     },
     {
       "name": "com_intercom.app",
@@ -18,12 +19,14 @@
       ],
       "attributes": {
         "type": "module"
-      }
+      },
+      "version": "0.3.26"
     },
     {
       "name": "com_intercom.admin",
       "type": "style",
-      "uri": "com_intercom/admin.css"
+      "uri": "com_intercom/admin.css",
+      "version": "0.3.26"
     },
     {
       "name": "com_intercom.design",
@@ -34,7 +37,8 @@
       ],
       "attributes": {
         "type": "module"
-      }
+      },
+      "version": "0.3.26"
     },
     {
       "name": "com_intercom.permissions",
@@ -45,7 +49,8 @@
       ],
       "attributes": {
         "type": "module"
-      }
+      },
+      "version": "0.3.26"
     },
     {
       "name": "com_intercom.tags",
@@ -53,7 +58,8 @@
       "uri": "com_intercom/tags.js",
       "attributes": {
         "type": "module"
-      }
+      },
+      "version": "0.3.26"
     }
   ]
 }

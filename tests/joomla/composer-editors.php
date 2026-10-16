@@ -78,4 +78,13 @@ try {
     $r->store->rollback();
     unset(ExtensionHelper::$extensions[PluginInterface::class]['intercomfixture:editors']);
 }
+$version = trim(file_get_contents('/workspace/VERSION'));
+$registry = $app->getDocument()->getWebAssetManager()->getRegistry();
+foreach (json_decode(file_get_contents(JPATH_ROOT . '/media/com_intercom/joomla.asset.json'), true)['assets'] as $asset) {
+    check($registry->get($asset['type'], $asset['name'])->getVersion() === $version, 'Joomla reads the installed release version for ' . $asset['uri']);
+}
+$styles = $app->getDocument()->loadRenderer('styles')->render('');
+check(str_contains($styles, '/media/com_intercom/css/app.css?' . $version . '"'), 'Rendered composer stylesheet URL changes with the InterCOM release');
+$scripts = $app->getDocument()->loadRenderer('scripts')->render('');
+check(str_contains($scripts, '/media/com_intercom/js/app.js?' . $version . '"'), 'Rendered composer script URL changes with the InterCOM release');
 echo "COMPOSER EDITORS OK\n";

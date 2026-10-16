@@ -110,6 +110,10 @@ def prepare(version, notes):
     asset = ROOT / GENERATED[5]
     data = json.loads(asset.read_text())
     data['version'] = version
+    # Joomla reads cache versions from individual assets, not the registry root.
+    for item in data.get('assets', []):
+        if item.get('type') in ('style', 'script'):
+            item['version'] = version
     asset.write_text(json.dumps(data, indent=2) + '\n')
     changelog = ROOT / 'CHANGELOG.md'
     old = changelog.read_text() if changelog.exists() else '# Changelog\n'
