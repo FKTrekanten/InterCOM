@@ -9,8 +9,9 @@ use FKT\Component\Intercom\Administrator\Domain\FilterCreator;
 use FKT\Component\Intercom\Administrator\Domain\Message;
 use FKT\Component\Intercom\Administrator\Domain\UnsubscribeForm;
 
-final class CleverReachGateway implements \FKT\Component\Intercom\Administrator\Domain\ReleaseGateway, DeliveryGateway, FilterCreator, \FKT\Component\Intercom\Administrator\Domain\AudienceGateway, \FKT\Component\Intercom\Administrator\Domain\ReconciliationGateway
+final class CleverReachGateway implements \FKT\Component\Intercom\Administrator\Domain\PreparationGateway, \FKT\Component\Intercom\Administrator\Domain\ReleaseGateway, DeliveryGateway, FilterCreator, \FKT\Component\Intercom\Administrator\Domain\AudienceGateway, \FKT\Component\Intercom\Administrator\Domain\ReconciliationGateway
 {
+    private ?array $tagCatalogue = null;
     private ?\FKT\Component\Intercom\Administrator\Domain\MaintenanceBudget $retirementBudget = null;
     public function __construct(private \Closure $token, private array $config, private ?\Closure $transport = null, private ?\Closure $authorizeRelease = null)
     {
@@ -38,7 +39,7 @@ final class CleverReachGateway implements \FKT\Component\Intercom\Administrator\
         $error = curl_errno($curl);
         curl_close($curl);
         if ($error || $status < 200 || $status >= 300) {
-            throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR', $status === 404 ? 404 : 0);
+            throw new \FKT\Component\Intercom\Administrator\Domain\ProviderFailure($status, $error);
         }
         if ($status === 204 || $body === '') {
             return null;
@@ -123,19 +124,23 @@ final class CleverReachGateway implements \FKT\Component\Intercom\Administrator\
 
     public function tags(string $origin): array
     {
-        $tags = [];
+        if ($this->tagCatalogue !== null) {
+            return $this->tagCatalogue[$origin] ?? [];
+        }
+        $catalogue = [];
         for ($page = 0; $page < 100; $page++) {
             $rows = $this->request('GET', '/tags?limit=100&offset=' . ($page * 100));
             if (!is_array($rows) || !array_is_list($rows)) {
                 throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
             }
             foreach ($rows as $row) {
-                if (($row['origin'] ?? '') === $origin) {
-                    $tags[] = $origin . '.' . $row['tag'];
+                if (is_string($row['origin'] ?? null) && is_string($row['tag'] ?? null)) {
+                    $catalogue[$row['origin']][] = $row['origin'] . '.' . $row['tag'];
                 }
             }
             if (count($rows) < 100) {
-                return array_values(array_unique($tags));
+                $this->tagCatalogue = array_map(static fn ($tags) => array_values(array_unique($tags)), $catalogue);
+                return $this->tagCatalogue[$origin] ?? [];
             }
         }
         throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
@@ -209,13 +214,22 @@ final class CleverReachGateway implements \FKT\Component\Intercom\Administrator\
 
     public function prepare(array $message, int $filterId, int $mailingId): int
     {
+        return $this->prepareWithProgress($message, $filterId, $mailingId, static function (): void {
+        });
+    }
+
+    public function prepareWithProgress(array $message, int $filterId, int $mailingId, callable $progress): int
+    {
+        $progress('provider_checks');
         $this->assertUnsubscribeForm((string) ($this->config['unsubscribe_form_id'] ?? ''), (int) ($this->config['group_id'] ?? 0));
+        $progress('filter_write');
         $rules = $message['audience_rules'] ?? self::filterRules($message);
         $this->request(
             'PUT',
             '/groups/' . (int) $this->config['group_id'] . '/filters/' . $filterId,
             ['rules' => $rules]
         );
+        $progress('filter_confirmed');
         $category = (int) ($message['definition']['category_id'] ?? 0);
         $da = Message::translation($message['definition'] ?? [], 'da-DK');
         $en = Message::translation($message['definition'] ?? [], 'en-GB');
@@ -228,11 +242,14 @@ final class CleverReachGateway implements \FKT\Component\Intercom\Administrator\
             'receivers' => ['filter' => (string) $filterId],
             'settings' => ['editor' => 'advanced', 'unsubscribe_form_id' => (string) $this->config['unsubscribe_form_id'],
                 'category_id' => (string) $category]];
+        $progress('mailing_write');
         $result = $this->request($mailingId ? 'PUT' : 'POST', '/mailings' . ($mailingId ? '/' . $mailingId : ''), $body);
         if (!$mailingId && empty($result['id'])) {
             throw new \RuntimeException('COM_INTERCOM_PROVIDER_ERROR');
         }
-        return $mailingId ?: (int) $result['id'];
+        $id = $mailingId ?: (int) $result['id'];
+        $progress('mailing_confirmed', $id);
+        return $id;
     }
 
     private function assertMailingForm(int $mailingId): void

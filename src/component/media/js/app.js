@@ -7,7 +7,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   const form = document.getElementById('ic-form');
   if (!form) return;
   const initial = Joomla.getOptions('com_intercom', {});
-  let draft = initial.draft || null, dirty = !draft, busy = false;
+  let draft = initial.draft || null, dirty = !draft, busy = false, statusUnknown = false;
   let step = 0, editLanguage = initial.language || 'da', previewLanguage = editLanguage, previewTheme = 'light';
   let rendered = null, audienceDirty = false, estimating = false, activeAt = Date.now();
   const audienceFields = ['type','tags','disciplines','memberships','age_from','age_to','gender'];
@@ -35,7 +35,102 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   const previewStatus = document.getElementById('ic-preview-status');
   const groupError = document.getElementById('ic-group-error');
   const text = key => Joomla.Text._('COM_INTERCOM_' + key);
-  const editable = () => !draft || ['draft','tested'].includes(draft.state);
+  const editable = () => !statusUnknown && (!draft || ['draft','tested'].includes(draft.state));
+  const statePanel = document.getElementById('ic-state-panel');
+  let actionError = false;
+  function report(message, error = false) {
+    status.textContent = message;
+    actionError = error;
+    status.setAttribute('role', error ? 'alert' : 'status');
+    status.setAttribute('aria-live', error ? 'assertive' : 'polite');
+    if (error) {status.focus?.(); status.scrollIntoView?.({block:'nearest', behavior:'smooth'});}
+    syncStatus();
+  }
+  function syncStatus() {
+    const op = draft?.test_operation;
+    const currentOp = op && Number(op.revision) === Number(draft.revision) ? op : null;
+    const title = draft?.status_title || ('STATE_' + (draft?.state || 'draft').toUpperCase());
+    const detail = draft?.status_detail || (draft?.state === 'tested' ? (initial.simulation ? 'FAKE_TESTED' : 'TESTED') : 'STATUS_DRAFT');
+    document.getElementById('ic-state').textContent = text(title);
+    const scheduled = draft?.state === 'scheduled' && Number(draft.send_at) ? ' · ' + new Date(Number(draft.send_at) * 1000).toLocaleString(initial.locale, {timeZone:initial.timezone || 'UTC',timeZoneName:'short'}) : '';
+    const updated = currentOp?.updated_at ? ' · ' + new Date(currentOp.updated_at.replace(' ', 'T') + 'Z').toLocaleString(initial.locale, {timeZone:initial.timezone || 'UTC',timeZoneName:'short'}) : '';
+    document.getElementById('ic-state-help').textContent = text(statusUnknown ? 'STATUS_UNKNOWN' : detail) + scheduled;
+    document.getElementById('ic-mail-id').textContent = draft ? '#' + draft.id : '';
+    document.getElementById('ic-operation').textContent = currentOp ? text('OPERATION_REFERENCE') + ': ' + currentOp.operation_id + updated : '';
+    let result = '';
+    if (currentOp && ['accepted','failed','uncertain'].includes(currentOp.outcome) && ['test_da','accepted_da','test_en','accepted_en','complete'].includes(currentOp.stage) && !initial.simulation) {
+      result = ['da','en'].map(lang => text(Number(currentOp['accepted_' + lang]) ? 'TEST_ACCEPTED_' + lang.toUpperCase() : 'TEST_NOT_CONFIRMED') + (Number(currentOp['accepted_' + lang]) ? '' : ' (' + lang.toUpperCase() + ')')).join(' · ');
+    }
+    document.getElementById('ic-test-status').textContent = result || status.textContent || text(detail);
+    statePanel?.setAttribute('data-severity', actionError || statusUnknown ? 'error' : (draft?.status_severity || 'info'));
+    statePanel?.setAttribute('aria-busy', String(busy));
+    const refresh = document.getElementById('ic-status-refresh');
+    if (refresh) refresh.disabled = busy || !draft;
+    document.querySelectorAll('.intercom [data-copy-id]').forEach(button => {button.disabled = busy;});
+  }
+  async function refreshStatus() {
+    if (!draft) return false;
+    const body = new FormData(form); body.set('task','api.status'); body.set('id',draft.id);
+    try {
+      const response = await fetch(form.action,{method:'POST',body,headers:{Accept:'application/json'}});
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || text('ERROR'));
+      draft = result.data; statusUnknown = false; confirm.checked = false;
+      if (draft.state !== 'uncertain') document.getElementById('ic-recovery')?.remove?.();
+      sync(); return true;
+    } catch {
+      statusUnknown = true; confirm.checked = false; sync(); return false;
+    }
+  }
+  async function refreshMailbox(box) {
+    if (!initial.mailbox) return;
+    const url = new URL(window.location.href);
+    if (box) {url.searchParams.set('box',box); url.searchParams.delete('mail_state'); url.searchParams.delete('mail_search'); url.searchParams.delete('mail_page');}
+    try {
+      const response = await fetch(url,{headers:{Accept:'text/html'}});
+      if (!response.ok) return;
+      const page = new DOMParser().parseFromString(await response.text(),'text/html');
+      const replacement = page.getElementById('ic-mailbox');
+      if (replacement) {document.getElementById('ic-mailbox')?.replaceWith(replacement); window.history.replaceState(null,'',url);}
+    } catch { /* Status and current message stay usable if list refresh fails. */ }
+  }
+  document.getElementById('ic-status-refresh')?.addEventListener('click', async () => {
+    if (busy) return;
+    busy = true; sync(); const ok = await refreshStatus(); busy = false;
+    report(ok ? '' : text('STATUS_UNKNOWN'), !ok); sync();
+  });
+  const copyKeys = new Map();
+  document.addEventListener('click', async event => {
+    const button = event.target.closest?.('.intercom [data-copy-id]');
+    if (!button || busy || estimating) return;
+    if (dirty && !window.confirm(text('COPY_SAVED'))) return;
+    const source = button.dataset.copyId;
+    if (!copyKeys.has(source)) copyKeys.set(source,Array.from(crypto.getRandomValues(new Uint8Array(16)), v => v.toString(16).padStart(2,'0')).join(''));
+    const body = new FormData(form); body.set('task','api.copy'); body.set('id',source); body.set('request_key',copyKeys.get(source));
+    busy = true; sync(); report(text('COPYING'));
+    try {
+      const response = await fetch(form.action,{method:'POST',body,headers:{Accept:'application/json'}});
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || text('ERROR'));
+      persistLocal(); dirty = false;
+      const url = new URL(initial.composerUrl,window.location.href); url.searchParams.set('id',result.data.id); url.searchParams.set('box','drafts'); url.searchParams.delete('new');
+      window.location.assign(url);
+    } catch (error) {report(error.message || text('ERROR'),true);}
+    finally {busy = false; sync();}
+  });
+  document.getElementById('ic-recover')?.addEventListener('click', async () => {
+    if (busy || !draft || !document.getElementById('ic-recovery-confirm')?.checked) return;
+    const body = new FormData(form); body.set('task','api.recover'); body.set('id',draft.id); body.set('revision',draft.revision); body.set('legacy_verified','1');
+    busy = true; sync();
+    try {
+      const response = await fetch(form.action,{method:'POST',body,headers:{Accept:'application/json'}});
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || text('ERROR'));
+      draft = result.data; dirty = false; cache.clear(cacheId); document.getElementById('ic-recovery')?.remove();
+      report(text('STATUS_DRAFT')); await refreshMailbox('drafts');
+    } catch (error) {report(error.message || text('ERROR'),true);}
+    finally {busy = false; sync();}
+  });
   const getEditor = id => JoomlaEditor.get(id) || Joomla.editors?.instances?.[id] || null;
   const bodyValue = lang => getEditor('body_' + lang)?.getValue() ?? form.elements['body_' + lang].value;
   for (const [key, value] of Object.entries(initial.message || {})) {
@@ -47,12 +142,11 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     } else if (form.elements.namedItem(key)) form.elements.namedItem(key).value = value;
   }
   function message() {
-    const data = new FormData(form);
-    const result = Object.fromEntries(['type','sender','subject_da','subject_en','gender'].map(k => [k, data.get(k)]));
+    const result = Object.fromEntries(['type','sender','subject_da','subject_en','gender'].map(k => [k, form.elements[k].value]));
     result.format = 'html';
     for (const lang of ['da','en']) result['body_' + lang] = bodyValue(lang);
-    for (const k of ['tags','disciplines','memberships']) result[k] = data.getAll(k + '[]');
-    for (const k of ['age_from','age_to']) result[k] = Number(data.get(k) || 0);
+    for (const k of ['tags','disciplines','memberships']) result[k] = Array.from(form.elements[k + '[]'].selectedOptions).map(option => option.value);
+    for (const k of ['age_from','age_to']) result[k] = Number(form.elements[k].value || 0);
     return result;
   }
   function markEditorsSaved() {
@@ -64,7 +158,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     return requiresTeam(initial.types?.[form.elements.type.value], ['tags','disciplines'].flatMap(k => Array.from(form.elements[k + '[]'].selectedOptions).map(el => el.value)), initial.availableTeams || []);
   }
   function showStep(value) {
-    if (Number(value) > 0 && needsTeam()) {
+    if (editable() && Number(value) > 0 && needsTeam()) {
       groupError.hidden = false;
       const select = form.elements['tags[]'];
       const target = select.closest('joomla-field-fancy-select').querySelector('.choices__input') || select;
@@ -98,7 +192,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     return true;
   }
   function sync() {
-    const sendState = {busy,dirty,audienceDirty,estimating,approved:initial.releaseApproved};
+    const sendState = {busy:busy || statusUnknown,dirty,audienceDirty,estimating,approved:initial.releaseApproved};
     const controls = composerControls(draft, sendState);
     form.querySelector('[data-action=save]').disabled = !controls.save;
     form.querySelector('[data-action=preview]').disabled = !controls.preview;
@@ -108,6 +202,10 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     const restore = form.querySelector('[data-action=restore]');
     restore.hidden = draft?.state !== 'deleted'; restore.disabled = busy;
     form.querySelector('[data-action=cancel]').disabled = busy || !draft || dirty || !editable();
+    form.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]),textarea').forEach(el => {el.readOnly = !editable();});
+    form.querySelectorAll('[data-panel] select,[data-panel] input[type=radio]').forEach(el => {el.disabled = !editable();});
+    form.querySelectorAll('joomla-field-fancy-select').forEach(el => {if (editable()) el.choicesInstance?.enable?.(); else el.choicesInstance?.disable?.();});
+    syncStatus();
     form.querySelectorAll('[data-firstname]').forEach(el => {el.disabled = busy || !editable();});
     document.getElementById('ic-preview-subject').textContent = subjectLabel(initial.types?.[form.elements.type.value]?.prefixes?.[previewLanguage], form.elements['subject_' + previewLanguage].value);
     document.getElementById('ic-preview-sender').textContent = form.elements.sender.value;
@@ -162,7 +260,8 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   function scheduleRender(immediate = false) { scheduler.schedule(immediate); }
   function changed(render = true) {
     activeAt = Date.now(); audienceDirty = audienceKey(message()) !== savedAudience;
-    dirty = true; confirm.checked = false; status.textContent = text('DIRTY');
+    if (!editable()) return;
+    dirty = true; confirm.checked = false; if (!actionError) status.textContent = text('DIRTY');
     clearTimeout(cacheTimer); cacheTimer = setTimeout(persistLocal,500);
     sync(); if (render) scheduleRender();
   }
@@ -207,7 +306,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
       const count = await refreshed.json();
       if (!refreshed.ok || !count.success) throw new Error(count.error || text('ERROR'));
       draft = count.data; rememberDraft();
-      status.textContent = draft.estimate_error ? text('ESTIMATE_UNAVAILABLE') : text('SAVED');
+      if (!actionError) status.textContent = draft.estimate_error ? text('ESTIMATE_UNAVAILABLE') : text('SAVED');
     } catch (error) {
       status.textContent = error.message || text('ESTIMATE_UNAVAILABLE');
       if (draft) draft.estimate_error = true;
@@ -277,13 +376,15 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
   });
   // Modern and legacy Joomla editor APIs expose live values, including iframe editors.
   // Initial provider normalisation is recorded without invalidating an unchanged tested draft.
-  const previous = new Map();
+  const previous = new Map(), editorModes = new Map();
   setInterval(() => {
     if (document.hidden) return;
     let firstProvider = false;
     for (const lang of ['da','en']) {
       const editor = getEditor('body_' + lang);
       if (!editor) continue;
+      const mode = editable() ? 'design' : 'readonly';
+      if (editor.instance?.mode?.set && editorModes.get(editor) !== mode) {editor.instance.mode.set(mode); editorModes.set(editor,mode);}
       if (restoredBodies && Object.hasOwn(restoredBodies,lang)) {editor.setValue(restoredBodies[lang]); delete restoredBodies[lang]; previous.set(lang,editor.getValue());}
       const value = editor.getValue();
       if (!previous.has(lang) && value.trim()) firstProvider = true;
@@ -333,6 +434,8 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     // A later polling tick must not mistake already-tested edits for new changes.
     if (['save','preview'].includes(action)) for (const lang of ['da','en']) previous.set(lang,bodyValue(lang));
     busy = true; sync();
+    if (action === 'preview') report(text('PREPARING_TEST'));
+    let authoritative = false;
     try {
       if (action === 'preview' && (dirty || !draft)) {
         const save = new FormData(form); save.set('task','api.save'); save.set('message',submittedMessage);
@@ -348,7 +451,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
       const response = await fetch(form.action,{method:'POST',body,headers:{Accept:'application/json'}});
       const result = await response.json();
       if (!response.ok || !result.success) {
-        if (result.data) draft = result.data; confirm.checked = false;
+        if (result.data) {draft = result.data; authoritative = true;} confirm.checked = false;
         throw new Error(result.error || text('ERROR'));
       }
       if (action === 'delete') {cache.clear(cacheId); dirty = false; window.location.assign(initial.composerUrl); return;}
@@ -359,8 +462,12 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
       rememberDraft();
       if (!dirty) {cache.clear(cacheId); localStatus.textContent = ''; if (['save','preview'].includes(action)) markEditorsSaved();}
       if (action === 'save') {savedAudience = audienceKey(JSON.parse(submittedMessage)); audienceDirty = audienceKey(message()) !== savedAudience; scheduleRender(); }
-      status.textContent = dirty ? text('DIRTY') : text(action === 'preview' ? (initial.simulation ? 'FAKE_TESTED' : 'TESTED') : action === 'release' ? (initial.simulation ? 'FAKE_SUBMITTED' : 'SUBMITTED') : 'SAVED');
-    } catch (e) {status.textContent = e.message || text('ERROR'); confirm.checked = false;}
+      report(dirty ? text('DIRTY') : text(action === 'preview' ? (initial.simulation ? 'FAKE_TESTED' : 'TESTED') : action === 'release' ? (initial.simulation ? 'FAKE_SUBMITTED' : 'SUBMITTED') : 'SAVED'));
+      if (['release','cancel'].includes(action)) await refreshMailbox(action === 'release' ? 'sent' : 'closed');
+    } catch (e) {
+      if (!authoritative && draft && ['preview','release'].includes(action)) await refreshStatus();
+      report(e.message || text('ERROR'),true); confirm.checked = false;
+    }
     finally {busy = false; sync();}
   }));
   sync(); scheduleRender(true);

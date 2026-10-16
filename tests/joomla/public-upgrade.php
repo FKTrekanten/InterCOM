@@ -5,7 +5,8 @@ $fixture = json_decode(file_get_contents('/tmp/intercom-public-upgrade.json'), t
 $r = $app->bootComponent('com_intercom')->runtime;
 $store = $r->store;
 $id = (int)$fixture['draft']['id'];
-check($store->draft($id, 42) === $fixture['draft'], 'Public upgrade preserves the complete draft');
+$expectedDraft = $fixture['draft'] + ['copy_source_id' => null, 'copy_key' => null];
+check($store->draft($id, 42) === $expectedDraft, 'Public upgrade preserves the complete draft and initializes empty copy provenance');
 check($store->row("SELECT * FROM #__intercom_revisions WHERE draft_id=$id") === $fixture['revision'], 'Public upgrade preserves saved message revisions');
 $expectedParams = $fixture['params'];
 $expectedParams['member_audience_version'] = 1;

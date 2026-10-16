@@ -1,6 +1,7 @@
 """Exercise native session/CSRF/API boundaries against disposable CI only."""
 import base64, http.cookiejar, json, os, re, subprocess, urllib.error, urllib.parse, urllib.request
 from html.parser import HTMLParser
+from html import unescape
 base = 'http://127.0.0.1:' + os.environ.get('INTERCOM_PORT', '18088')
 client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 def request(path, data=None):
@@ -62,6 +63,23 @@ call('release', identity, 403)
 assert call('release', {**identity,'confirm':1})['state'] == 'submitted'
 call('release', {**identity,'confirm':1}, 409)
 call('delete', identity, 409)
+# New status, copy and classified mailbox boundaries.
+for action in ['copy','status','recover']:
+    assert request(api + '&task=api.' + action)[0] == 403, 'Status/copy/recovery require POST'
+    assert request(api, {'task':'api.'+action,'id':draft['id']})[0] == 403, 'Status/copy/recovery require CSRF'
+status_data = call('status', {'id':draft['id']})
+assert status_data['state'] == 'submitted' and status_data['status_detail'] == 'FAKE_SUBMITTED', 'Status refresh is authoritative and does not claim real delivery in simulation'
+copy = call('copy', {'id':draft['id'],'request_key':'c'*32})
+assert copy['state'] == 'draft' and int(copy['mailing_id']) == 0 and copy['filter_id'] is None and copy['tested_revision'] is None, 'Copying a submitted email creates an independent untested draft'
+assert call('copy', {'id':draft['id'],'request_key':'c'*32})['id'] == copy['id'], 'Copy requests are idempotent'
+_, open_mail = request('/index.php?option=com_intercom&view=composer&id=' + str(copy['id']))
+assert open_mail.index('id="ic-state-panel"') < open_mail.index('class="ic-steps"') and 'id="ic-test-status"' in open_mail, 'Delivery status precedes workflow navigation and is repeated beside test controls'
+_, drafts_view = request('/index.php?option=com_intercom&view=composer&box=drafts')
+sent_link = re.search(r'<a href="([^"]+)"[^>]*>Sent / Scheduled', drafts_view)
+assert sent_link and urllib.parse.parse_qs(urllib.parse.urlparse(unescape(sent_link[1])).query).get('box') == ['sent'], 'Mailbox links are escaped once and retain the selected view'
+_, sent_view = request(unescape(sent_link[1]))
+assert 'data-mail-id="' + str(draft['id']) + '"' not in drafts_view and 'data-mail-id="' + str(draft['id']) + '"' in sent_view, 'Submitted emails appear under Sent / Scheduled instead of Drafts'
+call('recover', identity, 409)
 trash = call('save', {'message':json.dumps(message)})
 trash_id = {'id':trash['id'],'revision':trash['revision']}
 call('delete', {**trash_id,'revision':0}, 409)
@@ -73,7 +91,7 @@ restored = call('restore', {**trash_id,'revision':trash['revision']+1})
 assert restored['state'] == 'draft' and restored['tested_revision'] is None, 'Restore requires a new test'
 call('delete', {'id':restored['id'],'revision':restored['revision']})
 _, deleted_page = request('/index.php?option=com_intercom&id=' + str(trash['id']))
-assert 'Restore draft' in deleted_page and 'Deleted drafts' in deleted_page, 'Deleted drafts provide native restore navigation'
+assert 'Restore draft' in deleted_page and 'Cancelled / Deleted' in deleted_page, 'Deleted drafts provide native restore navigation'
 print('PASS: HTTP session/CSRF/send guards and draft deletion/restore boundaries')
 # Saving real credentials must remain possible after simulated previews/sends.
 _, admin_login = request('/administrator/index.php?option=com_intercom')

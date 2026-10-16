@@ -102,6 +102,8 @@ final class Runtime
         return new TestDelivery(static function (string $address, array $payload): bool {
             $app = \Joomla\CMS\Factory::getApplication();
             $mail = \Joomla\CMS\Factory::getContainer()->get(\Joomla\CMS\Mail\MailerFactoryInterface::class)->createMailer();
+            $mail->Timeout = 10;
+            $mail->getSMTPInstance()->Timelimit = 10;
             $mail->setSender([$app->get('mailfrom'), $app->get('fromname')]);
             $mail->addRecipient($address);
             $mail->setSubject($payload['subject']);

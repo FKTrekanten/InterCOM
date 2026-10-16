@@ -28,15 +28,21 @@ final class TestDelivery
         return $result;
     }
 
-    public function deliver(array $snapshot, string $address): void
+    public function deliver(array $snapshot, string $address, ?callable $progress = null): void
     {
         if (!filter_var($address, FILTER_VALIDATE_EMAIL)) {
             throw new \RuntimeException('COM_INTERCOM_INVALID_EMAIL', 422);
         }
         try {
             foreach (self::payloads($snapshot) as $payload) {
+                if ($progress) {
+                    $progress('test_' . $payload['language']);
+                }
                 if (($this->send)($address, $payload) !== true) {
                     throw new \RuntimeException('COM_INTERCOM_TEST_DELIVERY_ERROR');
+                }
+                if ($progress) {
+                    $progress('accepted_' . $payload['language']);
                 }
             }
         } catch (\Throwable) {

@@ -180,6 +180,9 @@ final class Workflow
             $minutes = max(5, min(240, (int) ($params['audience_lease_minutes'] ?? 30)));
             $draft['lease_generation'] = (int) $draft['lease_generation'] + 1;
             $this->store->execute("UPDATE #__intercom_drafts SET state='$state'$attempt,filter_id={$draft['filter_id']},lease_generation={$draft['lease_generation']},lease_until=UTC_TIMESTAMP()+INTERVAL $minutes MINUTE,updated_at=UTC_TIMESTAMP() WHERE id=$id");
+            if ($operation === 'preview') {
+                $draft['test_operation'] = (new TestOperations($this->store))->claim($draft, $groupId);
+            }
             $this->store->audit($this->actor, $operation . '.intent', $id, ['revision' => $revision]);
             return $draft;
         });
@@ -380,15 +383,83 @@ final class Workflow
         $this->store->execute("UPDATE #__intercom_drafts SET filter_id=NULL,estimate_count=NULL,estimate_checked=NULL,audience_fingerprint=NULL,audience_rules=NULL,lease_until=NULL,lease_generation=lease_generation+1 WHERE id=$id");
     }
 
+    public function status(int $id): array
+    {
+        $draft = $this->store->draft($id, $this->actor, false, true);
+        $draft['test_operation'] = $this->store->row("SELECT operation_id,revision,stage,outcome,accepted_da,accepted_en,updated_at FROM #__intercom_test_operations WHERE draft_id=$id");
+        $draft = array_merge($draft, \FKT\Component\Intercom\Administrator\Domain\MailStatus::describe($draft));
+        $latest = $this->store->row("SELECT id,event,context,created_at FROM #__intercom_audit WHERE draft_id=$id ORDER BY id DESC LIMIT 1");
+        if (($latest['event'] ?? '') === 'preview.preflight_failed' && (int) (json_decode($latest['context'], true)['revision'] ?? 0) === (int) $draft['revision']) {
+            $draft['test_operation'] = ['operation_id' => 'preflight-' . $latest['id'], 'revision' => $draft['revision'], 'stage' => 'recipients', 'outcome' => 'failed', 'accepted_da' => 0, 'accepted_en' => 0, 'updated_at' => $latest['created_at']];
+            $draft['status_title'] = 'STATUS_TEST_FAILED';
+            $draft['status_detail'] = $draft['state'] === 'uncertain' ? 'STATUS_FILTER_REVIEW' : 'STATUS_COUNT_FAILED';
+            $draft['status_severity'] = 'error';
+            $draft['estimate_error'] = 'COM_INTERCOM_ESTIMATE_UNAVAILABLE';
+        }
+        return $draft;
+    }
+
+    public function copy(int $id, string $request): array
+    {
+        if (!preg_match('/^[a-f0-9]{32}$/D', $request)) {
+            throw new \RuntimeException('COM_INTERCOM_CONFLICT', 422);
+        }
+        return $this->store->transaction(function () use ($id, $request): array {
+            $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
+            $this->policy->assertManageDraft();
+            $source = $this->store->draft($id, $this->actor, true, true);
+            $existing = $this->store->row('SELECT id,copy_source_id FROM #__intercom_drafts WHERE owner_id=' . $this->actor . ' AND copy_key=' . $this->store->q($request));
+            if ($existing) {
+                if ((int) $existing['copy_source_id'] !== $id) {
+                    throw new \RuntimeException('COM_INTERCOM_CONFLICT', 409);
+                }
+                return $this->status((int) $existing['id']);
+            }
+            if ($source['content'] === '{}') {
+                throw new \RuntimeException('COM_INTERCOM_COPY_UNAVAILABLE', 409);
+            }
+            $message = json_decode($source['content'], true, 64, JSON_THROW_ON_ERROR);
+            // Message validation strips provider snapshots and acceptance_email.
+            // Saving rechecks current permissions, tags and definitions atomically.
+            try {
+                $copy = $this->saveMessage(Message::validate($message, false), 0, 0);
+            } catch (\RuntimeException $error) {
+                if (in_array($error->getMessage(), ['COM_INTERCOM_DENIED', 'COM_INTERCOM_SCOPE_DENIED', 'COM_INTERCOM_GROUP_REQUIRED'], true)) {
+                    throw new \RuntimeException('COM_INTERCOM_COPY_TARGETING_REVIEW', 422);
+                }
+                throw $error;
+            }
+            $newId = (int) $copy['id'];
+            $this->store->execute("UPDATE #__intercom_drafts SET copy_source_id=$id,copy_key=" . $this->store->q($request) . " WHERE id=$newId");
+            $this->store->audit($this->actor, 'draft.copied', $newId, ['source_id' => $id]);
+            return $this->status($newId);
+        });
+    }
+
     public function preview(int $id, int $revision, string $email): array
     {
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             throw new \RuntimeException('COM_INTERCOM_INVALID_EMAIL', 422);
         }
         if ($this->gateway instanceof \FKT\Component\Intercom\Administrator\Domain\AudienceGateway) {
-            $estimated = $this->estimate($id, $revision, true);
-            if (!empty($estimated['estimate_error'])) {
-                throw new \RuntimeException($estimated['estimate_error'], 409);
+            $before = $this->store->draft($id, $this->actor);
+            try {
+                $estimated = $this->estimate($id, $revision, true);
+                if (!empty($estimated['estimate_error'])) {
+                    throw new \RuntimeException($estimated['estimate_error'], 409);
+                }
+            } catch (\Throwable $error) {
+                $this->store->transaction(function () use ($id, $revision, $before, $error): void {
+                    $this->store->row("SELECT provider FROM #__intercom_connections WHERE provider='cleverreach' FOR UPDATE");
+                    $current = $this->store->draft($id, $this->actor, true);
+                    if ((int) $current['revision'] === $revision && (int) $current['lease_generation'] <= (int) $before['lease_generation'] + 1 && in_array($before['state'], ['draft', 'tested'], true) && in_array($current['state'], ['draft', 'tested', 'uncertain'], true)) {
+                        // Clear old test approval without undoing an uncertain audience write.
+                        $state = $current['state'] === 'uncertain' ? 'uncertain' : 'draft';
+                        $this->store->execute("UPDATE #__intercom_drafts SET state='$state',tested_revision=NULL,tested_fingerprint=NULL,tested_audience=NULL,tested_count=NULL WHERE id=$id");
+                        $this->store->audit($this->actor, 'preview.preflight_failed', $id, ['revision' => $revision, 'exception' => $error::class, 'file' => basename($error->getFile()), 'line' => $error->getLine(), 'code' => $error->getCode()]);
+                    }
+                });
+                throw $error;
             }
         }
         try {
@@ -400,31 +471,38 @@ final class Workflow
             $this->ensureCapacity();
             $draft = $this->begin($id, $revision, 'preview');
         }
+        $operations = new TestOperations($this->store);
+        $operation = $draft['test_operation'];
+        $progress = fn (string $stage, int $mailing = 0) => $operations->progress($id, $operation, $stage, $mailing);
         try {
             if ($draft['delivery_mode'] !== $this->gateway->mode()) {
                 throw new \RuntimeException('COM_INTERCOM_MODE_CHANGED', 409);
             }
             $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
-            if (
-                array_diff($message['tags'], $this->gateway->tags('group'))
-                || array_diff($message['disciplines'] ?? [], $this->gateway->tags('discipline'))
-                || array_diff($message['memberships'], $this->gateway->tags('membership'))
-            ) {
-                throw new \RuntimeException('COM_INTERCOM_SCOPE_DENIED');
+            foreach (['tags' => 'group', 'disciplines' => 'discipline', 'memberships' => 'membership'] as $key => $origin) {
+                if (!empty($message[$key]) && array_diff($message[$key], $this->gateway->tags($origin))) {
+                    throw new \RuntimeException('COM_INTERCOM_SCOPE_DENIED', 403);
+                }
             }
+            $operations->progress($id, $operation, 'history');
             $message['audience_rules'] = json_decode($draft['audience_rules'] ?? 'null', true) ?? \FKT\Component\Intercom\Administrator\Infrastructure\CleverReachGateway::filterRules($message);
             $snapshot = (new History($this->store))->prepare($draft, $message);
             $message['prepared_html'] = $snapshot['html'];
             $message['prepared_text'] = $snapshot['text'];
-            $mailing = $this->gateway->prepare($message, (int) $draft['filter_id'], (int) $draft['mailing_id']);
-            $this->store->execute("UPDATE #__intercom_history SET mailing_id=$mailing WHERE draft_id=$id AND state='prepared'");
-            $this->store->execute("UPDATE #__intercom_drafts SET mailing_id=$mailing WHERE id=$id AND state='testing'");
-            if ($this->testDelivery && $this->gateway->mode() === 'live') {
-                $this->testDelivery->deliver($snapshot, $email);
+            if ($this->gateway instanceof \FKT\Component\Intercom\Administrator\Domain\PreparationGateway) {
+                $mailing = $this->gateway->prepareWithProgress($message, (int) $draft['filter_id'], (int) $draft['mailing_id'], $progress);
             } else {
+                $progress('mailing_write');
+                $mailing = $this->gateway->prepare($message, (int) $draft['filter_id'], (int) $draft['mailing_id']);
+            }
+            $progress('mailing_confirmed', $mailing);
+            if ($this->testDelivery && $this->gateway->mode() === 'live') {
+                $this->testDelivery->deliver($snapshot, $email, $progress);
+            } else {
+                $progress('test_da');
                 $this->gateway->preview($mailing, $email);
             }
-            $this->store->transaction(function () use ($id, $revision, $draft): void {
+            $operations->accept($id, $operation, function () use ($id, $revision, $draft): void {
                 $fingerprint = $this->store->q($draft['current_fingerprint'] ?? '');
                 $testedAudience = $this->store->q($draft['audience_fingerprint'] ?? '');
                 $testedCount = $draft['estimate_count'] === null ? 'NULL' : (int) $draft['estimate_count'];
@@ -432,9 +510,14 @@ final class Workflow
                 $this->store->audit($this->actor, 'preview.accepted', $id, ['revision' => $revision, 'transport' => $this->testDelivery && $this->gateway->mode() === 'live' ? 'joomla' : $this->gateway->mode(), 'inbox_confirmed' => false]);
             });
         } catch (\Throwable $e) {
-            $state = isset($mailing) ? 'draft' : 'uncertain';
-            $this->store->execute("UPDATE #__intercom_drafts SET state='$state',tested_revision=NULL WHERE id=$id AND state='testing'");
-            $this->store->audit($this->actor, 'preview.failed', $id);
+            // A stale response may not change a recovered or newer operation.
+            try {
+                $operations->fail($id, $operation, $e);
+            } catch (\RuntimeException $conflict) {
+                if ($conflict->getMessage() !== 'COM_INTERCOM_CONFLICT') {
+                    throw $conflict;
+                }
+            }
             throw $e;
         }
         return $this->store->draft($id, $this->actor);
@@ -582,6 +665,9 @@ final class Workflow
             $stale = $this->store->rows("SELECT id,state FROM #__intercom_drafts WHERE state IN ('testing','releasing','estimating') AND updated_at < UTC_TIMESTAMP() - INTERVAL 15 MINUTE FOR UPDATE");
             foreach ($stale as $row) {
                 $id = (int) $row['id'];
+                if ($row['state'] === 'testing' && (new TestOperations($this->store))->interrupted($id)) {
+                    continue;
+                }
                 $this->store->execute("UPDATE #__intercom_drafts SET state='uncertain' WHERE id=$id");
                 (new History($this->store))->outcome($id, 'uncertain');
                 $this->store->audit(0, 'operation.interrupted', $id);

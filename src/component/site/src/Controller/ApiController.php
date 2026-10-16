@@ -33,6 +33,9 @@ final class ApiController extends BaseController
                 'audience' => $this->estimateAudience($workflow, json_decode($app->input->post->get('message', '{}', 'raw'), true, 64, JSON_THROW_ON_ERROR), $id, $revision),
                 'estimate' => $workflow->estimate($id, $revision, $app->input->post->getBool('force', true)),
                 'keepalive' => $workflow->keepalive($id, $revision),
+                'status' => $workflow->status($id),
+                'copy' => $workflow->copy($id, $app->input->post->get('request_key', '', 'cmd')),
+                'recover' => $this->recover($runtime, $workflow, $user, $id, $revision, $app->input->post->getBool('legacy_verified', false)),
                 'preview' => $workflow->preview($id, $revision, $user->email),
                 'release' => $app->input->post->getBool('confirm')
                     ? $workflow->release($id, $revision, $app->input->post->getInt('send_at', 0), $app->input->post->getInt('approved_count', -1))
@@ -41,20 +44,36 @@ final class ApiController extends BaseController
                 'delete' => $workflow->delete($id, $revision), 'restore' => $workflow->restore($id, $revision),
                 default => throw new \RuntimeException('COM_INTERCOM_DENIED', 403),
             };
+            if (is_array($result) && isset($result['id'], $result['state'])) {
+                $result = array_merge($workflow->status((int) $result['id']), array_intersect_key($result, ['estimate_error' => true]));
+            }
             echo json_encode(['success' => true, 'data' => $result], JSON_THROW_ON_ERROR);
         } catch (\Throwable $e) {
             $status = in_array($e->getCode(), [403, 404, 409, 422], true) ? $e->getCode() : 500;
             http_response_code($status);
-            $runtime->store->audit((int) $user->id, 'request.failed', 0, ['status' => $status]);
+            $runtime->store->audit((int) $user->id, 'request.failed', 0, ['status' => $status, 'task' => in_array($task, ['save', 'saveaudience', 'audience', 'estimate', 'preview', 'release', 'status', 'copy', 'recover', 'cancel', 'delete', 'restore', 'render', 'keepalive'], true) ? $task : 'unknown']);
             $key = str_starts_with($e->getMessage(), 'COM_INTERCOM_') ? $e->getMessage() : 'COM_INTERCOM_ERROR';
-            $result = ['success' => false, 'error' => Text::_($key)];
-            if ($key === 'COM_INTERCOM_COUNT_CHANGED' || $key === 'COM_INTERCOM_NO_RECIPIENTS') {
-                $result['data'] = $runtime->store->draft($app->input->post->getInt('id'), (int) $user->id);
+            $result = ['success' => false, 'error' => Text::_($key), 'category' => $key];
+            if ($status !== 403 && !$user->guest && isset($workflow) && ($id ?? 0) > 0) {
+                try {
+                    $result['data'] = $workflow->status($id);
+                } catch (\Throwable) {
+                    // Missing/unauthorized records never leak through error handling.
+                }
             }
             echo json_encode($result);
         }
         $app->close();
     }
+    private function recover($runtime, $workflow, $user, int $id, int $revision, bool $verified): array
+    {
+        if (!$user->authorise('core.admin', 'com_intercom')) {
+            throw new \RuntimeException('COM_INTERCOM_DENIED', 403);
+        }
+        (new \FKT\Component\Intercom\Administrator\Service\TestRecovery($runtime->store))->recover($id, (int) $user->id, $revision, $verified);
+        return $workflow->status($id);
+    }
+
     private function estimateAudience($workflow, array $input, int $id, int $revision): array
     {
         $draft = $workflow->saveAudience($input, $id, $revision);

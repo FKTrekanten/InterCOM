@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS `#__intercom_test_operations` (`draft_id` int unsigned NOT NULL, `operation_id` varchar(32) NOT NULL, `revision` int unsigned NOT NULL, `lease_generation` int unsigned NOT NULL, `previous_attempted` tinyint NOT NULL DEFAULT 0, `account_id` varchar(20) NOT NULL, `group_id` int unsigned NOT NULL, `stage` varchar(32) NOT NULL, `outcome` varchar(24) NOT NULL DEFAULT 'running', `accepted_da` tinyint NOT NULL DEFAULT 0, `accepted_en` tinyint NOT NULL DEFAULT 0, `updated_at` datetime NOT NULL, PRIMARY KEY (`draft_id`), UNIQUE KEY `operation` (`operation_id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ALTER TABLE `#__intercom_drafts` ADD COLUMN `copy_source_id` int unsigned DEFAULT NULL;
+ALTER TABLE `#__intercom_drafts` ADD COLUMN `copy_key` varchar(32) DEFAULT NULL;
+ALTER TABLE `#__intercom_drafts` ADD UNIQUE KEY `copy_request` (`owner_id`,`copy_key`);

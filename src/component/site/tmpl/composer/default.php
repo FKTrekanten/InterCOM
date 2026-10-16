@@ -30,11 +30,11 @@ if (!$editors->has($editorName) && !PluginHelper::isEnabled('editors', $editorNa
 }
 // Joomla's editor facade also supports enabled plugins using legacy onDisplay, including JCE.
 $editor = Editor::getInstance($editorName);
-foreach (['AGES','FEMALE','MALE','SAVED','TESTED','SUBMITTED','DIRTY','ERROR','CONFIRM_SEND','INVALID_MESSAGE','FAKE_TESTED','FAKE_SUBMITTED','ALL_AUDIENCE','NO_GROUPS','GROUP_REQUIRED','PREVIEW_UPDATING','PREVIEW_UPDATED','PREVIEW_OUTDATED','CONFIRM_DELETE','DELETED','RESTORED','ESTIMATE','ESTIMATE_CHECKED','ESTIMATE_STALE','ESTIMATE_UNAVAILABLE','ESTIMATE_LOADING','ESTIMATE_SIMULATED','COUNT_CHANGED','NO_RECIPIENTS','AUDIENCE_CHANGED','LOCAL_RECOVERED','LOCAL_SAVED','LOCAL_UNAVAILABLE','DRAFT_READONLY','TEST_REQUIRED','RELEASE_NOT_VERIFIED'] as $key) {
+foreach (['AGES','FEMALE','MALE','SAVED','TESTED','SUBMITTED','DIRTY','ERROR','CONFIRM_SEND','INVALID_MESSAGE','FAKE_TESTED','FAKE_SUBMITTED','ALL_AUDIENCE','NO_GROUPS','GROUP_REQUIRED','PREVIEW_UPDATING','PREVIEW_UPDATED','PREVIEW_OUTDATED','CONFIRM_DELETE','DELETED','RESTORED','ESTIMATE','ESTIMATE_CHECKED','ESTIMATE_STALE','ESTIMATE_UNAVAILABLE','ESTIMATE_LOADING','ESTIMATE_SIMULATED','COUNT_CHANGED','NO_RECIPIENTS','AUDIENCE_CHANGED','LOCAL_RECOVERED','LOCAL_SAVED','LOCAL_UNAVAILABLE','DRAFT_READONLY','TEST_REQUIRED','RELEASE_NOT_VERIFIED','STATE_DRAFT','STATE_TESTED','STATE_TESTING','STATE_ESTIMATING','STATE_RELEASING','STATE_SCHEDULED','STATE_SUBMITTED','STATE_COMPLETED','STATE_UNCERTAIN','STATE_CANCELLED','STATE_DELETED','STATE_ABANDONING','STATE_ABANDONED','STATUS_DRAFT','STATUS_PROGRESS','STATUS_SCHEDULED','STATUS_COMPLETED','STATUS_REVIEW','STATUS_CLOSED','STATUS_TEST_FAILED','STATUS_TEST_TRANSPORT','STATUS_PREPARATION_FAILED','STATUS_UNKNOWN','PREPARING_TEST','COPY_SAVED','COPYING','COPIED','TEST_ACCEPTED_DA','TEST_ACCEPTED_EN','TEST_NOT_CONFIRMED','OPERATION_REFERENCE','STATUS_FILTER_REVIEW','STATUS_MAILING_REVIEW','STATUS_COUNT_FAILED'] as $key) {
     Text::script('COM_INTERCOM_' . $key);
 }
 $id = $app->input->getInt('id');
-$draft = $id ? $r->store->draft($id, (int) $user->id, false, true) : null;
+$draft = $id ? $r->workflow($user)->status($id) : null;
 if ($draft && $draft['state'] === 'deleted' && $draft['content'] === '{}') {
     throw new \RuntimeException('COM_INTERCOM_DRAFT_NOT_FOUND', 404);
 }
@@ -71,13 +71,31 @@ $initial['cacheContext'] = (int) $user->id . '.' . hash('sha256', ($r->config['m
 $initial['retentionDays'] = (int) ($r->config['retention_days'] ?? 30);
 $initial['releaseApproved'] = $initial['simulation'] || (new \FKT\Component\Intercom\Administrator\Service\ReleaseApproval($r->store))->valid();
 $initial['estimateMinutes'] = (int) ($r->config['estimate_cache_minutes'] ?? 5);
+$initial['mailbox'] = true;
+$initial['box'] = $app->input->getCmd('box', 'drafts');
+$canRecover = $draft && $user->authorise('core.admin', 'com_intercom') && (new \FKT\Component\Intercom\Administrator\Service\TestRecovery($r->store))->eligible($draft);
+$mailbox = new \FKT\Component\Intercom\Administrator\Service\Mailbox($r->store, (int) $user->id);
+$mailPage = $mailbox->page($initial['box'], $app->input->getString('mail_search', ''), $app->input->getInt('mail_page', 1), $app->input->getCmd('mail_state', ''));
+$mailUrl = static fn ($box, $page = 1) => Route::_('index.php?option=com_intercom&view=composer&Itemid=' . $app->input->getInt('Itemid') . '&id=' . $id . '&box=' . urlencode($box) . '&mail_page=' . $page . '&mail_search=' . urlencode($app->input->getString('mail_search', '')) . '&mail_state=' . urlencode($app->input->getCmd('mail_state', '')), false);
 $app->getDocument()->addScriptOptions('com_intercom', $initial);
 ?>
 <div class="intercom">
 <header><p class="ic-eyebrow">INTERCOM</p><a class="ic-quiet" id="ic-new-message" href="<?= $esc($initial['newUrl']) ?>" <?= $draft ? '' : 'hidden' ?>><?= $t('NEW') ?> →</a><h1><?= $t('NEW') ?></h1><p><?= $t('INTRO') ?></p></header>
-<?php if ($draft && !in_array($draft['state'], ['draft', 'tested'], true)) :
-    ?><p class="ic-notice"><?= $t('DRAFT_READONLY') ?> <a href="<?= $esc($initial['newUrl']) ?>"><?= $t('NEW') ?></a></p><?php
+<section id="ic-state-panel" class="ic-state-panel" data-severity="<?= $esc($draft['status_severity'] ?? 'info') ?>" aria-label="<?= $t('MAIL_STATUS') ?>">
+<div class="ic-state-heading"><strong id="ic-state"><?= $draft ? $t($draft['status_title']) : $t('STATE_DRAFT') ?></strong><span id="ic-mail-id"><?= $draft ? '#' . (int) $draft['id'] : '' ?></span></div>
+<p id="ic-state-help"><?= $draft ? $t($draft['status_detail']) : $t('STATUS_DRAFT') ?></p>
+<p id="ic-operation" class="ic-help"></p><p id="ic-status" role="status" aria-live="polite" tabindex="-1"></p>
+<button id="ic-status-refresh" type="button" class="ic-quiet"><?= $t('REFRESH_STATUS') ?></button>
+<?php if ($draft && $draft['content'] !== '{}') :
+    ?><button type="button" class="ic-quiet" data-copy-id="<?= (int) $draft['id'] ?>"><?= $t('COPY_TO_DRAFT') ?></button><?php
 endif; ?>
+<?php if ($draft && $draft['copy_source_id']) :
+    ?><p class="ic-help"><?= sprintf($t('COPY_SOURCE'), (int) $draft['copy_source_id']) ?></p><?php
+endif; ?>
+<?php if ($canRecover) : ?>
+<div id="ic-recovery"><p><?= $t('RECOVERY_HELP') ?></p><label><input id="ic-recovery-confirm" type="checkbox"> <?= $t('RECOVERY_ATTEST') ?></label><button id="ic-recover" type="button"><?= $t('RECOVER_TEST') ?></button></div>
+<?php endif; ?>
+</section>
 <p class="ic-notice"><?= $t('NOTICE') ?></p><p class="ic-mode"><?= $t(($r->config['mode'] ?? 'fake') === 'fake' ? 'FAKE' : 'LIVE') ?></p>
 <div class="ic-layout"><form id="ic-form" action="<?= $esc(Route::_('index.php?option=com_intercom&format=json', false)) ?>" method="post">
 <?= HTMLHelper::_('form.token') ?>
@@ -115,7 +133,7 @@ endif; ?>
 <button type="button" class="ic-quiet ic-firstname" data-firstname="<?= $lang ?>"><?= $t('INSERT_FIRSTNAME') ?></button>
 </div>
 <?php endforeach; ?><p class="ic-help"><?= $t('TEXT_HELP') ?></p><div class="ic-actions"><button class="ic-quiet" type="button" data-go="0">← <?= $t('RECIPIENTS') ?></button><button type="button" data-action="save"><?= $t('SAVE') ?></button><button type="button" data-go="2"><?= $t('TO_TEST') ?> →</button></div></fieldset>
-<fieldset data-panel="2"><legend><?= $t('TEST_SEND') ?></legend><div class="ic-estimate-inline"><p data-estimate-line role="status" aria-live="polite"></p><button type="button" class="ic-quiet" data-refresh-estimate><?= $t('REFRESH_ESTIMATE') ?></button></div><p class="ic-help"><?= $t('TEST_HELP') ?></p><div class="ic-test-box"><p><?= $esc($user->email) ?></p><button type="button" data-action="preview" disabled><?= $t('PREVIEW') ?></button></div><label class="ic-check"><input id="ic-confirm" type="checkbox" aria-describedby="ic-send-help" disabled> <?= $t('CONFIRM') ?></label><p id="ic-send-help" class="ic-help" role="status"></p><label><?= $t('SEND_AT') ?><input name="send_at" type="datetime-local"></label><div class="ic-actions"><button class="ic-quiet" type="button" data-go="1">← <?= $t('CONTENT') ?></button><button type="button" data-action="release" disabled><?= $t('RELEASE') ?></button><button type="button" data-action="cancel" disabled><?= $t('CANCEL') ?></button></div></fieldset><p id="ic-status" role="status" aria-live="polite"></p><p id="ic-local-status" class="ic-help" role="status" aria-live="polite"></p>
+<fieldset data-panel="2"><legend><?= $t('TEST_SEND') ?></legend><div class="ic-estimate-inline"><p data-estimate-line role="status" aria-live="polite"></p><button type="button" class="ic-quiet" data-refresh-estimate><?= $t('REFRESH_ESTIMATE') ?></button></div><p class="ic-help"><?= $t('TEST_HELP') ?></p><div class="ic-test-box"><p><?= $esc($user->email) ?></p><button type="button" data-action="preview" disabled><?= $t('PREVIEW') ?></button><p id="ic-test-status" role="status" aria-live="polite"></p></div><label class="ic-check"><input id="ic-confirm" type="checkbox" aria-describedby="ic-send-help" disabled> <?= $t('CONFIRM') ?></label><p id="ic-send-help" class="ic-help" role="status"></p><label><?= $t('SEND_AT') ?><input name="send_at" type="datetime-local"></label><div class="ic-actions"><button class="ic-quiet" type="button" data-go="1">← <?= $t('CONTENT') ?></button><button type="button" data-action="release" disabled><?= $t('RELEASE') ?></button><button type="button" data-action="cancel" disabled><?= $t('CANCEL') ?></button></div></fieldset><p id="ic-local-status" class="ic-help" role="status" aria-live="polite"></p>
 </form><aside>
 <div class="ic-preview-top"><span class="ic-eyebrow"><?= $t('YOUR_MESSAGE') ?></span><div class="ic-preview-langs"><button type="button" data-preview-lang="da" aria-pressed="true">DA</button><button type="button" data-preview-lang="en" aria-pressed="false">EN</button></div></div>
 <dl class="ic-envelope"><dt><?= $t('SENDER') ?></dt><dd id="ic-preview-sender"></dd><dt><?= $t('SUBJECT') ?></dt><dd id="ic-preview-subject"></dd></dl>
@@ -123,14 +141,7 @@ endif; ?>
 <p id="ic-preview-status" class="ic-help" role="status"></p>
 <iframe id="ic-preview-frame" class="ic-preview-frame" sandbox="" referrerpolicy="no-referrer" title="<?= $esc($t('YOUR_MESSAGE')) ?>"></iframe>
 <p class="ic-help"><?= $t('PREVIEW_NOTE') ?></p><p class="ic-help"><?= $t('DARK_PREVIEW_HELP') ?></p><div class="ic-audience"><strong><?= $t('RECIPIENTS') ?></strong><p id="ic-audience-summary"></p><p id="ic-estimate" role="status" aria-live="polite"></p><button type="button" class="ic-quiet" id="ic-estimate-refresh"><?= $t('REFRESH_ESTIMATE') ?></button><p class="ic-help"><?= $t('ESTIMATE_HELP') ?></p></div>
-<details class="ic-draft-list"><summary><?= $t('DRAFTS') ?></summary><ul class="ic-drafts">
-<?php foreach ($r->store->rows('SELECT id,state,revision FROM #__intercom_drafts WHERE owner_id=' . (int) $user->id . " AND state!='deleted' ORDER BY id DESC LIMIT 30") as $row) : ?>
-<li><a href="<?= $esc(Route::_('index.php?option=com_intercom&id=' . (int) $row['id'])) ?>">#<?= (int) $row['id'] ?> · <?= $esc($t('STATE_' . strtoupper($row['state']))) ?></a></li>
-<?php endforeach; ?></ul></details>
-<details class="ic-draft-list"><summary><?= $t('DELETED_DRAFTS') ?></summary><p class="ic-help"><?= sprintf($t('RESTORE_HELP'), max(1, min(3650, (int) ($r->config['retention_days'] ?? 30)))) ?></p><ul class="ic-drafts">
-<?php foreach ($r->store->rows('SELECT id,revision FROM #__intercom_drafts WHERE owner_id=' . (int) $user->id . " AND state='deleted' AND content!='{}' ORDER BY updated_at DESC LIMIT 30") as $row) : ?>
-<li><a href="<?= $esc(Route::_('index.php?option=com_intercom&id=' . (int) $row['id'])) ?>">#<?= (int) $row['id'] ?> · <?= $t('STATE_DELETED') ?></a></li>
-<?php endforeach; ?></ul></details></aside></div>
+<?php require __DIR__ . '/mailbox.php'; ?></aside></div>
 <dialog id="ic-delete-dialog" aria-labelledby="ic-delete-title"><form method="dialog">
 <h2 id="ic-delete-title"><?= $t('DELETE_DRAFT') ?></h2><p><?= $t('CONFIRM_DELETE') ?></p>
 <div class="ic-actions"><button class="ic-quiet" value="cancel" autofocus><?= $t('CANCEL_ACTION') ?></button><button value="delete"><?= $t('DELETE_DRAFT') ?></button></div>

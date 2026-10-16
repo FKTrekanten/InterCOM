@@ -77,7 +77,10 @@ function composerHarness(initial, api, editor = null, legacyEditors = {}) {
   const sandbox={DraftCache,composerControls,composerSendBlocker,PreviewScheduler,requiresTeam,subjectLabel,FormData,Map,URL,
     JoomlaEditor:{get:()=>editor},Joomla:{editors:{instances:legacyEditors},getOptions:()=>({language:'en',types:{club:{prefixes:{}}},...initial}),Text:{_:key=>key}},
     document:{getElementById:id=>id==='ic-form'?form:element(id),querySelectorAll:()=>[],addEventListener(){}},window:{location:{href:url},history:{replaceState:(_,__,value)=>url=String(value)},addEventListener(){}},
-    setTimeout(){},clearTimeout(){},setInterval(callback){pollEditors=callback;},fetch:async (_,request)=>({ok:true,json:async()=>({success:true,data:request.body.get('task')==='api.render'?{da:'Preview',en:'Preview'}:await api(request.body)})})};
+    setTimeout(){},clearTimeout(){},setInterval(callback){pollEditors=callback;},fetch:async (_,request)=>{
+      const data=request.body.get('task')==='api.render'?{da:'Preview',en:'Preview'}:await api(request.body);
+      return data?.__error ? {ok:false,json:async()=>data.__error} : {ok:true,json:async()=>({success:true,data})};
+    }};
   runInNewContext(readFileSync(new URL('../../src/component/media/js/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,''),sandbox);
   return {fields,element,action,content:()=>steps.get('content')(),url:()=>url,events,firstname:lang=>firstnames.get(lang).click(),pollEditors:()=>pollEditors()};
 }
@@ -175,4 +178,47 @@ test('Successful test mail with an empty audience explains why confirmation rema
   assert.equal(h.element('ic-status').textContent,'COM_INTERCOM_TESTED');
   assert.equal(h.element('ic-confirm').disabled,true);
   assert.equal(h.element('ic-send-help').textContent,'COM_INTERCOM_NO_RECIPIENTS');
+});
+
+
+test('A failed preliminary test updates authoritative state immediately and preserves its explanation after reload', async () => {
+  const d={id:21,revision:1,state:'draft',estimate_count:39,status_title:'STATUS_TEST_FAILED',status_detail:'STATUS_PREPARATION_FAILED',status_severity:'error',test_operation:{revision:1,operation_id:'abc',stage:'validation',outcome:'failed'}};
+  const calls=[];
+  const h=composerHarness({},async body=>{
+    calls.push(body.get('task'));
+    if(body.get('task')==='api.save')return {...d,status_title:'STATE_DRAFT'};
+    return {__error:{success:false,error:'Lookup unavailable',data:d}};
+  });
+  await h.action('preview').click();
+  assert.deepEqual(calls,['api.save','api.preview']);
+  assert.equal(h.element('ic-state').textContent,'COM_INTERCOM_STATUS_TEST_FAILED');
+  assert.equal(h.element('ic-state-help').textContent,'COM_INTERCOM_STATUS_PREPARATION_FAILED');
+  assert.equal(h.action('preview').disabled,false);
+  const reopened=composerHarness({draft:d},async()=>{});
+  assert.equal(reopened.element('ic-state-help').textContent,'COM_INTERCOM_STATUS_PREPARATION_FAILED');
+});
+
+test('Losing the test response refreshes status without repeating the operation, then shows review protection', async () => {
+  const d={id:22,revision:1,state:'draft',estimate_count:39};
+  const calls=[];
+  const h=composerHarness({},async body=>{
+    const task=body.get('task');calls.push(task);
+    if(task==='api.save')return d;
+    if(task==='api.preview')throw new Error('Connection lost');
+    assert.equal(task,'api.status');return {...d,state:'uncertain',status_title:'STATE_UNCERTAIN',status_detail:'STATUS_MAILING_REVIEW'};
+  });
+  await h.action('preview').click();
+  assert.deepEqual(calls,['api.save','api.preview','api.status']);
+  assert.equal(h.action('preview').disabled,true);
+  assert.equal(h.element('ic-state-help').textContent,'COM_INTERCOM_STATUS_MAILING_REVIEW');
+});
+
+test('If status is also unavailable after a lost response, another send remains disabled', async () => {
+  const h=composerHarness({},async body=>{
+    if(body.get('task')==='api.save')return {id:23,revision:1,state:'draft',estimate_count:39};
+    throw new Error('Offline');
+  });
+  await h.action('preview').click();
+  assert.equal(h.action('preview').disabled,true);
+  assert.equal(h.element('ic-state-help').textContent,'COM_INTERCOM_STATUS_UNKNOWN');
 });

@@ -48,7 +48,7 @@ try {
         return [['origin'=>'group','tag'=>'Youth'],['origin'=>'discipline','tag'=>'epee'],['origin'=>'membership','tag'=>'Active'],['origin'=>'member','tag'=>'female_9']];
     });
     $r->catalog->refreshTags($gateway,42);
-    check(count($calls)===3 && count(array_filter($calls,static fn($call)=>$call[0]==='GET'))===3, 'Refresh reads all three composer families without writing receivers');
+    check($calls===[['GET','/v3/tags?limit=100&offset=0']] && !array_diff(['group.Youth','discipline.epee','membership.Active'],array_column($r->catalog->tags(false),'tag')), 'Refresh shares one read-only catalogue request across all three composer families');
     check(!in_array('member.female_9',array_column($r->catalog->tags(false),'tag'),true), 'Unknown member family stays excluded after refresh');
     $tag = $s->row("SELECT * FROM #__intercom_tags WHERE list_id=0 AND tag='discipline.epee'");
     check((int)$tag['enabled']===1 && (int)$tag['available']===1 && (int)$tag['ordering']===7, 'Refresh preserves migrated administration settings');
