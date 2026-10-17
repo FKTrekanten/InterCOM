@@ -12,7 +12,7 @@ final class Mailbox
         'drafts' => ['draft', 'tested'],
         'sent' => ['scheduled', 'submitted', 'completed'],
         'attention' => ['testing', 'estimating', 'releasing', 'uncertain', 'abandoning'],
-        'closed' => ['cancelled', 'abandoned', 'deleted'],
+        'closed' => ['cancelled', 'abandoned', 'deleted', 'closed_unverified'],
     ];
 
     public function __construct(private Store $store, private int $owner)

@@ -21,7 +21,7 @@ final class Activity
     {
         $list = $this->context();
         $pool = $this->store->row("SELECT COUNT(*) total,COALESCE(SUM(f.draft_id IS NULL),0) free,COALESCE(SUM(d.state='uncertain'),0) uncertain FROM #__intercom_filters f LEFT JOIN #__intercom_drafts d ON d.id=f.draft_id WHERE f.managed=1 AND f.group_id=$list");
-        $intents = $list ? $this->store->row("SELECT COUNT(*) total,COALESCE(SUM(state IN ('pending','uncertain')),0) uncertain FROM #__intercom_filter_creations WHERE group_id=$list") : ['total' => $pool['total'], 'uncertain' => 0];
+        $intents = $list ? $this->store->row("SELECT COUNT(*) total,COALESCE(SUM(state IN ('pending','uncertain')),0) uncertain FROM #__intercom_filter_creations WHERE group_id=$list AND state!='retired'") : ['total' => $pool['total'], 'uncertain' => 0];
         $mode = $this->store->q($this->config['mode'] ?? 'fake');
         $days = min(30, max(1, (int) ($this->config['retention_days'] ?? 30)));
         return ['pool' => $pool, 'intents' => $intents, 'cap' => max(1, min(20, (int) ($this->config['max_filters'] ?? 5))),

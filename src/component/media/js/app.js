@@ -84,22 +84,86 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
       statusUnknown = true; confirm.checked = false; sync(); return false;
     }
   }
+  const mailboxPages = new Map();
+  let mailboxRequest = 0;
+  const mailboxKey = url => JSON.stringify(['box','mail_search','mail_state','mail_page'].map(key => url.searchParams.get(key) || (key === 'box' ? 'drafts' : key === 'mail_page' ? '1' : '')));
+  function cacheMailbox(page, url) {
+    const updated = Date.now();
+    const current = page.getElementById('ic-mailbox');
+    if (current) mailboxPages.set(mailboxKey(url), {node:current.cloneNode(true), updated});
+    page.querySelectorAll('template[data-mailbox-url]').forEach(template => {
+      const node = template.content.querySelector('#ic-mailbox');
+      if (node) mailboxPages.set(mailboxKey(new URL(template.dataset.mailboxUrl, url)), {node:node.cloneNode(true), updated});
+    });
+  }
+  if (initial.mailbox) cacheMailbox(document, new URL(window.location.href));
+  async function loadMailbox(url, force = false) {
+    const request = ++mailboxRequest;
+    const focused = document.getElementById('ic-mailbox')?.contains(document.activeElement);
+    document.getElementById('ic-mailbox')?.setAttribute('aria-busy','true');
+    try {
+      let entry = mailboxPages.get(mailboxKey(url));
+      if (force || !entry || Date.now() - entry.updated > 60000) {
+        const response = await fetch(url,{headers:{Accept:'text/html'}});
+        if (!response.ok) throw new Error(text('ERROR'));
+        const page = new DOMParser().parseFromString(await response.text(),'text/html');
+        if (!page.getElementById('ic-mailbox')) throw new Error(text('ERROR'));
+        if (request !== mailboxRequest) return;
+        cacheMailbox(page, url);
+        entry = mailboxPages.get(mailboxKey(url));
+      }
+      if (request !== mailboxRequest) return;
+      const replacement = entry.node.cloneNode(true);
+      replacement.removeAttribute('aria-busy');
+      document.getElementById('ic-mailbox')?.replaceWith(replacement);
+      // Mailbox requests may outlive the first audience save. Merge only list
+      // navigation into the current composer URL, preserving its latest draft.
+      const currentUrl = new URL(window.location.href);
+      for (const key of ['box','mail_search','mail_state','mail_page']) {
+        if (url.searchParams.has(key)) currentUrl.searchParams.set(key,url.searchParams.get(key));
+        else currentUrl.searchParams.delete(key);
+      }
+      if (draft) {currentUrl.searchParams.set('id',draft.id); currentUrl.searchParams.delete('new');}
+      window.history.replaceState(null,'',currentUrl);
+      syncStatus();
+      if (focused) replacement.querySelector('.ic-mail-tabs [aria-current=page]')?.focus({preventScroll:true});
+    } catch (error) {
+      if (request === mailboxRequest) report(error.message || text('ERROR'),true);
+    } finally {
+      if (request === mailboxRequest) document.getElementById('ic-mailbox')?.removeAttribute('aria-busy');
+    }
+  }
   async function refreshMailbox(box) {
     if (!initial.mailbox) return;
+    mailboxPages.clear();
     const url = new URL(window.location.href);
     if (box) {url.searchParams.set('box',box); url.searchParams.delete('mail_state'); url.searchParams.delete('mail_search'); url.searchParams.delete('mail_page');}
-    try {
-      const response = await fetch(url,{headers:{Accept:'text/html'}});
-      if (!response.ok) return;
-      const page = new DOMParser().parseFromString(await response.text(),'text/html');
-      const replacement = page.getElementById('ic-mailbox');
-      if (replacement) {document.getElementById('ic-mailbox')?.replaceWith(replacement); window.history.replaceState(null,'',url);}
-    } catch { /* Status and current message stay usable if list refresh fails. */ }
+    await loadMailbox(url, true);
   }
+  document.addEventListener('click', event => {
+    const link = event.target.closest?.('#ic-mailbox .ic-mail-tabs a, #ic-mailbox .ic-mail-pages a');
+    if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    const url = new URL(link.href);
+    if (draft) url.searchParams.set('id',draft.id);
+    url.searchParams.delete('new');
+    void loadMailbox(url);
+  });
+  document.addEventListener('submit', event => {
+    if (!event.target.matches?.('#ic-mailbox .ic-mail-search')) return;
+    event.preventDefault();
+    const url = new URL(window.location.href);
+    for (const [key, value] of new FormData(event.target)) url.searchParams.set(key,value);
+    if (draft) url.searchParams.set('id',draft.id);
+    url.searchParams.delete('new');
+    url.searchParams.delete('mail_page');
+    void loadMailbox(url, true);
+  });
   document.getElementById('ic-status-refresh')?.addEventListener('click', async () => {
     if (busy) return;
     busy = true; sync(); const ok = await refreshStatus(); busy = false;
     report(ok ? '' : text('STATUS_UNKNOWN'), !ok); sync();
+    if (ok) await refreshMailbox();
   });
   const copyKeys = new Map();
   document.addEventListener('click', async event => {
@@ -224,7 +288,10 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
     form.querySelectorAll('[data-refresh-estimate]').forEach(el => {el.disabled = busy || !editable() || needsTeam();});
     if (refresh) refresh.disabled = busy || !editable() || needsTeam();
     const blocker = composerSendBlocker(draft, sendState);
-    document.getElementById('ic-send-help').textContent = blocker ? text(blocker) : '';
+    const acceptanceNotice = document.getElementById('ic-acceptance-notice');
+    acceptanceNotice.hidden = Boolean(initial.releaseApproved);
+    acceptanceNotice.textContent = text('RELEASE_NOT_VERIFIED');
+    document.getElementById('ic-send-help').textContent = blocker && blocker !== 'RELEASE_NOT_VERIFIED' ? text(blocker) : '';
     const groups = Array.from(form.elements['tags[]'].selectedOptions).map(el => el.textContent.trim());
     const disciplines = Array.from(form.elements['disciplines[]'].selectedOptions).map(el => el.textContent.trim());
     const memberships = Array.from(form.elements['memberships[]'].selectedOptions).map(el => el.textContent.trim());
@@ -465,7 +532,7 @@ import { PreviewScheduler, requiresTeam, subjectLabel } from './preview.mjs';
       if (!dirty) {cache.clear(cacheId); localStatus.textContent = ''; if (['save','preview'].includes(action)) markEditorsSaved();}
       if (action === 'save') {savedAudience = audienceKey(JSON.parse(submittedMessage)); audienceDirty = audienceKey(message()) !== savedAudience; scheduleRender(); }
       report(dirty ? text('DIRTY') : text(action === 'preview' ? (initial.simulation ? 'FAKE_TESTED' : 'TESTED') : action === 'release' ? (initial.simulation ? 'FAKE_SUBMITTED' : 'SUBMITTED') : 'SAVED'));
-      if (['release','cancel'].includes(action)) await refreshMailbox(action === 'release' ? 'sent' : 'closed');
+      await refreshMailbox(action === 'release' ? 'sent' : action === 'cancel' ? 'closed' : undefined);
     } catch (e) {
       if (!authoritative && draft && ['preview','release'].includes(action)) await refreshStatus();
       report(e.message || text('ERROR'),true); confirm.checked = false;

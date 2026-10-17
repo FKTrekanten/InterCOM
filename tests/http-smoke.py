@@ -78,7 +78,9 @@ _, drafts_view = request('/index.php?option=com_intercom&view=composer&box=draft
 sent_link = re.search(r'<a href="([^"]+)"[^>]*>Sent / Scheduled', drafts_view)
 assert sent_link and urllib.parse.parse_qs(urllib.parse.urlparse(unescape(sent_link[1])).query).get('box') == ['sent'], 'Mailbox links are escaped once and retain the selected view'
 _, sent_view = request(unescape(sent_link[1]))
-assert 'data-mail-id="' + str(draft['id']) + '"' not in drafts_view and 'data-mail-id="' + str(draft['id']) + '"' in sent_view, 'Submitted emails appear under Sent / Scheduled instead of Drafts'
+visible_drafts = re.sub(r'<template\b.*?</template>', '', drafts_view, flags=re.S)
+assert drafts_view.count('data-mailbox-url=') == 3, 'Other mailbox tabs are preloaded in inert templates'
+assert 'data-mail-id="' + str(draft['id']) + '"' not in visible_drafts and 'data-mail-id="' + str(draft['id']) + '"' in sent_view, 'Submitted emails appear under Sent / Scheduled instead of Drafts'
 call('recover', identity, 409)
 trash = call('save', {'message':json.dumps(message)})
 trash_id = {'id':trash['id'],'revision':trash['revision']}
@@ -105,6 +107,10 @@ assert status == 200 and 'Member sends are blocked' in gate and 'Simulation neve
 for task in ['prepare','release','verify','retire']:
     route = '/administrator/index.php?option=com_intercom&task=acceptance.' + task
     assert request(route, {})[0] == 403 and request(route)[0] == 403, 'Acceptance mutation requires POST and CSRF'
+cleanup = '/administrator/index.php?option=com_intercom&task=poolcleanup.apply'
+assert request(cleanup)[0] == 403 and request(cleanup, {})[0] == 403, 'Pool cleanup requires POST and CSRF'
+_, cleanup_page = request('/administrator/index.php?option=com_intercom&view=poolcleanup')
+assert 'Clean up deleted filters' in cleanup_page and 'Cleanup could not be verified' in cleanup_page, 'Simulation blocks cleanup before provider access'
 options = '/administrator/index.php?option=com_config&view=component&component=com_intercom'
 _, admin = request(options)
 assert 'name="jform[release_verified]"' not in admin and 'jform[acceptance_recipient]' in admin, 'Options displays computed approval and editable approved recipient'
@@ -244,6 +250,11 @@ def abandonment_fixture(action):
     return subprocess.check_output(['docker','compose','exec','-T','--user','www-data','-e','INTERCOM_CI=1','joomla','php','/workspace/tests/joomla/abandonment-http-fixture.php',action], text=True)
 fixture = json.loads(abandonment_fixture('seed'))
 try:
+    _, blocked_composer = request('/index.php?option=com_intercom&view=composer&new=1')
+    notice = re.search(r'<p id="ic-acceptance-notice"([^>]*)>(.*?)</p>', blocked_composer, re.S)
+    assert notice and 'hidden' not in notice[1] and 'Contact your administrator' in notice[2], 'Missing live acceptance renders a visible contact-administrator notice before confirmation'
+    assert 'aria-describedby="ic-acceptance-notice ic-send-help"' in blocked_composer, 'Disabled confirmation is associated with the acceptance explanation'
+
     _, filters = request(management + '&view=filters')
     assert 'Abandon test mailing' in filters and str(fixture['mailing']) in filters, 'Filters exposes abandonment and exact provider mailing ID for eligible deleted tests'
     route = management + '&view=abandonment&filter_id=' + str(fixture['filter'])
@@ -287,6 +298,8 @@ assert request(management + '&view=history')[0] == 403, 'Sent-mail history requi
 assert request(management + '&view=history&id=1')[0] == 403, 'Message detail deep link requires content permission'
 assert request(management + '&view=audit')[0] == 403, 'Audit deep link requires audit permission'
 assert request(management + '&view=filters')[0] == 403, 'Filter deep link requires audit permission'
+assert request(management + '&view=poolcleanup')[0] == 403, 'Manager cannot inspect pool cleanup'
+assert request(management + '&task=poolcleanup.apply', {token(overview):'1','confirmed':'1'})[0] == 403, 'Manager with valid CSRF cannot clean up filters'
 assert request(management + '&task=reconciliation.run', {})[0] == 403, 'Manager cannot run reconciliation'
 assert request(management + '&view=abandonment&filter_id=799999')[0] == 403, 'Manager cannot inspect abandonment'
 assert request(management + '&task=abandonment.inspect', {})[0] == 403, 'Manager cannot initiate abandonment'

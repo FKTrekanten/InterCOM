@@ -226,7 +226,7 @@ final class Workflow
             if ($this->store->row("SELECT filter_id FROM #__intercom_filters WHERE group_id=$groupId AND managed=1 AND draft_id IS NULL LIMIT 1")) {
                 return null;
             }
-            $count = (int) ($this->store->row("SELECT COUNT(*) AS n FROM #__intercom_filter_creations WHERE group_id=$groupId")['n'] ?? 0);
+            $count = (int) ($this->store->row("SELECT COUNT(*) AS n FROM #__intercom_filter_creations WHERE group_id=$groupId AND state!='retired'")['n'] ?? 0);
             if ($count >= $cap) {
                 throw new \RuntimeException('COM_INTERCOM_POOL_BUSY', 409);
             }
@@ -677,7 +677,7 @@ final class Workflow
             $this->store->execute("DELETE FROM #__intercom_revisions WHERE created_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             $this->store->execute("UPDATE #__intercom_abandonments SET reason='' WHERE state IN ('released','cancelled') AND updated_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             // Purge inactive terminal message content, retaining operational IDs/leases.
-            $this->store->execute("UPDATE #__intercom_drafts SET content='{}' WHERE (state IN ('completed','cancelled','deleted') OR (delivery_mode='fake' AND state='submitted')) AND updated_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
+            $this->store->execute("UPDATE #__intercom_drafts SET content='{}' WHERE (state IN ('completed','cancelled','deleted','closed_unverified') OR (delivery_mode='fake' AND state='submitted')) AND updated_at < UTC_TIMESTAMP() - INTERVAL $days DAY");
             (new History($this->store))->maintain($days);
             $this->store->audit(0, 'maintenance.completed', 0, ['retention_days' => $days]);
         });

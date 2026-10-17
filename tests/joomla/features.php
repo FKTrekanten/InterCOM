@@ -204,3 +204,13 @@ try {
     check($beforeFormFingerprint!==$r->catalog->fingerprint($formMessage),'Changing unsubscribe form invalidates previous test fingerprint');
     $store->rollback();
 } catch (Throwable $e) { $store->rollback(); throw $e; }
+
+// A routine Options save preserves retired pool history while removing obsolete manual rows.
+$store->begin();
+try {
+    $store->execute("INSERT INTO #__intercom_filters(filter_id,group_id,managed,reconciliation_status) VALUES(889980,0,0,'retired'),(889981,0,0,'')");
+    $settings=json_decode($store->row("SELECT params FROM #__extensions WHERE element='com_intercom'")['params'],true);
+    (new \FKT\Component\Intercom\Administrator\Service\Settings($r))->save($settings,42);
+    check($store->row('SELECT reconciliation_status FROM #__intercom_filters WHERE filter_id=889980')['reconciliation_status']==='retired','Saving Options preserves retired filter history');
+    check(!$store->row('SELECT filter_id FROM #__intercom_filters WHERE filter_id=889981'),'Saving Options still removes obsolete unmanaged manual filters');
+}finally{$store->rollback();}

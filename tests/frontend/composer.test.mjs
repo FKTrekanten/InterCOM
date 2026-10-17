@@ -163,13 +163,18 @@ test('Successful test mail cannot hide outdated delivery acceptance; reopening t
   await h.action('preview').click();
   assert.equal(h.element('ic-status').textContent,'COM_INTERCOM_TESTED');
   assert.equal(h.element('ic-confirm').disabled,true);
-  assert.equal(h.element('ic-send-help').textContent,'COM_INTERCOM_RELEASE_NOT_VERIFIED');
+  assert.equal(h.element('ic-acceptance-notice').hidden,false);
+  assert.equal(h.element('ic-acceptance-notice').textContent,'COM_INTERCOM_RELEASE_NOT_VERIFIED');
+  assert.equal(h.element('ic-send-help').textContent,'');
   const reopened=composerHarness({releaseApproved:false,draft:tested},async()=>{});
   assert.equal(reopened.element('ic-confirm').disabled,true);
-  assert.equal(reopened.element('ic-send-help').textContent,'COM_INTERCOM_RELEASE_NOT_VERIFIED');
+  assert.equal(reopened.element('ic-acceptance-notice').hidden,false);
+  assert.equal(reopened.element('ic-acceptance-notice').textContent,'COM_INTERCOM_RELEASE_NOT_VERIFIED');
+  assert.equal(reopened.element('ic-send-help').textContent,'');
   const approved=composerHarness({releaseApproved:true,draft:tested},async()=>{});
   assert.equal(approved.element('ic-confirm').disabled,false);
   assert.equal(approved.element('ic-send-help').textContent,'');
+  assert.equal(approved.element('ic-acceptance-notice').hidden,true);
 });
 
 test('Successful test mail with an empty audience explains why confirmation remains disabled', async () => {
@@ -221,4 +226,16 @@ test('If status is also unavailable after a lost response, another send remains 
   await h.action('preview').click();
   assert.equal(h.action('preview').disabled,true);
   assert.equal(h.element('ic-state-help').textContent,'COM_INTERCOM_STATUS_UNKNOWN');
+});
+
+
+test('Missing delivery acceptance is explained beside confirmation before any test or estimate completes', async () => {
+  const h=composerHarness({releaseApproved:false},async()=>{});
+  assert.equal(h.element('ic-confirm').disabled,true);
+  assert.equal(h.element('ic-acceptance-notice').hidden,false);
+  assert.equal(h.element('ic-acceptance-notice').textContent,'COM_INTERCOM_RELEASE_NOT_VERIFIED');
+  for (const [language,phrase] of [['en-GB','Contact your administrator'],['da-DK','Kontakt din administrator']]) {
+    const strings=readFileSync(new URL(`../../src/component/site/language/${language}/com_intercom.ini`,import.meta.url),'utf8');
+    assert.match(strings.split('\n').find(line=>line.startsWith('COM_INTERCOM_RELEASE_NOT_VERIFIED=')),new RegExp(phrase));
+  }
 });

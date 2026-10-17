@@ -23,14 +23,16 @@ final class Archive
             throw new \RuntimeException('COM_INTERCOM_INVALID_SETTINGS');
         }
         $message = json_decode($draft['content'], true, 64, JSON_THROW_ON_ERROR);
+        $expectedRecipients = isset($draft['estimate_count']) ? (string) (int) $draft['estimate_count'] : 'Unavailable';
         $payload = ['subject' => '[InterCOM archive #' . (int) $draft['id'] . '] ' . $message['subject_da'],
             'html' => '<p>Archive of an accepted communication. Sender: ' . htmlspecialchars($message['sender'], ENT_QUOTES, 'UTF-8') . '</p>'
                 . '<p>DA: ' . htmlspecialchars($message['subject_da'], ENT_QUOTES, 'UTF-8') . '</p>' . Message::bodyHtml($message, 'da')
                 . '<hr><p>EN: ' . htmlspecialchars($message['subject_en'], ENT_QUOTES, 'UTF-8') . '</p>' . Message::bodyHtml($message, 'en')
                 . '<hr><p>Audience criteria: ' . htmlspecialchars(\FKT\Component\Intercom\Administrator\Domain\Audience::summary($message), ENT_QUOTES, 'UTF-8') . '</p>'
+                . '<p>Expected recipients: ' . $expectedRecipients . '</p>'
                 . '<p>Communication: ' . htmlspecialchars($message['definition']['key'] ?? $message['type'], ENT_QUOTES, 'UTF-8')
                 . ' · Opt-out: ' . htmlspecialchars($message['definition']['suppression'] ?? $message['type'], ENT_QUOTES, 'UTF-8') . '</p>',
-            'text' => Message::text($message), 'mailing_id' => (int) $draft['mailing_id'], 'revision' => (int) $draft['revision']];
+            'text' => Message::text($message) . "\n\nExpected recipients: " . $expectedRecipients, 'mailing_id' => (int) $draft['mailing_id'], 'revision' => (int) $draft['revision']];
         foreach (['html', 'text'] as $field) {
             $payload[$field] = strtr($payload[$field], ['{FIRSTNAME[std:Medlem]}' => 'Medlem', '{FIRSTNAME[std:Member]}' => 'Member',
                 '{ONLINE_VERSION}' => '', '{UNSUBSCRIBE}' => '']);

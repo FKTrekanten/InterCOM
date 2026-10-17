@@ -79,7 +79,7 @@ echo $esc(\FKT\Component\Intercom\Administrator\Domain\Audience::summary($messag
 <label><?= $t($label) ?><input class="form-control" type="<?= $kind ?>" name="<?= $key ?>" value="<?= $esc($this->filters[$key]) ?>"></label>
     <?php endforeach; ?>
 <label><?= $t('STATE') ?><select class="form-select" name="state"><option value=""><?= $t('ALL') ?></option>
-    <?php foreach (['releasing','submitted','scheduled','completed','uncertain','abandoned'] as $state) :
+    <?php foreach (['releasing','submitted','scheduled','completed','uncertain','abandoned','closed_unverified'] as $state) :
         ?><option value="<?= $state ?>" <?= $this->filters['state'] === $state ? 'selected' : '' ?>><?= $t('STATE_' . strtoupper($state)) ?></option><?php
     endforeach; ?>
 </select></label>

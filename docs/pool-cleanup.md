@@ -1,0 +1,15 @@
+# Cleaning up filters manually deleted in CleverReach
+
+Use **InterCOM → Filters → Clean up deleted filters** after permanently removing obsolete CleverReach segments and their associated obsolete mailings. This is an explicit administrator operation, separate from scheduled reconciliation and abandonment of a known unsent test mailing. Normal reconciliation still retains reservations on missing or uncertain provider records.
+
+1. Take a current production database backup and keep the original CleverReach account and recipient list selected.
+2. Open the cleanup page. It checks the pinned account identity, a successful exact-list lookup, the filter catalogue and each missing filter. Known mailings must be absent individually and from complete draft, waiting, running, automation and finished catalogues. Failed, malformed or incomplete reads block cleanup. Present filters are excluded; present associated mailings block it.
+3. Review the displayed filter, message and mailing IDs and resulting statuses. Enter a reason and confirm that the exact provider records were permanently removed and cannot be restored or sent. The API alone cannot establish permanence; this confirmation is required even after successful absence checks.
+4. Select **Retire deleted filters and close emails**. The server repeats all checks against the reviewed snapshot. Changed reservations, revisions, active operations or provider records require a new review. Nothing is sent and no provider records are changed.
+5. Check the historical filter list and audit log. Retired filter IDs remain recorded but cannot be allocated. Their completed creation records no longer consume pool capacity. The next recipient estimate can create a fresh filter if necessary; unresolved creations are still protected.
+
+Obsolete failed/draft messages become cancelled. Messages with submission evidence become **Closed — delivery unverified**; this does not claim either successful delivery or that no recipients received them. Provider IDs and submission timestamps remain in history, while operational pointers and test approval are cleared. Pending archive copies are held as uncertain. Existing completed messages and their history are unchanged, including when their now-free filter is retired. Active testing, estimating, releasing, scheduling, abandonment, archive sending and protected acceptance operations cannot be cleaned up. A change in archive state after preview requires a fresh review. Ordinary Options saves preserve retired filter records. The operation is audited and repeated submission is idempotent.
+
+For the reported incident, review #10 → Cancelled, #11/#12 → Closed — delivery unverified, and the deleted free filter previously used by #14 → Retired. #14 must remain Completed. These IDs are explanatory only; the implementation operates on the current account/list and verified records, not hard-coded production IDs. Do not resend the obsolete messages.
+
+If the page reports an error, resolve the provider/account/list issue and reopen it. Do not mark deleted IDs as free in SQL. Production cleanup is never performed by installation or maintenance.

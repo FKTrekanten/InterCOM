@@ -283,6 +283,14 @@ final class CleverReachGateway implements \FKT\Component\Intercom\Administrator\
         return CleverReachIdentity::identifier($this->request('GET', '/debug/whoami'));
     }
 
+    public function assertRetirementList(int $group): void
+    {
+        $list = $this->request('GET', '/groups/' . $group);
+        if (!is_array($list) || (string) ($list['id'] ?? '') !== (string) $group) {
+            throw new \RuntimeException('COM_INTERCOM_ABANDON_UNVERIFIED', 409);
+        }
+    }
+
     public function assertRetirementScope(int $group, int $filter): void
     {
         $list = $this->request('GET', '/groups/' . $group);

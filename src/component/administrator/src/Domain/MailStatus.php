@@ -15,6 +15,7 @@ final class MailStatus
             'testing', 'estimating', 'releasing', 'abandoning' => 'STATUS_PROGRESS',
             'scheduled' => 'STATUS_SCHEDULED', 'submitted' => 'SUBMITTED',
             'completed' => 'STATUS_COMPLETED', 'uncertain' => 'STATUS_REVIEW',
+            'closed_unverified' => 'STATUS_CLOSED_UNVERIFIED',
             default => 'STATUS_CLOSED',
         };
         $severity = $state === 'uncertain' ? 'error' : 'info';

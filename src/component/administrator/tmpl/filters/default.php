@@ -16,6 +16,7 @@ require dirname(__DIR__) . '/navigation.php';
 <p><?= $t('RESERVATION_HELP') ?></p><p><?= $t('RECONCILE_HELP') ?></p>
 <?php if (\Joomla\CMS\Factory::getApplication()->getIdentity()->authorise('core.admin', 'com_intercom')) : ?>
 <form method="post" action="index.php?option=com_intercom&amp;task=reconciliation.run" class="mb-4"><?= HTMLHelper::_('form.token') ?><button type="submit" class="btn btn-primary" <?= ($r->config['mode'] ?? 'fake') !== 'live' ? 'disabled' : '' ?>><?= $t('RECONCILE_NOW') ?></button></form>
+<p><a class="btn btn-outline-warning" href="index.php?option=com_intercom&amp;view=poolcleanup"><?= $t('CLEANUP_TITLE') ?></a></p>
 <?php endif; ?>
 <form method="get" action="index.php" id="adminForm" name="adminForm">
 <input type="hidden" name="option" value="com_intercom"><input type="hidden" name="view" value="filters"><input type="hidden" name="task" value=""><input type="hidden" name="limitstart" value="<?= (int) $this->pagination->limitstart ?>">

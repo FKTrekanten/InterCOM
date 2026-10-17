@@ -93,7 +93,7 @@ final class Settings
             $json = $r->store->q(json_encode($config, JSON_THROW_ON_ERROR));
             $r->store->execute("UPDATE #__extensions SET params=$json WHERE element='com_intercom' AND type='component'");
             // Historical reservations remain auditable; unused manual filters are obsolete.
-            $r->store->execute('DELETE FROM #__intercom_filters WHERE draft_id IS NULL AND managed=0');
+            $r->store->execute("DELETE FROM #__intercom_filters WHERE draft_id IS NULL AND managed=0 AND reconciliation_status!='retired'");
             $r->store->audit(
                 $actor,
                 'configuration.saved',
