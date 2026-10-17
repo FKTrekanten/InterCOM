@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.28
+
+# InterCOM 0.3.28
+
+- Add administrator cleanup for permanently deleted CleverReach filters, with reviewed provider references, account/list verification, fresh absence checks and explicit permanent-removal confirmation.
+- Preserve unresolved submission evidence as Closed — delivery unverified, retire deleted filter IDs and their pool slots, and keep completed message history unchanged. Cleanup never sends email or changes CleverReach records.
+- Add expected recipient counts to both HTML and plain-text archive copies, including zero and unavailable estimates.
+- Preserve retired pool records through Options saves, block cleanup while an archive send is claimed, and preserve the current draft URL when a slow mailbox response arrives.
+- Explain missing delivery acceptance beside the send confirmation and direct the user to contact an administrator.
+- Match the mailbox status dropdown to existing controls and preload the first page of all four email tabs. Search and pagination update the list without discarding unsaved message edits.
+
+After backing up production, open InterCOM → Filters → Clean up deleted filters. Review the exact records and follow the [cleanup guide](../pool-cleanup.md). Installation does not run cleanup. No schema migration is required beyond the existing 0.3.25 migration.
+
 ## 0.3.27
 
 # InterCOM 0.3.27

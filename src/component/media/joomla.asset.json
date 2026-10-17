@@ -1,13 +1,13 @@
 {
   "$schema": "https://developer.joomla.org/schemas/json-schema/web_assets.json",
   "name": "com_intercom",
-  "version": "0.3.27",
+  "version": "0.3.28",
   "assets": [
     {
       "name": "com_intercom.app",
       "type": "style",
       "uri": "com_intercom/app.css",
-      "version": "0.3.27"
+      "version": "0.3.28"
     },
     {
       "name": "com_intercom.app",
@@ -20,13 +20,13 @@
       "attributes": {
         "type": "module"
       },
-      "version": "0.3.27"
+      "version": "0.3.28"
     },
     {
       "name": "com_intercom.admin",
       "type": "style",
       "uri": "com_intercom/admin.css",
-      "version": "0.3.27"
+      "version": "0.3.28"
     },
     {
       "name": "com_intercom.design",
@@ -38,7 +38,7 @@
       "attributes": {
         "type": "module"
       },
-      "version": "0.3.27"
+      "version": "0.3.28"
     },
     {
       "name": "com_intercom.permissions",
@@ -50,7 +50,7 @@
       "attributes": {
         "type": "module"
       },
-      "version": "0.3.27"
+      "version": "0.3.28"
     },
     {
       "name": "com_intercom.tags",
@@ -59,7 +59,7 @@
       "attributes": {
         "type": "module"
       },
-      "version": "0.3.27"
+      "version": "0.3.28"
     }
   ]
 }
